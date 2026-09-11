@@ -4,274 +4,257 @@
 
 ## Last Updated
 
-2026-09-11
+2026-09-12
 
 ## Current Phase
 
-**RESEARCH / PRODUCT DISCOVERY / PRE-IMPLEMENTATION**
+**HACKATHON MVP COMPLETE — RELEASE-CANDIDATE HARDENING / REHEARSAL**
 
-The repository collaboration workflow is established. Current effort is focused on problem/market research and evaluating an upgraded agentic engineering incident-response direction before the final architecture and individual work distribution are frozen.
+The AI Agentic Bug Router is implemented on `agent-build-core` and is being hardened for judging. Broad feature expansion is frozen. Current work is limited to regression fixes, evidence quality, safety, reproducibility, demo recovery and documentation accuracy.
 
-A recurring hourly research loop is active. Every run now begins with an A-to-Z completeness audit of the repository knowledge base, avoids duplicate/filler information, searches current public sources when useful, and updates `TEAM_BRAIN/` on `develop` only when there is a substantive gap or new finding.
+`main` remains untouched. Draft PR #1 targets `develop` and remains intentionally unmerged until explicit team approval.
 
 ## Repository State
 
 - Repository: `omghotekar01-dotcom/KURUKSHETRA-2.O`
-- Default branch: `main`
+- Stable/default branch: `main`
 - Integration branch: `develop`
-- `main` status: STABLE / MINIMAL
-- `develop` status: ACTIVE
+- Active release-candidate branch: `agent-build-core`
+- Draft integration PR: `#1` → `develop`
 - Repository visibility: PUBLIC
+- Current `agent-build-core` head before this status correction: `e743e1c22b71525f87ce5fac555ddbe0c40fceb6`
+- Latest completed push CI before this status correction: Build and test run **#791** / run ID `34644314306` — **SUCCESS**
 
-## Completed
+## Current Product
 
-- [x] GitHub repository connected and verified
-- [x] Write/admin access verified for the currently connected GitHub account
-- [x] `main` identified as stable/default branch
-- [x] `develop` integration branch created
-- [x] Team collaboration/Git workflow guide added
-- [x] Live project status tracker created
-- [x] Four dedicated team branches exist: `OM-G`, `OM-PATIL`, `NIKHIL`, `YASH`
-- [x] Initial reference project `Agentic-Bug-Router-and-Dispatcher` analyzed
-- [x] Initial 2026 competitor/current-market research completed across AI SRE, AI debugging, incident response and coding agents
-- [x] `TEAM_BRAIN/` research and prompt knowledge base initialized on `develop`
-- [x] Project-wide master AI operating prompt created
-- [x] Product strategy, competitor gap map and architecture playbook created
-- [x] Architecture research/tradeoff notes created
-- [x] Security and autonomous-action guardrail playbook created
-- [x] Agent evaluation/benchmark framework created
-- [x] Experiment/evaluation backlog created
-- [x] Reusable prompt library created
-- [x] Primary source index created
-- [x] Decision log initialized
-- [x] Recurring hourly public research/update loop configured
-- [x] A-to-Z project completeness index created
-- [x] Canonical event/constraints brief created
-- [x] Canonical project description created
-- [x] Problem/users/persona brief created
-- [x] Requirements catalog created
-- [x] Workflow/agent specification created
-- [x] RAG/incident-memory design created
-- [x] Provisional data/API/state contracts created
-- [x] Provisional full tech-stack/dependency map created
-- [x] UX/UI specification created
-- [x] Deployment/operations/fallback strategy created
-- [x] Business/startup/GTM hypothesis created
-- [x] Demo/pitch/judge-Q&A playbook created
-- [x] Risk register created
-- [x] 24-hour execution roadmap created
-- [x] Testing/QA strategy created
-- [x] Non-functional requirements created
-- [x] Incident taxonomy/test scenarios created
-- [x] Shared glossary/acronym guide created
-- [x] Consistent project-description templates created
-- [x] Claims/evidence ledger created
+The implemented product is a LIVE-FIRST, evidence-backed engineering incident-response and bounded remediation MVP.
 
-## In Progress
-
-- [ ] Continue current-market / research gap analysis only when meaningful new evidence exists
-- [ ] Re-run A-to-Z completeness audit hourly and fill real gaps without duplication
-- [ ] Capture the exact Kurukshetra problem statement and constraints
-- [ ] Decide GO / MODIFY / DROP for agentic incident-response direction against exact PS
-- [ ] Finalize product wedge and one-sentence thesis
-- [ ] Verify collaborator push/PR access from each teammate's machine
-
-## Not Yet Frozen / Not Started
-
-The following are intentionally **WAITING_FOR_PS** rather than missing:
-
-- [ ] Exact final problem statement text/ID
-- [ ] Final solution definition
-- [ ] Final target user/persona
-- [ ] Final project name/tagline
-- [ ] Final MVP definition
-- [ ] Final P0/P1/P2 feature classification
-- [ ] Final technology stack selection
-- [ ] Architecture freeze
-- [ ] Final API contract
-- [ ] Final data/database contract
-- [ ] Final agent state/contracts
-- [ ] Final repository code skeleton
-- [ ] Work distribution among 4 members
-- [ ] Implementation
-- [ ] First integration
-- [ ] Evaluation benchmark implementation
-- [ ] End-to-end testing
-- [ ] Actual measured results/claims
-- [ ] Demo recording/screenshots from working build
-- [ ] Final `develop` -> `main` release
-- [ ] Fresh clone test
-- [ ] Final submission/tag
-
-## Active Branches
+Canonical flow:
 
 ```text
-main       -> stable/default/submission branch
-develop    -> shared integration/research branch
-OM-G       -> dedicated teammate branch
-OM-PATIL   -> dedicated teammate branch
-NIKHIL     -> dedicated teammate branch
-YASH       -> dedicated teammate branch
+Incident / bug report
+→ deterministic triage + owner routing
+→ persistence + audit timeline
+→ runbook / verified-resolution retrieval
+→ live GitHub commits, files, issues, diffs and bounded source context
+→ evidence-backed RCA + next diagnostic
+→ deterministic risk policy
+→ exact no-write patch proposal
+→ explicit human APPROVE / REJECT
+→ fresh stale-state validation
+→ isolated incident-fix branch
+→ apply only the exact approved replacement
+→ deterministic validation
+→ Draft PR only when validation is green
+→ real GitHub Actions / commit-status evidence
+→ derived incident-verification evidence
+→ external human GitHub review / merge
+→ runtime or human recovery verification
+→ resolved or escalated
+→ verified resolution memory
 ```
 
-Task ownership is not yet frozen. Do not infer permanent roles solely from branch names.
+The system does **not** auto-merge, deploy production, execute arbitrary model-generated shell commands, perform destructive production actions or expose secrets.
 
-## TEAM_BRAIN Knowledge Base
+## Implemented Judge-Facing Surfaces
 
-Start at:
+- `/` / `/workspace` — AI Workspace for bug description, GitHub repository context, file attachment and investigation.
+- `/test` — Test Lab workflow chooser.
+- `/incidents` — Incident Command and incident lifecycle views.
+- `/prototype` — controlled real AutoFix proof using allowlisted broken projects and the same validator before/after.
+- `/intake` — isolated judge-supplied source/test intake with explicit trusted-test execution.
+- `/ai` — AI Reasoning Lab showing triage, RAG, repository evidence, RCA synthesis, fallback mode and policy gate.
+- `/demo` — controlled golden Judge Mode.
+- `/evidence` — live read-only GitHub evidence, ranked commits/hunks and bounded patch preview.
+- `/remediate` — explicit human approval, exact patch application, validation, Draft PR creation and CI evidence.
+- `/evaluation` — repeatable measured benchmark; no hard-coded headline accuracy.
+- `/readiness` — live Qwen/GitHub/runtime readiness and safety boundary.
+
+## Real Repair Proofs
+
+### Built-in AutoFix
+
+`/prototype` uses real allowlisted local project files and validators:
 
 ```text
-TEAM_BRAIN/README.md
-TEAM_BRAIN/A_TO_Z_INDEX.md
+Reset broken target
+→ Scan + reproduce
+→ validator FAIL
+→ grounded diagnosis
+→ exact Preview
+→ one-time Apply of exactly that reviewed proposal
+→ stale preimage check
+→ real file edit
+→ same validator rerun
+→ PASS = FIXED
+→ FAIL = rollback
 ```
 
-Major current files:
+Current repeatable target classes include authentication parsing, cart arithmetic and pagination regressions.
+
+### Judge-Supplied Intake
+
+`/intake` accepts up to 12 bounded text/code files, max 256 KB each, in an isolated temporary workspace.
+
+Default mode is `STATIC_ONLY`; uploaded code is not executed. Explicit **Trusted test execution** may run bounded Python `test_*.py` with pytest. `VERIFIED_FIXED` is claimed only for the same trusted failing test changing from FAIL before the reviewed patch to PASS after it. Static-only success is labeled `STATIC_CHECK_PASSED`, not functional recovery.
+
+## Live AI / RAG
+
+Default zero-cost reasoning path:
 
 ```text
-TEAM_BRAIN/
-├── README.md
-├── A_TO_Z_INDEX.md
-├── EVENT_AND_CONSTRAINTS.md
-├── CANONICAL_PROJECT_DESCRIPTION.md
-├── PROJECT_DESCRIPTION_TEMPLATES.md
-├── GLOSSARY_AND_ACRONYMS.md
-├── CLAIMS_AND_EVIDENCE_LEDGER.md
-├── MASTER_PROMPT.md
-├── RESEARCH_LEDGER.md
-├── SOURCES.md
-├── PRODUCT_STRATEGY.md
-├── PROBLEM_USERS_AND_PERSONAS.md
-├── COMPETITOR_GAPS.md
-├── BUSINESS_STARTUP_AND_GTM.md
-├── REQUIREMENTS_CATALOG.md
-├── ARCHITECTURE_PLAYBOOK.md
-├── ARCHITECTURE_RESEARCH.md
-├── WORKFLOW_AND_AGENT_SPEC.md
-├── DATA_API_AND_STATE_CONTRACTS.md
-├── RAG_AND_KNOWLEDGE_DESIGN.md
-├── TECH_STACK_AND_DEPENDENCIES.md
-├── UX_UI_SPEC.md
-├── NONFUNCTIONAL_REQUIREMENTS.md
-├── SECURITY_AND_GUARDRAILS.md
-├── EVALUATION_FRAMEWORK.md
-├── INCIDENT_TAXONOMY_AND_TEST_SCENARIOS.md
-├── TESTING_AND_QA.md
-├── RISK_REGISTER.md
-├── EXPERIMENT_BACKLOG.md
-├── ROADMAP_24H.md
-├── DEPLOYMENT_OPERATIONS_AND_FALLBACKS.md
-├── DEMO_PITCH_AND_JUDGE_QA.md
-├── PROMPT_LIBRARY.md
-└── DECISION_LOG.md
+Ollama localhost / qwen3:4b
+→ optional configured Gemini free-tier fallback
+→ deterministic fallback only where an explicit safe rule exists
 ```
 
-All substantial ChatGPT/Codex/Astra research and development sessions should read the index/status and relevant canonical files before proposing major changes.
+The product exposes a real model probe; configuration alone is not presented as proof of inference. Generic judge intake fails closed if a live model cannot return a valid bounded candidate and no explicit deterministic safe rule exists.
 
-## Current Product Direction (PROVISIONAL)
+RAG is intentionally bounded to curated engineering runbooks and verified resolution memory. Live GitHub evidence is kept as a separate evidence source. Retrieved text, issue text, logs, comments and repository content are treated as untrusted data, never as authorization or policy instructions.
 
-Investigating a startup-level agentic engineering incident-response system with a closed loop:
+## Evaluation Lab
+
+`/evaluation` runs backend-computed benchmark cases and exposes expected vs observed behavior. Current dimensions include:
+
+- routing accuracy;
+- retrieval hit / explicit no-match behavior;
+- RCA evidence grounding;
+- risk-policy behavior;
+- unsafe-action blocking;
+- approval-gate behavior.
+
+Any score shown by the UI is scoped to the displayed benchmark fixture set. It must not be generalized into universal production accuracy.
+
+## Remediation / Verification Policy
+
+Medium-risk repository writes remain allowlisted and human approval-gated. Approval is bound to one exact visible proposal.
+
+Current retry/idempotency protections include:
+
+- fresh proposal/state revalidation;
+- deterministic remediation identity;
+- serialized execution in the single-process MVP;
+- duplicate approval reuse;
+- deterministic branch naming;
+- already-patched branch reuse;
+- exact open Draft PR reuse;
+- stale source rejection;
+- conflicting branch/PR fail-closed behavior.
+
+Real CI/check state is converted into auditable incident-verification evidence:
+
+- real CI `FAIL` may derive failed verification and escalate;
+- `PENDING` / no checks stay inconclusive;
+- `PASS` is strong evidence for the remediation commit but does **not** auto-resolve the original runtime incident;
+- runtime/human verification remains authoritative for final recovery.
+
+## Reproducibility / Startup
+
+Implemented release hardening includes:
+
+- Python target via `.python-version`;
+- Node target via `.nvmrc`;
+- pinned direct backend dependencies;
+- committed npm lockfile;
+- frontend bootstrap with `npm ci`;
+- Windows and Unix/macOS startup paths;
+- health gates before READY;
+- stale/reused Windows PID safety handling;
+- Windows clean-checkout bootstrap test;
+- clean-clone acceptance suite;
+- release-contract regression checks.
+
+## Latest Confirmed CI
+
+Build and test run **#791** / run ID `34644314306` completed successfully for head:
 
 ```text
-Incident
-→ Understand / route / prioritize
-→ Gather code/history/runbook evidence
-→ Rank root-cause hypotheses
-→ Generate remediation
-→ Score risk/confidence
-→ Human approval when required
-→ Bounded action (GitHub/notification/etc.)
-→ Verification
-→ Incident memory / learning
+e743e1c22b71525f87ce5fac555ddbe0c40fceb6
 ```
 
-Potential differentiators currently under evaluation:
+Confirmed workflow jobs:
 
-- evidence-backed multi-hypothesis RCA;
-- structured incident memory;
-- risk-aware action gate;
-- remediation verification loop;
-- GitHub-native lightweight workflow;
-- visible evaluation/regression lab.
+```text
+backend             SUCCESS
+frontend            SUCCESS
+windows-clean-clone SUCCESS
+```
 
-This direction is not final until aligned with the exact hackathon problem statement.
+That run includes backend compilation/tests, locked frontend installation/build, Windows launcher checks, stale/reused PID regression protection, strict preflight, bootstrap, clean-clone acceptance and the release contract.
 
-## Architecture
+Do not invent new test counts or benchmark percentages unless a current reproducible run provides them.
 
-**PROVISIONAL RESEARCH ARCHITECTURE ONLY — NOT FROZEN.**
+## Safety / Truth Boundaries
 
-See:
-- `TEAM_BRAIN/ARCHITECTURE_PLAYBOOK.md`
-- `TEAM_BRAIN/ARCHITECTURE_RESEARCH.md`
-- `TEAM_BRAIN/WORKFLOW_AND_AGENT_SPEC.md`
-- `TEAM_BRAIN/SECURITY_AND_GUARDRAILS.md`
-- `TEAM_BRAIN/EVALUATION_FRAMEWORK.md`
+- `.env` is untracked; secrets must never be committed or rendered into ordinary evidence.
+- Repository investigation is read-only until explicit approval.
+- Repository writes are allowlisted, exact-proposal-bound and review-gated.
+- Prompt/repository/log content is untrusted evidence and cannot redefine policy.
+- Uploaded judge code does not run unless explicitly trusted.
+- Stale or ambiguous state fails closed.
+- Failed repair validation rolls back where applicable.
+- No in-product protected-branch merge endpoint exists.
+- No auto-deploy or production mutation exists.
+- Commit/hunk correlation is investigation guidance, not causal proof.
+- CI PASS is evidence, not proof of production recovery.
+- Simulation/demo mode is fallback-only and must remain visibly labeled.
 
-## Technology Stack
+## Current Work Policy
 
-**PROVISIONAL — NOT FROZEN.**
+Feature freeze is active. Priority order for any remaining work:
 
-Current likely direction:
-- React + Vite + TypeScript;
-- Tailwind/shadcn;
-- FastAPI + Python + Pydantic + SQLAlchemy;
-- PostgreSQL with SQLite/demo fallback;
-- LangGraph;
-- Groq/appropriate hosted LLM;
-- Sentence Transformers + FAISS/simple local similarity;
-- GitHub API;
-- MCP/direct integrations;
-- Pytest + frontend/E2E tests.
+1. fix verified regressions first;
+2. protect safety / no-auto-merge boundaries;
+3. improve evidence quality and recovery behavior;
+4. keep CI, lockfiles, startup and clean-clone acceptance green;
+5. rehearse the judge paths on the actual hackathon laptop;
+6. update screenshots/docs only from real product states;
+7. avoid broad late-stage architecture changes.
 
-See `TEAM_BRAIN/TECH_STACK_AND_DEPENDENCIES.md`.
+## Final Laptop Rehearsal
 
-## API Contract
+```text
+pull latest agent-build-core
+→ verify.bat
+→ setup-local-ai.bat
+→ start.bat
+→ confirm LIVE LOCAL QWEN only if the real probe succeeds
+→ /test choose the judge-appropriate proof path
+→ /prototype Reset → Scan FAIL → Preview → Apply → same validator PASS
+→ /intake attach trusted source + failing test → RAG/Qwen → Preview → Apply → VERIFIED_FIXED
+→ /ai run one known case + one safe-stop/no-match case
+→ /evidence inspect real repository evidence
+→ /remediate show exact proposal → approval → validation → Draft PR/CI boundary; do not merge
+→ /evaluation show measured benchmark evidence
+→ /readiness confirm integrations before judging
+```
 
-**PROVISIONAL SHAPES DOCUMENTED — FINAL CONTRACT WAITING FOR PS.**
+If an external integration fails, show the failure honestly and use the deterministic local proof path rather than fabricating success.
 
-See `TEAM_BRAIN/DATA_API_AND_STATE_CONTRACTS.md`.
+## Canonical Handoff Reading
 
-## Database / Data Contract
+Before substantial changes read, in order:
 
-**PROVISIONAL SHAPES DOCUMENTED — FINAL CONTRACT WAITING FOR PS.**
+1. `TEAM_BRAIN/README.md`
+2. `TEAM_BRAIN/A_TO_Z_INDEX.md`
+3. this file
+4. `TEAM_BRAIN/EVENT_AND_CONSTRAINTS.md`
+5. `TEAM_BRAIN/CANONICAL_PROJECT_DESCRIPTION.md`
+6. `TEAM_BRAIN/DECISION_LOG.md`
+7. `TEAM_BRAIN/SECURITY_AND_GUARDRAILS.md`
+8. `TEAM_BRAIN/EVALUATION_FRAMEWORK.md`
+9. relevant implementation docs and current code
+10. latest branch / PR / CI state
 
-See `TEAM_BRAIN/DATA_API_AND_STATE_CONTRACTS.md` and `TEAM_BRAIN/RAG_AND_KNOWLEDGE_DESIGN.md`.
+For detailed current implementation truth, use `docs/IMPLEMENTATION_PROGRESS.md` and `docs/PATCH_REMEDIATION_MILESTONE.md`.
 
-## Known Risks / Blockers
+## Known Future Work After Hackathon
 
-1. Exact problem statement must determine final product scope.
-2. Collaborator push/PR tests should be completed from all teammate machines.
-3. Repository is public: nothing in `develop` or `TEAM_BRAIN/` is secret or hidden from someone who intentionally browses branches.
-4. The AI incident-response market already contains strong products. Generic “AI bug router” positioning is insufficient.
-5. Overbuilding observability infrastructure or autonomous production actions would be a poor 24-hour tradeoff.
-6. External API/network dependence requires demo-mode fallbacks.
-7. Large volumes of generated documentation can become counterproductive; research additions must remain deduplicated, source-backed and implementation-relevant.
-8. Any claim about accuracy, time saved or success rate remains invalid until measured and entered into `CLAIMS_AND_EVIDENCE_LEDGER.md`.
+- move in-process review/session/idempotency state to shared transactional storage for multi-worker deployment;
+- replace explicit trusted uploaded-code execution with a hardened hostile-code sandbox if that scope is pursued;
+- fully hash-lock transitive Python dependencies;
+- expand CODEOWNERS pattern support;
+- strengthen DLP/prompt-injection defenses beyond current defense-in-depth controls;
+- add production-grade observability and external deployment controls only behind separate high-risk authorization systems.
 
-## Handoff Instructions for ChatGPT / Codex / Astra
-
-Before making substantial changes:
-
-1. Read `TEAM_BRAIN/README.md`.
-2. Read `TEAM_BRAIN/A_TO_Z_INDEX.md`.
-3. Read this `docs/PROJECT_STATUS.md`.
-4. Read `TEAM_BRAIN/EVENT_AND_CONSTRAINTS.md`.
-5. Read `TEAM_BRAIN/CANONICAL_PROJECT_DESCRIPTION.md`.
-6. Read `TEAM_BRAIN/DECISION_LOG.md`.
-7. Read relevant strategy/research/prompt files.
-8. For autonomous actions/code changes, read `TEAM_BRAIN/SECURITY_AND_GUARDRAILS.md`.
-9. For model/agent changes, read `TEAM_BRAIN/EVALUATION_FRAMEWORK.md` and `TESTING_AND_QA.md`.
-10. Inspect current branches, code and latest commits.
-11. Never overwrite working modules or casually restructure the repository.
-12. Work on the correct dedicated/feature branch.
-13. Explicitly flag breaking API/schema changes.
-14. Update this status and/or the A-to-Z index/decision log after meaningful milestones.
-
-## Next Required Actions
-
-1. Capture the exact PS.
-2. Run the master PS evaluation and decide GO / MODIFY / DROP.
-3. Replace provisional project description/persona/requirements with PS-specific facts.
-4. Freeze product thesis and P0 golden path.
-5. Freeze architecture/contracts/stack.
-6. Assign exact work among four members and record ownership.
-7. Create final code skeleton on `develop`, sync teammate branches, and begin parallel implementation.
+Branch promotion remains manual. `main` remains untouched.
