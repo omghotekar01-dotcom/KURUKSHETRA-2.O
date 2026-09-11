@@ -20,12 +20,15 @@ def main() -> int:
         ".github/workflows/build.yml",
         "frontend/package-lock.json",
         "frontend/src/BugWorkspacePage.tsx",
+        "frontend/src/AppNavigation.tsx",
         "frontend/src/LoadingShimmer.tsx",
         "frontend/src/bug-workspace.css",
         "frontend/src/workspace-depth.css",
         "frontend/src/apple-polish.css",
         "frontend/src/dark-polish.css",
         "frontend/src/busy-polish.css",
+        "frontend/src/purple-product-system.css",
+        "frontend/src/async-state-polish.css",
         "frontend/src/JudgeDemoPage.tsx",
         "frontend/src/judge-demo.css",
         "frontend/src/JudgeIntakePage.tsx",
@@ -75,8 +78,19 @@ def main() -> int:
         "light Apple-style polish is wired": "./apple-polish.css" in main_tsx,
         "premium dark polish is wired": "./dark-polish.css" in main_tsx,
         "global operation shimmer is wired": "./busy-polish.css" in main_tsx,
+        "white and purple product system is wired": "./purple-product-system.css" in main_tsx,
+        "shared async loading polish is wired": "./async-state-polish.css" in main_tsx,
     }
     for label, condition in style_contracts.items():
+        passed &= check(condition, label)
+
+    navigation_page = (ROOT / "frontend" / "src" / "AppNavigation.tsx").read_text(encoding="utf-8")
+    navigation_contracts = {
+        "desktop navigation can collapse": "global-nav-collapse" in navigation_page and "navCollapsed" in navigation_page,
+        "collapsed navigation persists locally": "bug-router-nav-collapsed" in navigation_page,
+        "navigation keeps human authority visible": "Human authority" in navigation_page,
+    }
+    for label, condition in navigation_contracts.items():
         passed &= check(condition, label)
 
     workspace_page = (ROOT / "frontend" / "src" / "BugWorkspacePage.tsx").read_text(encoding="utf-8")
@@ -122,6 +136,9 @@ def main() -> int:
     }
     for label, condition in readiness_contracts.items():
         passed &= check(condition, label)
+
+    evaluation_page = (ROOT / "frontend" / "src" / "EvaluationLabPage.tsx").read_text(encoding="utf-8")
+    passed &= check("LoadingShimmer" in evaluation_page and "measured benchmark" in evaluation_page.lower(), "Evaluation Lab shows truthful measured loading placeholders")
 
     workspace_router = (ROOT / "backend" / "app" / "routers" / "workspace.py").read_text(encoding="utf-8")
     backend_intake_contracts = {
