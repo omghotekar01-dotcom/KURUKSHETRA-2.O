@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import os
 import re
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -14,6 +17,7 @@ from app.schemas.incident import (
     RepositoryDiffHunkEvidence,
     RepositoryFileChange,
     RepositoryIssueEvidence,
+    RepositorySourceLine,
 )
 from app.services.github_client import GITHUB_API, github_headers, github_token, normalize_repo, repository_allowed
 
@@ -143,6 +147,64 @@ def _parse_patch_hunks(record: IncidentRecord, filename: str, patch: str) -> lis
     return hunks[:4]
 
 
+def _new_hunk_start(header: str) -> int | None:
+    match = re.search(r"\+(\d+)(?:,\d+)?", header)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:  # pragma: no cover - regex guarantees digits
+        return None
+
+
+def _fetch_source_context(
+    client: httpx.Client,
+    repository: str,
+    commit_sha: str,
+    hunk: RepositoryDiffHunkEvidence,
+) -> list[RepositorySourceLine]:
+    start_line = _new_hunk_start(hunk.header)
+    if start_line is None:
+        return []
+
+    encoded_path = quote(hunk.filename, safe="/")
+    try:
+        response = client.get(
+            f"/repos/{repository}/contents/{encoded_path}",
+            params={"ref": commit_sha},
+        )
+        if response.status_code != 200:
+            return []
+        payload = response.json()
+    except (httpx.HTTPError, ValueError):
+        return []
+
+    if payload.get("type") != "file" or payload.get("encoding") != "base64" or not payload.get("content"):
+        return []
+
+    try:
+        source = base64.b64decode(payload["content"], validate=False).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError, ValueError):
+        return []
+
+    source_lines = source.splitlines()
+    if not source_lines:
+        return []
+
+    window_start = max(1, start_line - 5)
+    window_end = min(len(source_lines), start_line + max(10, len(hunk.added_lines) + 6))
+    changed_span_end = start_line + max(1, len(hunk.added_lines)) - 1
+
+    return [
+        RepositorySourceLine(
+            line_number=line_number,
+            content=source_lines[line_number - 1][:320],
+            in_hunk=start_line <= line_number <= changed_span_end,
+        )
+        for line_number in range(window_start, window_end + 1)
+    ]
+
+
 def _correlation_score(
     record: IncidentRecord,
     message: str,
@@ -249,7 +311,17 @@ def collect_repository_context(
                 )
             )
 
-    commits.sort(key=lambda commit: (commit.correlation_score, commit.authored_at or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+        commits.sort(
+            key=lambda commit: (commit.correlation_score, commit.authored_at or datetime.min.replace(tzinfo=timezone.utc)),
+            reverse=True,
+        )
+
+        # Source reads are deliberately bounded: only the two highest-ranked hunks
+        # from the highest-ranked commit receive surrounding source context.
+        if commits:
+            top_commit = commits[0]
+            for hunk in top_commit.suspicious_hunks[:2]:
+                hunk.source_context = _fetch_source_context(client, repository, top_commit.sha, hunk)
 
     open_issues: list[RepositoryIssueEvidence] = []
     for item in issues_payload:
@@ -269,8 +341,9 @@ def collect_repository_context(
 
     notes = [
         "Commit and diff-hunk correlation are deterministic relevance signals, not proof of causation.",
-        "Repository context is read-only; no GitHub resource is modified during investigation.",
-        "GitHub may omit patch text for binary files or very large diffs; missing patch text is treated as unavailable evidence, never invented.",
+        "Repository context and source-context collection are read-only; no GitHub resource is modified during investigation.",
+        "Source context is bounded to the highest-ranked hunks to control latency and API usage.",
+        "GitHub may omit patch/content data for binary or very large files; unavailable evidence is never invented.",
     ]
     if not commits:
         notes.append("No recent commits were returned by GitHub.")
