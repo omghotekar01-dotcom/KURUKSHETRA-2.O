@@ -25,6 +25,53 @@ def test_autofix_routes_are_mounted() -> None:
     assert any(item["id"] == TARGET_ID for item in payload)
 
 
+def test_apply_requires_exact_preview_first(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
+    reset_target(TARGET_ID)
+
+    response = client.post(f"/api/v1/autofix/{TARGET_ID}/apply")
+
+    assert response.status_code == 409
+    assert "Preview the exact fix" in response.json()["detail"]
+
+
+def test_preview_then_apply_uses_reviewed_proposal(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
+    reset_target(TARGET_ID)
+
+    preview = client.post(f"/api/v1/autofix/{TARGET_ID}/proposal")
+    assert preview.status_code == 200
+    reviewed = preview.json()
+    assert reviewed["strategy"] == "DETERMINISTIC_SAFE_RULE"
+    assert reviewed["writes_files"] is False
+
+    applied = client.post(f"/api/v1/autofix/{TARGET_ID}/apply")
+    assert applied.status_code == 200
+    result = applied.json()
+    assert result["final_status"] == "FIXED"
+    assert result["proposal"]["file_path"] == reviewed["file_path"]
+    assert result["proposal"]["before"] == reviewed["before"]
+    assert result["proposal"]["after"] == reviewed["after"]
+    assert result["proposal"]["diff"] == reviewed["diff"]
+    assert any("exact previously previewed proposal" in item for item in result["audit"])
+
+    reset_target(TARGET_ID)
+
+
+def test_reset_invalidates_reviewed_proposal(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
+    client.post(f"/api/v1/autofix/{TARGET_ID}/reset")
+    preview = client.post(f"/api/v1/autofix/{TARGET_ID}/proposal")
+    assert preview.status_code == 200
+
+    reset = client.post(f"/api/v1/autofix/{TARGET_ID}/reset")
+    assert reset.status_code == 200
+
+    applied = client.post(f"/api/v1/autofix/{TARGET_ID}/apply")
+    assert applied.status_code == 409
+    assert "No reviewed proposal" in applied.json()["detail"]
+
+
 def test_real_demo_target_fails_then_is_fixed_and_proven(monkeypatch) -> None:
     monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
     reset = reset_target(TARGET_ID)
