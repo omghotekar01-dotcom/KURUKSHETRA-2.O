@@ -7,7 +7,7 @@ Purpose: verify that the project is useful as an actual bounded engineering work
 
 **The supported hackathon workflow is real-use functional for its declared scope.**
 
-It can accept realistic software incidents, route them to a technical area, optionally map those areas to real organization team names, investigate an allowlisted GitHub repository, use stack-trace/file-path clues to prioritize changed code, surface repository ownership hints from CODEOWNERS, combine repository evidence with verified historical knowledge, prepare only sufficiently grounded exact patch candidates, require explicit human approval, validate supported changes on an isolated branch, create a Draft PR only after green checks, and read real GitHub CI state afterward.
+It can accept realistic software incidents, route them to a technical area, optionally map those areas to real organization team names, investigate an allowlisted GitHub repository, use stack-trace/file-path clues to prioritize changed code, surface repository ownership hints from CODEOWNERS, combine repository evidence with verified historical knowledge, prepare only sufficiently grounded exact patch candidates, require explicit human approval, validate supported changes on an isolated branch, create a Draft PR only after green checks, read real GitHub CI state afterward, and derive canonical verification evidence from the exact remediation commit/check state.
 
 This is deliberately a **bounded incident-response assistant**, not a universal autonomous bug fixer. It does not claim to synthesize the correct semantic fix for every programming language or incident.
 
@@ -81,6 +81,16 @@ docs/CODEOWNERS
 
 The configured component-to-team mapping remains the fallback when no matching CODEOWNERS rule exists.
 
+### 7. CI verification is now incident evidence, not just a badge
+
+The CI verification endpoint records canonical evidence tied to the exact repository, remediation commit, Draft PR and observed checks.
+
+- Real CI `FAIL` derives a failed incident-verification outcome and escalates.
+- `PENDING` / `NO_CHECKS` produces inconclusive evidence instead of success.
+- CI `PASS` is kept as strong evidence but does **not** auto-resolve the original incident; runtime/human verification is still required.
+
+This makes the workflow useful operationally because CI state becomes auditable incident evidence without pretending that green tests prove production recovery.
+
 ## Realistic regression scenarios
 
 The automated suite now includes realistic incident language rather than only idealized fixture phrases:
@@ -99,23 +109,25 @@ The automated suite now includes realistic incident language rather than only id
 | Duplicate exact approval | existing remediation state reused rather than duplicated |
 | Missing GitHub auth for a write | explicit `AUTH_REQUIRED`; no fake success |
 | No CI checks | `NO_CHECKS`; never converted into PASS |
+| CI failure | incident verification derives FAIL and escalates |
+| CI pass | retained as evidence; runtime verification still required |
 
 ## Latest audited executable proof point
 
 Executable code head:
 
-`d29d52c6b736d256bb7eb1f819726e7491f06682`
+`18112b436803f747a23d60bf5ce73c952f9523a7`
 
 GitHub Actions:
 
-- run **#400**
-- run ID `34597213875`
+- run **#409**
+- run ID `34597412643`
 
 Confirmed results:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         70 passed, 0 failures
+Backend tests:                         73 passed, 0 failures
 Frontend locked install:               PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax:               PASS
@@ -126,7 +138,7 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The Windows job performs a fresh checkout/bootstrap before acceptance, so the proof is not dependent on a developer's existing local node_modules or Python environment.
+The Windows job performs a fresh checkout/bootstrap before acceptance, so the proof is not dependent on a developer's existing local `node_modules` or Python environment.
 
 ## What “actually useful” means for this release
 
@@ -146,6 +158,7 @@ bug report + logs + repo
 → deterministic validation
 → Draft PR
 → real CI verification
+→ derived verification evidence
 → human runtime verification
 → verified-resolution memory
 ```
