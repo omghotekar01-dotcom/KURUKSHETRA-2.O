@@ -46,8 +46,17 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - RCA identifies the exact file/hunk to inspect next without declaring it faulty.
 - For the top two hunks of the top-ranked commit, the backend performs bounded read-only source retrieval at that exact commit SHA and returns line-numbered surrounding context.
 - Binary/very-large/missing patch or source data remains explicitly unavailable; nothing is invented.
-- Dedicated `/evidence` UI provides a judge/operator-friendly live evidence lab with correlated commits, changed files, ranked hunks, removed/added lines, matched symptom terms, bounded source context and real GitHub links.
-- The main application now exposes a one-click `Live Evidence Lab` shortcut.
+- Dedicated `/evidence` UI provides correlated commits, changed files, ranked hunks, removed/added lines, matched symptom terms, bounded source context and real GitHub links.
+
+### Exact bounded patch proposal
+- Added typed `PatchProposalRequest` and `PatchProposal` contracts.
+- Added `POST /api/v1/incidents/{incident_id}/patch-proposal`.
+- Proposal generation re-validates the selected commit/hunk against fresh live GitHub evidence.
+- The current milestone prepares a conservative `REVERT_SUSPICIOUS_HUNK` candidate only when the exact added-line sequence is still present in bounded source context.
+- If evidence is stale, source context is missing or the selected hunk cannot be replaced exactly, proposal generation fails closed with `409` rather than inventing a patch.
+- Each proposal includes repository/base commit, exact file, line start, current lines, proposed replacement, diff preview, rationale, confidence, verification commands and explicit warnings.
+- Proposal creation records an auditable `PATCH_PROPOSAL` event but performs **no repository write**.
+- Evidence Lab now exposes `Prepare patch proposal` on eligible hunks and renders a dedicated review surface with current/proposed lines, diff preview, confidence, required checks and a prominent `NO REPOSITORY WRITE` guardrail.
 
 ### Human approval and real bounded GitHub action
 - Explicit `APPROVE` / `REJECT` contracts tied to the exact proposed action.
@@ -71,21 +80,21 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 
 ### Continuous integration
 - GitHub Actions compiles/tests backend and builds the TypeScript/Vite frontend on every branch/PR update.
-- CI has caught real regressions during development, including Python import path, TypeScript resolver, stale policy expectation, icon export and code-tokenization issues; regressions were fixed before handoff.
+- CI has caught real regressions during development and they have been fixed before handoff.
 
 ## Latest confirmed validation
 
-GitHub Actions run #134 on head `e30cc1f9667db89f7a57514ac70bd692e0520e72` is fully green:
+GitHub Actions run #150 on head `a643a31016dcb68261168bab6686171ad2d78dbc` completed successfully:
 
 ```text
 Backend compile: PASS
-Backend tests:   29 passed, 2 dependency deprecation warnings, 0 failures
+Backend tests:   32 passed, 2 dependency deprecation warnings, 0 failures
 Frontend install: PASS
 Frontend TypeScript/Vite production build: PASS
 Overall workflow: SUCCESS
 ```
 
-Confirmed coverage includes triage, risk policy, SQLite persistence, historical retrieval, RCA/remediation, approval/rejection, live GitHub issue action contract, missing-auth fail-closed behavior, verification/resolution memory, repository allowlist enforcement, live GitHub repository context, real patch parsing, suspicious-hunk ranking, code-aware symptom matching, bounded source context, RCA evidence grounding and frontend production build.
+The new coverage includes exact/read-only patch proposal generation, stale-source rejection, proposal API/audit behavior and the Evidence Lab production build in addition to the existing triage, persistence, retrieval, RCA, repository evidence, diff/hunk/source-context, approval, GitHub issue, verification and memory coverage.
 
 ## Current live MVP path
 
@@ -98,9 +107,10 @@ Incident + repository
 → Real ranked diff hunks
 → Bounded source context at exact commit
 → Evidence-backed RCA
+→ Exact bounded patch proposal (NO WRITE)
+→ Human review
 → Remediation + deterministic risk gate
-→ Human approval
-→ Real allowlisted GitHub issue creation
+→ Approved bounded external action
 → Verification
 → Resolved / Escalated
 → Verified resolution memory
@@ -121,8 +131,8 @@ Incident + repository
 11. ~~Live GitHub repository metadata/commit/file/issue investigation.~~
 12. ~~Real diff parsing + suspicious-hunk ranking + RCA grounding.~~
 13. ~~Operator-grade Evidence Lab + bounded source-context inspection.~~
-14. Add an exact bounded patch proposal that is reviewable before any write.
-15. After explicit approval only: create isolated fix branch, apply approved patch and run tests/build.
+14. ~~Exact bounded patch proposal reviewable before any repository write.~~
+15. After explicit proposal approval only: create isolated fix branch, apply only the approved patch and run tests/build.
 16. Create a DRAFT PR only if checks pass; never auto-merge.
 17. Derive verification from real test/CI results.
 18. Add evaluation runner + judge-facing scorecard.
@@ -130,23 +140,25 @@ Incident + repository
 
 ## Next highest-value milestone
 
-Patch proposal without silent mutation:
+Approval-gated repository mutation:
 
 ```text
-Live incident
-→ ranked commit/hunk/source context
-→ prepare smallest exact patch proposal
-→ show before/after diff + rationale + confidence + verification commands
-→ human approves or rejects exact proposal
-→ no branch/file write before approval
+Reviewed patch proposal
+→ explicit APPROVE / REJECT of the exact proposal
+→ revalidate repository/base commit/file contents
+→ create isolated incident fix branch
+→ apply only the approved exact replacement
+→ run deterministic backend/frontend checks
+→ if checks fail: stop and surface failure
+→ if checks pass: create DRAFT PR only
+→ never auto-merge or deploy
 ```
-
-The following milestone will take an approved proposal, create an isolated fix branch, apply only that approved change, run deterministic checks and create a DRAFT PR only when checks pass. Automatic merge or production deployment is explicitly out of scope.
 
 ## Known implementation risks
 
 - Exact hackathon PS requirements override generic assumptions if they differ from this direction.
 - Commit/hunk correlation is heuristic investigation guidance, not causal proof.
+- The current patch strategy is a conservative hunk-revert candidate, not a guarantee of the best semantic fix.
 - GitHub API rate limits/network availability may affect live evidence; emergency fallback remains available.
 - GitHub may omit patch/content data for binary or large files; unavailable evidence remains unavailable.
 - Real integrations must never silently degrade to fake success.
