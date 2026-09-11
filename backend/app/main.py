@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -35,15 +37,34 @@ from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
 from app.services.triage import triage_incident
 
+
+def _configured_cors_origins() -> list[str]:
+    configured = {
+        origin.strip().rstrip("/")
+        for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    }
+    if os.getenv("APP_ENV", "development").strip().lower() != "production":
+        configured.update({"http://localhost:5173", "http://127.0.0.1:5173"})
+    return sorted(configured)
+
+
+def _local_origin_regex() -> str | None:
+    if os.getenv("APP_ENV", "development").strip().lower() == "production":
+        return None
+    return r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+
+
 app = FastAPI(
-    title="Kurukshetra Incident Command API",
-    version="0.11.0",
+    title="AI Agentic Bug Router API",
+    version="0.12.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_configured_cors_origins(),
+    allow_origin_regex=_local_origin_regex(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
