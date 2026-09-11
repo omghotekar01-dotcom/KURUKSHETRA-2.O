@@ -31,6 +31,8 @@ def main() -> int:
         "frontend/src/busy-polish.css",
         "frontend/src/purple-product-system.css",
         "frontend/src/async-state-polish.css",
+        "frontend/src/incident-polish.css",
+        "frontend/src/merge-gate.css",
         "frontend/src/JudgeDemoPage.tsx",
         "frontend/src/judge-demo.css",
         "frontend/src/JudgeIntakePage.tsx",
@@ -41,10 +43,12 @@ def main() -> int:
         "frontend/src/PatchRemediationPage.tsx",
         "backend/app/services/workspace_intake.py",
         "backend/app/services/model_runtime.py",
+        "backend/app/services/pull_request_merge.py",
         "backend/tests/test_workspace_intake.py",
         "backend/tests/test_model_runtime_probe.py",
         "backend/tests/test_github_write_readiness.py",
         "backend/tests/test_readiness_integrations.py",
+        "backend/tests/test_pull_request_merge.py",
         "docs/AI_WORKSPACE_UX.md",
         "docs/JUDGE_DEMO_RUNBOOK.md",
         "docs/JUDGE_SUPPLIED_INTAKE.md",
@@ -84,6 +88,8 @@ def main() -> int:
         "global operation shimmer is wired": "./busy-polish.css" in main_tsx,
         "white and purple product system is wired": "./purple-product-system.css" in main_tsx,
         "shared async loading polish is wired": "./async-state-polish.css" in main_tsx,
+        "Incident Command dense dashboard polish is wired": "./incident-polish.css" in main_tsx,
+        "final human merge gate styling is wired": "./merge-gate.css" in main_tsx,
     }
     for label, condition in style_contracts.items():
         passed &= check(condition, label)
@@ -142,6 +148,15 @@ def main() -> int:
     for label, condition in intake_contracts.items():
         passed &= check(condition, label)
 
+    remediation_page = (ROOT / "frontend" / "src" / "PatchRemediationPage.tsx").read_text(encoding="utf-8")
+    remediation_contracts = {
+        "Remediation uses truthful loading shimmer": "LoadingShimmer" in remediation_page,
+        "merge stays behind a second explicit human gate": "Final human merge gate" in remediation_page and "Type <b>MERGE</b>" in remediation_page,
+        "merge UI calls only explicit patch-merge endpoint": "/patch-merge" in remediation_page,
+    }
+    for label, condition in remediation_contracts.items():
+        passed &= check(condition, label)
+
     readiness_page = (ROOT / "frontend" / "src" / "ReadinessPage.tsx").read_text(encoding="utf-8")
     readiness_contracts = {
         "Readiness performs active no-write integration probes": "probe_integrations=true" in readiness_page,
@@ -163,6 +178,18 @@ def main() -> int:
         "Backend exposes one-time intake apply": '/intake/{session_id}/apply' in workspace_router,
     }
     for label, condition in backend_intake_contracts.items():
+        passed &= check(condition, label)
+
+    patch_router = (ROOT / "backend" / "app" / "routers" / "patches.py").read_text(encoding="utf-8")
+    merge_service = (ROOT / "backend" / "app" / "services" / "pull_request_merge.py").read_text(encoding="utf-8")
+    merge_contracts = {
+        "backend exposes explicit human merge endpoint": '/patch-merge' in patch_router,
+        "merge is never triggered by CI automatically": "Second explicit human gate" in patch_router and "confirmation" in patch_router,
+        "merge refreshes real CI before write": "verify_patch_ci" in merge_service and 'verification.status != "PASS"' in merge_service,
+        "merge rejects stale PR head SHA": "_require_matching_open_pr" in merge_service and "expected_commit_sha" in merge_service,
+        "merge keeps runtime verification required": "runtime_verification_required=True" in merge_service,
+    }
+    for label, condition in merge_contracts.items():
         passed &= check(condition, label)
 
     model_runtime = (ROOT / "backend" / "app" / "services" / "model_runtime.py").read_text(encoding="utf-8")
