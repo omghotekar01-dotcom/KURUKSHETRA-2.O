@@ -30,6 +30,7 @@ import './autofix-prototype.css'
 import './autofix-strategy.css'
 import './judge-intake.css'
 import './bug-workspace.css'
+import './workspace-depth.css'
 import './apple-polish.css'
 import './busy-polish.css'
 
