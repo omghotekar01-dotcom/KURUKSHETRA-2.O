@@ -12,6 +12,7 @@ from app.schemas.incident import (
     IncidentStatus,
     RepositoryCommitEvidence,
     RepositoryContext,
+    RepositoryDiffHunkEvidence,
     RepositoryFileChange,
     Severity,
     TriageResult,
@@ -38,7 +39,7 @@ def _record() -> IncidentRecord:
             severity=Severity.high,
             confidence=0.9,
             summary="Authentication regression",
-            signals=["jwt", "401"],
+            signals=["jwt", "401", "signature"],
         ),
         timeline=[],
     )
@@ -63,7 +64,14 @@ def test_collect_repository_context_uses_live_github_payloads(monkeypatch) -> No
                     "author": {"name": "Engineer", "date": "2026-09-11T08:00:00Z"},
                 },
                 "files": [
-                    {"filename": "backend/auth/jwt.py", "status": "modified", "additions": 8, "deletions": 2, "changes": 10}
+                    {
+                        "filename": "backend/auth/jwt.py",
+                        "status": "modified",
+                        "additions": 8,
+                        "deletions": 2,
+                        "changes": 10,
+                        "patch": "@@ -41,6 +41,8 @@ def verify_token(token):\n-    verify_signature(token, old_key)\n+    verify_signature(token, jwt_signing_key)\n+    validate_jwt_claims(token)\n",
+                    }
                 ],
             }
         if path.endswith("/commits/9999999999999999"):
@@ -75,7 +83,14 @@ def test_collect_repository_context_uses_live_github_payloads(monkeypatch) -> No
                     "author": {"name": "Engineer", "date": "2026-09-11T07:00:00Z"},
                 },
                 "files": [
-                    {"filename": "README.md", "status": "modified", "additions": 2, "deletions": 0, "changes": 2}
+                    {
+                        "filename": "README.md",
+                        "status": "modified",
+                        "additions": 2,
+                        "deletions": 0,
+                        "changes": 2,
+                        "patch": "@@ -1,2 +1,3 @@\n # Project\n+Documentation refresh\n",
+                    }
                 ],
             }
         if path.endswith("/issues"):
@@ -93,6 +108,10 @@ def test_collect_repository_context_uses_live_github_payloads(monkeypatch) -> No
     assert context.commits[0].short_sha == "abcdef1"
     assert context.commits[0].correlation_score > context.commits[1].correlation_score
     assert context.commits[0].files[0].filename == "backend/auth/jwt.py"
+    assert context.commits[0].suspicious_hunks
+    assert context.commits[0].suspicious_hunks[0].filename == "backend/auth/jwt.py"
+    assert "jwt" in context.commits[0].suspicious_hunks[0].matched_terms
+    assert context.commits[0].suspicious_hunks[0].correlation_score > 0
     assert len(context.open_issues) == 1
     assert context.open_issues[0].number == 12
 
@@ -137,6 +156,16 @@ def test_analyze_includes_repository_evidence_in_api_response(tmp_path: Path, mo
                         changes=10,
                     )
                 ],
+                suspicious_hunks=[
+                    RepositoryDiffHunkEvidence(
+                        filename="backend/auth/jwt.py",
+                        header="@@ -41,6 +41,8 @@ def verify_token(token)",
+                        added_lines=["verify_signature(token, jwt_signing_key)"],
+                        removed_lines=["verify_signature(token, old_key)"],
+                        matched_terms=["jwt", "signature"],
+                        correlation_score=0.8,
+                    )
+                ],
             )
         ],
         open_issues=[],
@@ -160,7 +189,8 @@ def test_analyze_includes_repository_evidence_in_api_response(tmp_path: Path, mo
     payload = response.json()
     assert payload["repository_context"]["source"] == "github-live"
     assert "GH-COMMIT-abcdef1" in payload["hypotheses"][0]["evidence_ids"]
-    assert "Live GitHub evidence" in payload["hypotheses"][0]["rationale"]
+    assert any(item.startswith("GH-HUNK-abcdef1") for item in payload["hypotheses"][0]["evidence_ids"])
+    assert "live diff hunk" in payload["hypotheses"][0]["rationale"].lower()
 
     record = client.get(f"/api/v1/incidents/{created['id']}").json()
     stages = [event["stage"] for event in record["timeline"]]
