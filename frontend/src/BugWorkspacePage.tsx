@@ -240,14 +240,22 @@ export default function BugWorkspacePage() {
     setBusy('integrations')
     setError('')
     try {
-      const [ready, modelProbe, model] = await Promise.all([
+      const [ready, model] = await Promise.all([
         api<Readiness>('/api/v1/evaluation/readiness?probe_integrations=true'),
-        api<ModelProbe>('/api/v1/autofix/model-runtime/probe', { method: 'POST' }),
         api<ModelRuntime>('/api/v1/autofix/model-runtime'),
       ])
       setReadiness(ready)
-      setProbe(modelProbe)
       setRuntime(model)
+      if (ready.model) {
+        setProbe({
+          connected: ready.model.connected,
+          provider: ready.model.provider,
+          model: ready.model.model,
+          latency_ms: ready.model.latency_ms,
+          reply: '',
+          note: ready.model.note,
+        })
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Integration test failed.')
     } finally {
@@ -348,7 +356,12 @@ export default function BugWorkspacePage() {
     }
   }
 
-  const liveModel = probe?.connected ?? (runtime?.ready && runtime.mode !== 'DETERMINISTIC_FALLBACK')
+  const liveModel = probe?.connected ?? readiness?.model?.connected ?? false
+  const modelStatusLabel = liveModel
+    ? `${probe?.model ?? readiness?.model?.model ?? runtime?.model ?? 'Model'} live`
+    : runtime?.mode === 'LOCAL_OLLAMA' && runtime.ready
+      ? `${runtime.model} installed · test live`
+      : 'Model fallback safe'
   const githubWrite = readiness?.github.write_probe
   const canInvestigate = prompt.trim().length >= 8 && !busy
 
@@ -375,7 +388,7 @@ export default function BugWorkspacePage() {
             <span /> {readiness?.mode === 'FALLBACK_DEMO' ? 'Fallback demo' : 'Live-first'}
           </span>
           <span className={`workspace-status ${liveModel ? 'live' : 'muted'}`}>
-            <Bot size={13} /> {liveModel ? `${probe?.model ?? runtime?.model} live` : 'Model fallback safe'}
+            <Bot size={13} /> {modelStatusLabel}
           </span>
           <button className="workspace-inline-action" type="button" onClick={() => void testIntegrations()} disabled={!!busy}>
             {busy === 'integrations' ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} Test live integrations
@@ -430,8 +443,8 @@ export default function BugWorkspacePage() {
 
         <aside className="workspace-context glass-surface">
           <div className="workspace-context-heading"><Sparkles size={16} /><div><small>LIVE CONTEXT</small><strong>Agent workspace</strong></div></div>
-          <div className="workspace-context-item"><span>Model</span><strong>{runtime?.model ?? 'Checking…'}</strong><small>{probe ? (probe.connected ? `Live · ${probe.latency_ms} ms` : 'Probe unavailable') : runtime?.note ?? 'Checking local runtime'}</small></div>
-          <div className="workspace-context-item"><span>GitHub</span><strong>{githubWrite?.status ?? readiness?.github.access_mode ?? 'Checking…'}</strong><small>{githubWrite?.reason ?? 'Read-only investigation is available before approval.'}</small></div>
+          <div className="workspace-context-item"><span>Model</span><strong>{runtime?.model ?? 'Checking…'}</strong><small>{probe ? (probe.connected ? `Live inference · ${probe.latency_ms} ms` : probe.note) : runtime?.ready && runtime.mode !== 'DETERMINISTIC_FALLBACK' ? 'Installed/reachable. Test live integrations to prove inference.' : runtime?.note ?? 'Checking local runtime'}</small></div>
+          <div className="workspace-context-item"><span>GitHub</span><strong>{githubWrite?.status ?? readiness?.github.access_mode ?? 'Checking…'}</strong><small>{githubWrite?.reason ?? 'Read-only investigation is available before approval. Test integrations to verify push permission.'}</small></div>
           <div className="workspace-context-item"><span>Files</span><strong>{uploads.length ? `${uploads.length} attached` : 'Optional'}</strong><small>Judge files stay inside an isolated temporary workspace.</small></div>
           <div className="workspace-safety"><ShieldCheck size={15} /><span>No auto-merge. No production deploy. Exact reviewed writes only.</span></div>
         </aside>
