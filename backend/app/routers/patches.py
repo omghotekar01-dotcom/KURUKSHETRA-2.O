@@ -4,10 +4,11 @@ from fastapi import APIRouter, HTTPException
 
 from app.repositories.incidents import IncidentStore
 from app.schemas.incident import ApprovalDecision, IncidentStatus, PatchProposalRequest
-from app.schemas.patch import PatchDecisionRequest, PatchExecutionResult
+from app.schemas.patch import PatchDecisionRequest, PatchExecutionResult, PatchVerificationResult
 from app.services.github_context import GitHubContextUnavailable, collect_repository_context
 from app.services.patch_execution import execute_approved_patch
 from app.services.patch_proposal import PatchProposalUnavailable, build_patch_proposal
+from app.services.patch_verification import PatchVerificationUnavailable, verify_patch_ci
 
 router = APIRouter(prefix="/api/v1", tags=["patch-remediation"])
 store = IncidentStore.from_env()
@@ -23,6 +24,13 @@ def _same_exact_proposal(left, right) -> bool:
         and left.before_lines == right.before_lines
         and left.after_lines == right.after_lines
     )
+
+
+def _latest_event_metadata(incident, stage: str) -> dict:
+    for event in reversed(incident.timeline):
+        if event.stage == stage:
+            return event.metadata
+    return {}
 
 
 @router.post("/incidents/{incident_id}/patch-decision", response_model=PatchExecutionResult)
@@ -106,6 +114,7 @@ def decide_patch(incident_id: str, payload: PatchDecisionRequest) -> PatchExecut
         {
             "proposal_id": result.proposal_id,
             "status": result.status,
+            "repository": result.repository,
             "branch": result.branch,
             "commit_sha": result.commit_sha,
             "draft_pr_number": result.draft_pr_number,
@@ -113,5 +122,53 @@ def decide_patch(incident_id: str, payload: PatchDecisionRequest) -> PatchExecut
             "validation": [check.model_dump() for check in result.validation],
         },
     )
+    store.set_status(incident_id, result.incident_status)
+    return result
+
+
+@router.get("/incidents/{incident_id}/patch-verification", response_model=PatchVerificationResult)
+def patch_verification(incident_id: str) -> PatchVerificationResult:
+    incident = store.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    execution = _latest_event_metadata(incident, "PATCH_EXECUTION")
+    repository = str(execution.get("repository") or incident.incident.repo or "")
+    commit_sha = execution.get("commit_sha")
+    draft_pr_number = execution.get("draft_pr_number")
+    if not repository or not commit_sha or not draft_pr_number:
+        raise HTTPException(
+            status_code=409,
+            detail="No executed remediation with a draft PR is available for CI verification.",
+        )
+
+    try:
+        result = verify_patch_ci(
+            incident,
+            repository=repository,
+            commit_sha=str(commit_sha),
+            draft_pr_number=int(draft_pr_number),
+        )
+    except PatchVerificationUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    previous = _latest_event_metadata(incident, "PATCH_CI_VERIFICATION")
+    if previous.get("status") != result.status or previous.get("commit_sha") != result.commit_sha:
+        store.append_event(
+            incident_id,
+            "PATCH_CI_VERIFICATION",
+            result.message,
+            {
+                "status": result.status,
+                "repository": result.repository,
+                "commit_sha": result.commit_sha,
+                "draft_pr_number": result.draft_pr_number,
+                "draft_pr_url": result.draft_pr_url,
+                "pr_state": result.pr_state,
+                "pr_draft": result.pr_draft,
+                "checks": [check.model_dump() for check in result.checks],
+            },
+        )
+
     store.set_status(incident_id, result.incident_status)
     return result
