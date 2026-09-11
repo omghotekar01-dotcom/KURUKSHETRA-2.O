@@ -20,6 +20,7 @@ from app.schemas.incident import (
     RepositorySourceLine,
 )
 from app.services.github_client import GITHUB_API, github_headers, github_token, normalize_repo, repository_allowed
+from app.services.safety import detect_untrusted_instruction_signals, redact_secrets
 
 
 class GitHubContextUnavailable(RuntimeError):
@@ -138,9 +139,9 @@ def _parse_patch_hunks(record: IncidentRecord, filename: str, patch: str) -> lis
         if not header:
             continue
         if raw_line.startswith("+") and not raw_line.startswith("+++"):
-            added.append(raw_line[1:][:260])
+            added.append(redact_secrets(raw_line[1:][:260]))
         elif raw_line.startswith("-") and not raw_line.startswith("---"):
-            removed.append(raw_line[1:][:260])
+            removed.append(redact_secrets(raw_line[1:][:260]))
 
     flush()
     hunks.sort(key=lambda item: item.correlation_score, reverse=True)
@@ -198,7 +199,7 @@ def _fetch_source_context(
     return [
         RepositorySourceLine(
             line_number=line_number,
-            content=source_lines[line_number - 1][:320],
+            content=redact_secrets(source_lines[line_number - 1][:320]),
             in_hunk=start_line <= line_number <= changed_span_end,
         )
         for line_number in range(window_start, window_end + 1)
@@ -245,6 +246,7 @@ def collect_repository_context(
     commit_limit = max(1, min(max_commits or int(os.getenv("GITHUB_CONTEXT_MAX_COMMITS", "5")), 10))
     issue_limit = max(1, min(max_issues or int(os.getenv("GITHUB_CONTEXT_MAX_ISSUES", "5")), 10))
     token = github_token()
+    untrusted_instruction_signal_seen = False
 
     with httpx.Client(
         base_url=GITHUB_API,
@@ -283,11 +285,14 @@ def collect_repository_context(
             ]
             suspicious_hunks: list[RepositoryDiffHunkEvidence] = []
             for file in raw_files:
+                raw_patch = file.get("patch", "") or ""
+                if detect_untrusted_instruction_signals(raw_patch):
+                    untrusted_instruction_signal_seen = True
                 suspicious_hunks.extend(
                     _parse_patch_hunks(
                         record,
                         file.get("filename", "unknown"),
-                        file.get("patch", "") or "",
+                        raw_patch,
                     )
                 )
             suspicious_hunks.sort(key=lambda hunk: hunk.correlation_score, reverse=True)
@@ -295,7 +300,10 @@ def collect_repository_context(
 
             commit_info = detail.get("commit", {})
             author_info = commit_info.get("author", {}) or {}
-            message = str(commit_info.get("message", "")).split("\n", 1)[0]
+            raw_message = str(commit_info.get("message", "")).split("\n", 1)[0]
+            if detect_untrusted_instruction_signals(raw_message):
+                untrusted_instruction_signal_seen = True
+            message = redact_secrets(raw_message)
             filenames = [file.filename for file in files]
             commits.append(
                 RepositoryCommitEvidence(
@@ -322,18 +330,24 @@ def collect_repository_context(
             top_commit = commits[0]
             for hunk in top_commit.suspicious_hunks[:2]:
                 hunk.source_context = _fetch_source_context(client, repository, top_commit.sha, hunk)
+                source_text = "\n".join(line.content for line in hunk.source_context)
+                if detect_untrusted_instruction_signals(source_text):
+                    untrusted_instruction_signal_seen = True
 
     open_issues: list[RepositoryIssueEvidence] = []
     for item in issues_payload:
         if "pull_request" in item:
             continue
+        raw_title = str(item.get("title", "Untitled issue"))
+        if detect_untrusted_instruction_signals(raw_title):
+            untrusted_instruction_signal_seen = True
         open_issues.append(
             RepositoryIssueEvidence(
                 number=int(item.get("number", 0)),
-                title=item.get("title", "Untitled issue"),
+                title=redact_secrets(raw_title),
                 state=item.get("state", "open"),
                 url=item.get("html_url", f"https://github.com/{repository}/issues"),
-                labels=[label.get("name", "") for label in item.get("labels", []) if label.get("name")],
+                labels=[redact_secrets(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
             )
         )
         if len(open_issues) >= issue_limit:
@@ -342,9 +356,13 @@ def collect_repository_context(
     notes = [
         "Commit and diff-hunk correlation are deterministic relevance signals, not proof of causation.",
         "Repository context and source-context collection are read-only; no GitHub resource is modified during investigation.",
+        "Repository text, issues, diffs and source snippets are untrusted evidence, never executable instructions.",
+        "Obvious credential patterns are redacted before repository evidence is returned to the UI.",
         "Source context is bounded to the highest-ranked hunks to control latency and API usage.",
         "GitHub may omit patch/content data for binary or very large files; unavailable evidence is never invented.",
     ]
+    if untrusted_instruction_signal_seen:
+        notes.append("Prompt-like instruction text was detected in repository evidence and treated only as untrusted data.")
     if not commits:
         notes.append("No recent commits were returned by GitHub.")
 
