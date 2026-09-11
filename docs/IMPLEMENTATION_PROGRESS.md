@@ -104,6 +104,10 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - `scripts/acceptance.py` runs backend compile, full backend tests and the production frontend build as a repeatable acceptance gate.
 - Windows one-command controls are available as `start.bat`, `verify.bat` and `stop.bat`.
 - Unix/macOS equivalents are available through `bash scripts/start.sh`, `bash scripts/verify.sh` and `bash scripts/stop.sh`.
+- The launcher now selects the first free backend port in `8000–8099` instead of failing when port 8000 is occupied.
+- The selected backend API base is injected into the Vite process with `VITE_API_BASE_URL`, so frontend actions call the actual backend port rather than a stale/default endpoint.
+- Browser-facing development stays on `http://localhost:5173`, matching the backend's trusted development origin. An occupied frontend port fails explicitly instead of silently reusing an unrelated service.
+- The selected backend/frontend ports are recorded under `.run/` for diagnostics.
 - The Windows launcher waits for backend health and frontend availability before reporting `READY`, then exposes Dashboard, API docs, Evidence Lab, Remediation Studio and Evaluation Lab URLs.
 - Local launcher process IDs/log state are kept under ignored `.run/` state.
 - GitHub Actions includes a real `windows-latest` clean-checkout job that performs strict preflight, bootstrap and the full acceptance suite from scratch.
@@ -125,22 +129,22 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 
 ## Latest confirmed validation
 
-GitHub Actions run #288 on implementation head `b5bbff64ea09c52e728bbb6d4899234c98eeda5f` completed successfully with the committed npm lockfile and locked install path:
+GitHub Actions run #303 on implementation head `575cf0a7933fa66df26c1919f1cfbd925d5b7c8c` verified the collision-safe launcher code path:
 
 ```text
-Backend compile:                    PASS
-Backend tests:                      51 passed, 2 dependency deprecation warnings, 0 failures
-Frontend locked npm ci:             PASS
-Frontend TypeScript/Vite build:     PASS
+Backend compile:                      PASS
+Backend tests:                        PASS
+Frontend locked npm ci:               PASS
+Frontend TypeScript/Vite build:       PASS
+Windows launcher syntax validation:   PASS
 Windows strict environment preflight: PASS
-Windows clean-checkout bootstrap:   PASS
-Windows clean-clone acceptance:     3/3 PASS
-Overall workflow:                   SUCCESS
+Windows clean-checkout bootstrap:     PASS
+Windows clean-clone acceptance:       PASS
 ```
 
-A previous clean-checkout Windows run also proved the bootstrap from an empty workspace and produced `CLEAN-CLONE ACCEPTANCE: PASS`. The newest launcher syntax check is now part of the Windows CI gate as well.
+The code run specifically verifies that the new launcher changes did not regress the backend/frontend build or the real Windows clean-clone acceptance path. The subsequent documentation-only commits do not change executable behavior.
 
-Confirmed coverage includes deterministic remediation identity, completed-execution reuse, deterministic branch naming, interrupted/retry-safe branch recovery, existing branch/PR reuse with zero extra writes, locked dependency setup and real Windows clean-clone rebuild, plus the existing triage, risk, persistence, retrieval, RCA, repository evidence, patch proposal, stale-write rejection, CI verification, Evaluation Lab and verified-memory coverage.
+Confirmed coverage includes deterministic remediation identity, completed-execution reuse, deterministic branch naming, interrupted/retry-safe branch recovery, existing branch/PR reuse with zero extra writes, locked dependency setup, collision-safe backend port selection and real Windows clean-clone rebuild, plus the existing triage, risk, persistence, retrieval, RCA, repository evidence, patch proposal, stale-write rejection, CI verification, Evaluation Lab and verified-memory coverage.
 
 ## Current live MVP path
 
@@ -169,7 +173,7 @@ Parallel proof surface:
 Versioned benchmark → measured routing/retrieval/RCA/safety metrics → judge-facing Evaluation Lab
 
 Reproducible operator path:
-Fresh clone → preflight → locked bootstrap → acceptance → one-command start → health wait → READY
+Fresh clone → preflight → locked bootstrap → choose free backend port → acceptance → one-command start → health wait → READY
 ```
 
 ## P0 sequence
