@@ -44,6 +44,24 @@ The live Draft PR is also bound back to the stored remediation execution: its cu
 
 These checks strengthen evidence integrity only. They do not change the existing authority boundary: CI `PASS` remains structured evidence and runtime/human confirmation is still required to resolve the original incident.
 
+### Latest adversarial-evidence hardening
+
+A security regression review expanded the deterministic untrusted-evidence boundary without changing model or repository authority.
+
+Recognized credential redaction now covers unquoted credential assignments in addition to the existing token families, Bearer values and quoted assignments. Key names can remain visible for debugging/auditability, while recognized values are replaced with `[REDACTED]` before normal evidence surfaces.
+
+Prompt-injection detection now covers both the existing exact marker phrases and broader instruction-shaped evidence categories, including:
+
+- instruction/safety override attempts;
+- requests to fabricate test or validation success;
+- requests to merge/approve repository changes;
+- requests to reveal environment/secrets/credentials;
+- requests to bypass approval, review, validation or guardrails.
+
+The detector remains an audit signal only. Repository text, logs, diffs, issues and source snippets stay untrusted data; matching text never becomes an instruction or repository-write authority.
+
+CI caught one output-contract regression in the first redaction implementation: an already-redacted quoted assignment was being normalized into an unquoted redaction shape. The matcher was corrected to exclude quote-prefixed values before promotion, preserving the established quoted-redaction contract while retaining the new unquoted coverage.
+
 Key docs:
 
 - [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_DEMO.md)
@@ -295,7 +313,8 @@ The current UI pass keeps the project light-first with a white + purple system, 
 ## Security / truth boundaries
 
 - `.env` is not tracked.
-- recognized credentials are redacted from normal incident/repository evidence surfaces.
+- recognized credentials, including quoted and unquoted credential assignments, are redacted from normal incident/repository evidence surfaces.
+- prompt-like repository evidence is audit-signaled but remains untrusted data and never gains instruction authority.
 - investigation is read-only until explicit approval.
 - every repository patch write is bound to one exact reviewed proposal.
 - stale state fails closed.
@@ -313,15 +332,15 @@ The current UI pass keeps the project light-first with a white + purple system, 
 
 ## Latest confirmed full executable validation
 
-GitHub Actions run **#803** / run ID `34652654144` on executable release-candidate head:
+GitHub Actions **Build and test #811** / run ID `34656898448` on executable release-candidate head:
 
-`c8827f5914a813ca5f6c8c72ea645baafb1daa92`
+`92a34ca4295c04e2a153c5bc8cf3b91919ef57f9`
 
 completed successfully on 2026-09-11 UTC / 2026-09-12 IST:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         116 passed, 2 dependency warnings, 0 failures
+Backend tests:                         118 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
@@ -329,14 +348,12 @@ Windows stale/reused PID safety test:  PASS
 Windows strict environment preflight:  PASS
 Windows clean-checkout bootstrap:      PASS
 Windows clean-clone acceptance:        PASS
-Release-candidate contract:            PASS
-Acceptance summary:                    4/4 checks passed
 Overall workflow:                      PASS
 ```
 
 The two Python warnings are dependency deprecations from FastAPI/Starlette test infrastructure and are not test failures.
 
-This validation includes the Draft-PR-only remediation boundary, fail-closed ambiguous CI/check handling, live Draft-PR head binding to the recorded remediation commit, the Test Lab and white/purple UI system, Qwen Windows warm-up regression checks, locked frontend dependencies, and the clean-clone Windows acceptance path.
+This validation includes the Draft-PR-only remediation boundary, fail-closed ambiguous CI/check handling, live Draft-PR head binding to the recorded remediation commit, expanded untrusted-evidence injection signals, quoted/unquoted credential redaction regression coverage, the Test Lab and white/purple UI system, Qwen Windows warm-up checks, locked frontend dependencies and the clean-clone Windows acceptance path.
 
 ## P0 milestone closure
 
@@ -367,7 +384,8 @@ Completed milestones now include:
 23. Windows launcher stale/reused PID cleanup regression protection;
 24. compact white/purple judge UI + collapsible navigation + Test Lab;
 25. restored Draft-PR-only merge boundary after safety regression review;
-26. fail-closed GitHub check-state handling + live Draft-PR head/commit verification binding.
+26. fail-closed GitHub check-state handling + live Draft-PR head/commit verification binding;
+27. broader adversarial-evidence detection + unquoted credential redaction with CI-backed regression coverage.
 
 ## Final laptop rehearsal
 
