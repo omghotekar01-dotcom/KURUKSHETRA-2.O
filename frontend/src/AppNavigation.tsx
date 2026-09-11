@@ -12,6 +12,7 @@ import {
   ScanSearch,
   ShieldCheck,
   Sparkles,
+  TestTube2,
   X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -25,6 +26,7 @@ type Readiness = {
 
 const items = [
   { href: '/', label: 'AI Workspace', icon: Bot },
+  { href: '/test', label: 'Test Lab', icon: TestTube2 },
   { href: '/incidents', label: 'Incident Command', icon: Activity },
   { href: '/prototype', label: 'Real AutoFix', icon: ScanSearch },
   { href: '/intake', label: 'Judge Intake', icon: FileUp },
