@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from app.schemas.workspace import ModelRuntimeStatus
+from app.schemas.workspace import ModelProbeResult, ModelRuntimeStatus
 
 
 def _setting(name: str) -> str:
@@ -73,3 +74,73 @@ def get_model_runtime_status() -> ModelRuntimeStatus:
         endpoint=None,
         note="No model service is required for the proof loop: scan, exact bounded repair, rollback and verification still work locally.",
     )
+
+
+def probe_model_runtime() -> ModelProbeResult:
+    runtime = get_model_runtime_status()
+    if runtime.mode == "DETERMINISTIC_FALLBACK" or not runtime.endpoint:
+        return ModelProbeResult(
+            connected=False,
+            provider=runtime.provider,
+            model=runtime.model,
+            latency_ms=0,
+            reply="",
+            note="No live model is connected. Start Ollama/Qwen or configure the optional Gemini free-tier fallback.",
+        )
+
+    api_key = "ollama" if runtime.mode == "LOCAL_OLLAMA" else _setting("GEMINI_API_KEY")
+    if runtime.mode == "GEMINI_FREE" and not api_key:
+        return ModelProbeResult(
+            connected=False,
+            provider=runtime.provider,
+            model=runtime.model,
+            latency_ms=0,
+            reply="",
+            note="Gemini is selected but GEMINI_API_KEY is missing.",
+        )
+
+    payload = {
+        "model": runtime.model,
+        "temperature": 0,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a connectivity probe. Reply with exactly READY and nothing else.",
+            },
+            {"role": "user", "content": "Connectivity check."},
+        ],
+    }
+    request = Request(
+        runtime.endpoint.rstrip("/") + "/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    started = time.perf_counter()
+    try:
+        with urlopen(request, timeout=12) as response:  # noqa: S310 - local Ollama or Gemini HTTPS
+            raw = json.loads(response.read().decode("utf-8"))
+        reply = str(raw["choices"][0]["message"]["content"]).strip()
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return ModelProbeResult(
+            connected=True,
+            provider=runtime.provider,
+            model=runtime.model,
+            latency_ms=latency_ms,
+            reply=reply[:160],
+            note="Live chat-completions request succeeded. This proves the configured model endpoint is actually callable.",
+        )
+    except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return ModelProbeResult(
+            connected=False,
+            provider=runtime.provider,
+            model=runtime.model,
+            latency_ms=latency_ms,
+            reply="",
+            note=f"Live model probe failed ({type(exc).__name__}). The deterministic engine remains available, but generic judge intake will fail closed rather than guess.",
+        )
