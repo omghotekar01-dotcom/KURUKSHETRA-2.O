@@ -179,3 +179,20 @@ class VerificationResult(BaseModel):
     outcome: VerificationOutcome
     incident_status: IncidentStatus
     message: str
+
+
+class ResolutionMemory(BaseModel):
+    memory_id: str
+    incident_id: str
+    created_at: datetime
+    component: str
+    severity: Severity
+    symptoms: str
+    working_hypothesis: str
+    remediation: str
+    verification_evidence: str
+    source: str = "verified-resolution"
+
+
+class ResolutionMemoryList(BaseModel):
+    items: List[ResolutionMemory] = Field(default_factory=list)
