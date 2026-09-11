@@ -25,7 +25,8 @@ def test_autofix_routes_are_mounted() -> None:
     assert any(item["id"] == TARGET_ID for item in payload)
 
 
-def test_real_demo_target_fails_then_is_fixed_and_proven() -> None:
+def test_real_demo_target_fails_then_is_fixed_and_proven(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
     reset = reset_target(TARGET_ID)
     assert reset.verification.passed is False
     assert reset.diagnosis.status == "BUG_CONFIRMED"
@@ -35,6 +36,7 @@ def test_real_demo_target_fails_then_is_fixed_and_proven() -> None:
 
     proposal = propose_fix(TARGET_ID)
     assert proposal.writes_files is False
+    assert proposal.strategy == "DETERMINISTIC_SAFE_RULE"
     assert '-    if scheme.lower() != "token":' in proposal.diff
     assert '+    if scheme.lower() != "bearer":' in proposal.diff
 
