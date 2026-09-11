@@ -318,6 +318,12 @@ def execute_approved_patch(incident: IncidentRecord, proposal: PatchProposal) ->
                         f"/repos/{repository}/git/refs",
                         json={"ref": f"refs/heads/{branch}", "sha": base_head},
                     )
+                    branch_ref = _optional_get(
+                        client,
+                        f"/repos/{repository}/git/ref/heads/{quote(branch, safe='')}",
+                    )
+                    if branch_ref is None:
+                        raise PatchExecutionError("GitHub created the remediation branch but it could not be re-read safely.")
                 except PatchExecutionError as exc:
                     if "GitHub returned 422" not in str(exc):
                         raise
