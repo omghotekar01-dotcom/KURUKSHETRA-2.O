@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -61,4 +61,23 @@ class PatchVerificationResult(BaseModel):
     incident_status: IncidentStatus
     derived_incident_outcome: Optional[VerificationOutcome] = None
     verification_evidence: str = ""
+    runtime_verification_required: bool = True
+
+
+class PatchMergeRequest(BaseModel):
+    reviewer: str = Field(min_length=2, max_length=120)
+    confirmation: str = Field(min_length=5, max_length=16)
+    merge_method: Literal["squash", "merge", "rebase"] = "squash"
+
+
+class PatchMergeResult(BaseModel):
+    incident_id: str
+    repository: str
+    draft_pr_number: int
+    merged: bool
+    merge_sha: Optional[str] = None
+    merge_method: str
+    reviewer: str
+    message: str
+    incident_status: IncidentStatus
     runtime_verification_required: bool = True
