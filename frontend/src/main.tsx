@@ -39,7 +39,6 @@ import './busy-polish.css'
 import './purple-product-system.css'
 import './async-state-polish.css'
 import './incident-polish.css'
-import './merge-gate.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const screen = path === '/' || path === '/workspace'
