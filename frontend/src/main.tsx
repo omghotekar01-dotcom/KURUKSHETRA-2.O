@@ -7,6 +7,7 @@ import EvaluationLabPage from './EvaluationLabPage'
 import ReadinessPage from './ReadinessPage'
 import JudgeDemoPage from './JudgeDemoPage'
 import AgentIntelligencePage from './AgentIntelligencePage'
+import AutofixPrototypePage from './AutofixPrototypePage'
 import AppNavigation from './AppNavigation'
 import ThemeToggle from './ThemeToggle'
 import './styles.css'
@@ -23,21 +24,24 @@ import './readiness-page.css'
 import './judge-demo.css'
 import './app-navigation.css'
 import './agent-intelligence.css'
+import './autofix-prototype.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const screen = path === '/demo'
   ? <JudgeDemoPage />
-  : path === '/ai'
-    ? <AgentIntelligencePage />
-    : path === '/readiness'
-      ? <ReadinessPage />
-      : path === '/evaluation'
-        ? <EvaluationLabPage />
-        : path === '/remediate'
-          ? <PatchRemediationPage />
-          : path === '/evidence'
-            ? <RepositoryEvidencePage />
-            : <App />
+  : path === '/prototype' || path === '/autofix'
+    ? <AutofixPrototypePage />
+    : path === '/ai'
+      ? <AgentIntelligencePage />
+      : path === '/readiness'
+        ? <ReadinessPage />
+        : path === '/evaluation'
+          ? <EvaluationLabPage />
+          : path === '/remediate'
+            ? <PatchRemediationPage />
+            : path === '/evidence'
+              ? <RepositoryEvidencePage />
+              : <App />
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
