@@ -31,7 +31,7 @@ from app.services.triage import triage_incident
 
 app = FastAPI(
     title="Kurukshetra Incident Command API",
-    version="0.7.0",
+    version="0.8.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
@@ -229,7 +229,7 @@ def decide_action(incident_id: str, payload: ApprovalRequest) -> ApprovalResult:
         )
 
     incident_store.set_status(incident_id, IncidentStatus.executing)
-    execution = execute_bounded_action(incident_id, payload.action)
+    execution = execute_bounded_action(incident_id, payload.action, incident=incident)
     incident_store.append_event(
         incident_id,
         "ACTION",
@@ -240,15 +240,22 @@ def decide_action(incident_id: str, payload: ApprovalRequest) -> ApprovalResult:
             "target": execution.target,
             "status": execution.status,
             "mode": execution.mode,
+            "external_url": execution.external_url,
         },
     )
-    incident_store.set_status(incident_id, IncidentStatus.verifying)
+
+    if execution.status in {"EXECUTED", "SIMULATED"}:
+        next_status = IncidentStatus.verifying
+    else:
+        next_status = IncidentStatus.escalated
+    incident_store.set_status(incident_id, next_status)
+
     return ApprovalResult(
         incident_id=incident_id,
         decision=payload.decision,
         risk=risk,
         execution=execution,
-        incident_status=IncidentStatus.verifying,
+        incident_status=next_status,
     )
 
 
