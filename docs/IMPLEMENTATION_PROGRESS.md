@@ -30,7 +30,7 @@ The real local-workspace `/prototype` flow now preserves the same approval princ
 - The source must still exactly match the reviewed `before` state; a file change between Preview and Apply is rejected as stale.
 - The reviewed edit is written only inside the allowlisted workspace and the same real validator is rerun.
 - Failed validation restores the original source and does **not** silently auto-apply a substitute patch; a new operator preview is required.
-- Regression coverage now includes: no-preview rejection, exact preview→apply equality, reset invalidation, and stale-source mutation rejection.
+- Regression coverage includes no-preview rejection, exact preview→apply equality, reset invalidation, and stale-source mutation rejection.
 - For this single-process MVP, the armed proposal is held in process. A horizontally scaled production service should move approval state and one-time consumption to a shared transactional store.
 
 This closes a real trust-boundary gap: previously the local Apply endpoint could regenerate a proposal at execution time even though the UI had shown a prior preview.
@@ -185,15 +185,15 @@ The suite now explicitly covers realistic multi-domain incidents, unknown/no-mat
 
 ## Latest confirmed full release-candidate validation
 
-GitHub Actions run **#534** / run ID `34602647364` on executable hardening head:
+GitHub Actions run **#536** / run ID `34602796248` on executable hardening head:
 
-`f58bec03cc6d7564ee408212e9ac2ec382b4cdd0`
+`986c636594212902813c03da213dad6d8fc095da`
 
-completed successfully after the exact-preview execution gate was added:
+completed successfully:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         87 passed, 2 dependency warnings, 0 failures
+Backend tests:                         88 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
@@ -203,7 +203,7 @@ Clean-clone acceptance:                PASS
 Overall workflow:                      PASS
 ```
 
-A subsequent **test-only** head `986c636594212902813c03da213dad6d8fc095da` adds the stale-source race regression. Its backend job is independently green at **88 passed, 2 dependency warnings, 0 failures**, and its frontend build is green. The previous executable behavior is unchanged by that test-only commit; the clean-clone job for that exact test head was still executing when this ledger entry was written.
+The two backend warnings are dependency deprecations from FastAPI/Starlette test infrastructure; they are not test failures. This is the latest fully verified executable head for the exact-preview/stale-source AutoFix hardening described above.
 
 ## Completed product path
 
