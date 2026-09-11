@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import BugWorkspacePage from './BugWorkspacePage'
 import RepositoryEvidencePage from './RepositoryEvidencePage'
 import PatchRemediationPage from './PatchRemediationPage'
 import EvaluationLabPage from './EvaluationLabPage'
@@ -28,25 +29,31 @@ import './agent-intelligence.css'
 import './autofix-prototype.css'
 import './autofix-strategy.css'
 import './judge-intake.css'
+import './bug-workspace.css'
+import './apple-polish.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
-const screen = path === '/demo'
-  ? <JudgeDemoPage />
-  : path === '/prototype' || path === '/autofix'
-    ? <AutofixPrototypePage />
-    : path === '/intake'
-      ? <JudgeIntakePage />
-      : path === '/ai'
-        ? <AgentIntelligencePage />
-        : path === '/readiness'
-          ? <ReadinessPage />
-          : path === '/evaluation'
-            ? <EvaluationLabPage />
-            : path === '/remediate'
-              ? <PatchRemediationPage />
-              : path === '/evidence'
-                ? <RepositoryEvidencePage />
-                : <App />
+const screen = path === '/' || path === '/workspace'
+  ? <BugWorkspacePage />
+  : path === '/incidents'
+    ? <App />
+    : path === '/demo'
+      ? <JudgeDemoPage />
+      : path === '/prototype' || path === '/autofix'
+        ? <AutofixPrototypePage />
+        : path === '/intake'
+          ? <JudgeIntakePage />
+          : path === '/ai'
+            ? <AgentIntelligencePage />
+            : path === '/readiness'
+              ? <ReadinessPage />
+              : path === '/evaluation'
+                ? <EvaluationLabPage />
+                : path === '/remediate'
+                  ? <PatchRemediationPage />
+                  : path === '/evidence'
+                    ? <RepositoryEvidencePage />
+                    : <BugWorkspacePage />
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
