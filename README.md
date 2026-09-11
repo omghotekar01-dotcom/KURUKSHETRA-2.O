@@ -2,4 +2,4 @@
 Author - Om Ghotekar
          Nikhil Jadhav
          Om Patil
-         Yah Nale
+         Yash Nale
