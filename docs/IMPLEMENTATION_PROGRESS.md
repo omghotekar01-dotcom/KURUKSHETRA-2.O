@@ -26,14 +26,20 @@ The real local-workspace `/prototype` flow now preserves the same approval princ
 - `POST /api/v1/autofix/{target_id}/apply` refuses direct execution when no reviewed proposal is armed.
 - Apply consumes the exact reviewed proposal once instead of regenerating or substituting a new AI/deterministic candidate at write time.
 - Reset invalidates the armed proposal before restoring the broken demo baseline.
+- A fresh Scan invalidates any previously armed proposal before collecting new evidence.
+- Every new Preview attempt invalidates the previous proposal before replanning, so a failed re-preview cannot leave older write authority armed.
+- The `/prototype` UI enables Auto Fix only after a successful visible Preview and disables the write path again after execution.
+- If Apply fails during fresh-state validation, the stale diff is removed from the UI and the operator must preview again.
+- Failed Reset/Scan attempts no longer leave old scan evidence presented as current state.
 - Current target/diagnosis/file state is rechecked before the write.
 - The source must still exactly match the reviewed `before` state; a file change between Preview and Apply is rejected as stale.
 - The reviewed edit is written only inside the allowlisted workspace and the same real validator is rerun.
 - Failed validation restores the original source and does **not** silently auto-apply a substitute patch; a new operator preview is required.
-- Regression coverage includes no-preview rejection, exact preview→apply equality, reset invalidation, and stale-source mutation rejection.
+- Regression coverage includes no-preview rejection, exact preview→apply equality, one-time consumption, reset invalidation, scan invalidation, failed-repreview invalidation, and stale-source mutation rejection.
+- The Windows launcher now prints direct `Real AutoFix` (`/prototype`) and `AI Reasoning` (`/ai`) URLs after readiness, reducing demo-route ambiguity.
 - For this single-process MVP, the armed proposal is held in process. A horizontally scaled production service should move approval state and one-time consumption to a shared transactional store.
 
-This closes a real trust-boundary gap: previously the local Apply endpoint could regenerate a proposal at execution time even though the UI had shown a prior preview.
+This closes both the original trust-boundary gap (Apply regenerating a proposal after Preview) and the live-demo state gaps found during final rehearsal (Apply enabled before Preview, stale approvals surviving evidence refresh, and stale diffs remaining retryable after rejected execution).
 
 ## IIT Bombay judge/demo hardening — 2026-09-11
 
@@ -108,7 +114,8 @@ This closes a real trust-boundary gap: previously the local Apply endpoint could
 - Local reasoning can use Ollama/Qwen-class or compatible models when available; deterministic source/test evidence remains a safe fallback.
 - Model-generated patch candidates are bounded to validated file/search/replace semantics; model text cannot run arbitrary shell commands.
 - Every API write requires the exact previously previewed proposal.
-- Stale preview state fails closed.
+- Scan, Reset and new Preview attempts invalidate older reviewed state before proceeding.
+- Apply is one-shot and stale preview/source state fails closed.
 - Verification reruns the same test command; failure rolls the file back.
 - `/prototype` exposes actual BEFORE FAIL → AFTER PASS evidence, diff, provider/strategy and audit trail.
 
@@ -146,6 +153,7 @@ This closes a real trust-boundary gap: previously the local Apply endpoint could
 - Windows `verify.bat`, `start.bat`, `stop.bat` and Unix/macOS equivalents.
 - Launcher selects free local ports and injects the actual API URL into Vite.
 - Backend/frontend health gates before `READY`.
+- Startup output includes direct links for the real AutoFix and AI reasoning surfaces.
 - GitHub Actions performs a real Windows clean-checkout bootstrap + acceptance path.
 
 ### Readiness + security hardening
@@ -181,19 +189,19 @@ This closes a real trust-boundary gap: previously the local Apply endpoint could
 
 The audit identified and fixed weak stack-trace/file-path weighting, weakly correlated patch eligibility, unsafe/unknown validator gaps, unlocked frontend validation, hard-coded ownership, missing CODEOWNERS hints, and missing canonical CI verification evidence. Subsequent hardening added grounded model/fallback traces and exact-preview binding for local-workspace writes.
 
-The suite now explicitly covers realistic multi-domain incidents, unknown/no-match behavior, path-to-code correlation, weak-patch rejection, unsupported-validator rejection, configurable routing, CODEOWNERS hints, CI failure/inconclusive derivation, deterministic/LLM fallback behavior, local-model patch bounds, workspace escape rejection, no-preview write rejection, exact reviewed-patch execution, reset invalidation and stale-preview rejection.
+The suite now explicitly covers realistic multi-domain incidents, unknown/no-match behavior, path-to-code correlation, weak-patch rejection, unsupported-validator rejection, configurable routing, CODEOWNERS hints, CI failure/inconclusive derivation, deterministic/LLM fallback behavior, local-model patch bounds, workspace escape rejection, no-preview write rejection, exact reviewed-patch execution, reset invalidation, scan invalidation, failed-repreview invalidation and stale-preview rejection.
 
 ## Latest confirmed full release-candidate validation
 
-GitHub Actions run **#536** / run ID `34602796248` on executable hardening head:
+GitHub Actions run **#561** / run ID `34606860119` on executable hardening head:
 
-`986c636594212902813c03da213dad6d8fc095da`
+`84c8d72e235ffed0bf4d62386e531694855a2460`
 
 completed successfully:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         88 passed, 2 dependency warnings, 0 failures
+Backend tests:                         90 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
@@ -203,7 +211,7 @@ Clean-clone acceptance:                PASS
 Overall workflow:                      PASS
 ```
 
-The two backend warnings are dependency deprecations from FastAPI/Starlette test infrastructure; they are not test failures. This is the latest fully verified executable head for the exact-preview/stale-source AutoFix hardening described above.
+The two backend warnings are dependency deprecations from FastAPI/Starlette test infrastructure; they are not test failures. This is the latest fully verified executable head for the final `/prototype` sequencing, approval invalidation and stale-error-state hardening described above.
 
 ## Completed product path
 
@@ -275,7 +283,7 @@ Real local proof path:
 27. ~~Optional grounded LLM synthesis + auditable deterministic fallback.~~
 28. ~~LLM transport hardening + HTTPS/local-model adapter tests.~~
 29. ~~Real local-workspace AutoFix with failure→edit→same-validator proof.~~
-30. ~~Exact-preview binding, one-time apply, reset invalidation and stale-source rejection for local AutoFix writes.~~
+30. ~~Exact-preview binding, one-time apply, reset/scan/repreview invalidation and stale-source rejection for local AutoFix writes.~~
 
 ## What remains before final submission
 
@@ -285,8 +293,9 @@ No broad feature development is required for the hackathon MVP. Continue only wi
 pull latest agent-build-core
 → run verify.bat locally
 → run start.bat locally
-→ open /readiness and confirm the reported mode
+→ open the printed Real AutoFix URL
 → rehearse /prototype from Reset → Scan → Preview → Auto Fix
+→ open /readiness and confirm the reported mode
 → rehearse /ai with JWT regression, then one no-match case
 → rehearse /demo on the actual hackathon laptop/network
 → test one realistic incident through /evidence
