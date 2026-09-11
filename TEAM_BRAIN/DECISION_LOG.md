@@ -186,6 +186,28 @@ Consequences:
 
 Date: 2026-09-11
 
+## D-015 — Judge-supplied files run in an isolated intake workspace
+
+Status: ACCEPTED
+
+Decision:
+A judge/operator may type a bug report and attach bounded text/code files through `/intake`. Those files are copied into an ephemeral temporary workspace instead of granting the model arbitrary laptop filesystem access. Generic repair requires a live grounded model and must fail closed when no safe model proposal is available. Uploaded code is not executed by default; user-supplied Python tests run only when the operator explicitly enables Trusted test execution. Exact preview-before-apply semantics remain mandatory.
+
+Reason:
+A convincing hackathon demo must handle evidence the judge supplies rather than only hard-coded scenarios, but accepting arbitrary attachments must not silently become arbitrary code execution or unrestricted OS access. Isolating the copy and separating static validation from explicitly trusted functional tests gives the demo real breadth without weakening the trust model.
+
+Consequences:
+- `/intake` accepts a bounded bug report plus up to 12 allowlisted text/code files.
+- Traversal, absolute paths, Windows drive paths and sensitive/build directories are rejected before materialization.
+- RAG matches are shown truthfully; no-match is visible.
+- `Test Qwen now` performs a real model inference probe instead of inferring connectivity from configuration.
+- Generic model output must validate as a bounded exact search/replace over a supplied file.
+- `VERIFIED_FIXED` requires a previously failing explicitly trusted pytest contract to pass after the exact reviewed patch.
+- Static-only success is labeled `STATIC_CHECK_PASSED` and does not claim functional recovery.
+- Failed validation restores the original isolated file.
+
+Date: 2026-09-11
+
 ---
 
 ## Decision template
