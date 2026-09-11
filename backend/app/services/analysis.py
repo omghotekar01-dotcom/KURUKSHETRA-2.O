@@ -6,9 +6,10 @@ from app.schemas.incident import (
     IncidentRecord,
     ProposedAction,
     RemediationPlan,
+    ResolutionMemory,
     RootCauseHypothesis,
 )
-from app.services.retrieval import retrieve_runbooks
+from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
 
 
@@ -29,8 +30,11 @@ VERIFICATION = {
 }
 
 
-def analyze_incident(record: IncidentRecord) -> AnalysisBundle:
-    matches = retrieve_runbooks(record)
+def analyze_incident(
+    record: IncidentRecord,
+    memories: list[ResolutionMemory] | None = None,
+) -> AnalysisBundle:
+    matches = retrieve_knowledge(record, memories=memories)
     evidence = EvidenceBundle(
         incident_id=record.id,
         matches=matches,
@@ -55,8 +59,8 @@ def analyze_incident(record: IncidentRecord) -> AnalysisBundle:
         confidence=confidence,
         evidence_ids=[match.id for match in supporting],
         rationale=(
-            f"The strongest historical match is {top.id} ({top.score:.0%}) and it aligns "
-            f"with the incident's {record.triage.component} triage signals."
+            f"The strongest knowledge match is {top.id} ({top.score:.0%}, source: {top.source}) "
+            f"and it aligns with the incident's {record.triage.component} triage signals."
         ),
         next_diagnostic=NEXT_DIAGNOSTIC.get(
             record.triage.component,
@@ -67,7 +71,7 @@ def analyze_incident(record: IncidentRecord) -> AnalysisBundle:
     action = ProposedAction(
         action_type="draft remediation plan",
         target=record.incident.repo or record.triage.owner_team,
-        description=f"Prepare a bounded remediation using runbook {top.id}: {top.fix}",
+        description=f"Prepare a bounded remediation using knowledge item {top.id}: {top.fix}",
         confidence=confidence,
         destructive=False,
     )
