@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.repositories.incidents import IncidentStore
 from app.schemas.incident import (
+    EvidenceBundle,
     IncidentIn,
     IncidentRecord,
     IncidentSummary,
@@ -10,12 +11,13 @@ from app.schemas.incident import (
     RiskDecision,
     TriageResult,
 )
+from app.services.retrieval import retrieve_runbooks
 from app.services.risk import evaluate_action
 from app.services.triage import triage_incident
 
 app = FastAPI(
     title="Kurukshetra Incident Command API",
-    version="0.2.0",
+    version="0.3.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
@@ -57,6 +59,26 @@ def get_incident(incident_id: str) -> IncidentRecord:
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
     return incident
+
+
+@app.post("/api/v1/incidents/{incident_id}/investigate", response_model=EvidenceBundle)
+def investigate_incident(incident_id: str) -> EvidenceBundle:
+    incident = incident_store.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    matches = retrieve_runbooks(incident)
+    incident_store.append_event(
+        incident_id,
+        "EVIDENCE",
+        f"Retrieved {len(matches)} relevant historical runbook match(es).",
+        {"match_ids": [match.id for match in matches]},
+    )
+    return EvidenceBundle(
+        incident_id=incident_id,
+        matches=matches,
+        no_strong_match=len(matches) == 0,
+    )
 
 
 @app.post("/api/v1/actions/risk", response_model=RiskDecision)
