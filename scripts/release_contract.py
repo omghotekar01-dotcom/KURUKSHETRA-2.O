@@ -21,14 +21,23 @@ def main() -> int:
         "frontend/package-lock.json",
         "frontend/src/JudgeDemoPage.tsx",
         "frontend/src/judge-demo.css",
+        "frontend/src/JudgeIntakePage.tsx",
+        "frontend/src/judge-intake.css",
+        "frontend/src/AutofixPrototypePage.tsx",
         "frontend/src/ReadinessPage.tsx",
         "frontend/src/EvaluationLabPage.tsx",
         "frontend/src/PatchRemediationPage.tsx",
+        "backend/app/services/workspace_intake.py",
+        "backend/app/services/model_runtime.py",
+        "backend/tests/test_workspace_intake.py",
+        "backend/tests/test_model_runtime_probe.py",
         "docs/JUDGE_DEMO_RUNBOOK.md",
+        "docs/JUDGE_SUPPLIED_INTAKE.md",
         "docs/SECURITY_READINESS_MILESTONE.md",
         "docs/IMPLEMENTATION_PROGRESS.md",
         "scripts/start.ps1",
         "scripts/start.sh",
+        "setup-local-ai.bat",
     ]
 
     passed = True
@@ -38,6 +47,9 @@ def main() -> int:
     main_tsx = (ROOT / "frontend" / "src" / "main.tsx").read_text(encoding="utf-8")
     route_contracts = {
         "Judge Mode route /demo": "path === '/demo'",
+        "Real AutoFix route /prototype": "path === '/prototype'",
+        "Judge Intake route /intake": "path === '/intake'",
+        "AI Reasoning route /ai": "path === '/ai'",
         "Readiness route /readiness": "path === '/readiness'",
         "Evaluation route /evaluation": "path === '/evaluation'",
         "Evidence route /evidence": "path === '/evidence'",
@@ -56,6 +68,27 @@ def main() -> int:
     for label, condition in judge_contracts.items():
         passed &= check(condition, label)
 
+    intake_page = (ROOT / "frontend" / "src" / "JudgeIntakePage.tsx").read_text(encoding="utf-8")
+    intake_contracts = {
+        "Judge Intake accepts attached files": 'type="file"' in intake_page,
+        "Judge Intake exposes explicit trusted-test opt-in": "Trusted test execution" in intake_page,
+        "Judge Intake exposes live Qwen probe": "Test Qwen now" in intake_page,
+        "Judge Intake requires preview before apply": "Preview grounded AI fix" in intake_page and "Apply reviewed patch + verify" in intake_page,
+        "Judge Intake surfaces RAG evidence": "Retrieved engineering knowledge" in intake_page,
+    }
+    for label, condition in intake_contracts.items():
+        passed &= check(condition, label)
+
+    workspace_router = (ROOT / "backend" / "app" / "routers" / "workspace.py").read_text(encoding="utf-8")
+    backend_intake_contracts = {
+        "Backend exposes model inference probe": '/model-runtime/probe' in workspace_router,
+        "Backend exposes isolated intake creation": '@router.post("/intake"' in workspace_router,
+        "Backend exposes intake preview": '/intake/{session_id}/proposal' in workspace_router,
+        "Backend exposes one-time intake apply": '/intake/{session_id}/apply' in workspace_router,
+    }
+    for label, condition in backend_intake_contracts.items():
+        passed &= check(condition, label)
+
     lock_path = ROOT / "frontend" / "package-lock.json"
     if lock_path.is_file():
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
@@ -67,8 +100,18 @@ def main() -> int:
 
     ps_launcher = (ROOT / "scripts" / "start.ps1").read_text(encoding="utf-8")
     sh_launcher = (ROOT / "scripts" / "start.sh").read_text(encoding="utf-8")
-    passed &= check("/demo" in ps_launcher, "Windows launcher exposes Judge Mode")
-    passed &= check("/demo" in sh_launcher, "Unix launcher exposes Judge Mode")
+    for label, marker in {
+        "Windows launcher exposes Real AutoFix": "/prototype",
+        "Windows launcher exposes Judge Intake": "/intake",
+        "Windows launcher exposes Judge Mode": "/demo",
+    }.items():
+        passed &= check(marker in ps_launcher, label)
+    for label, marker in {
+        "Unix launcher exposes Real AutoFix": "/prototype",
+        "Unix launcher exposes Judge Intake": "/intake",
+        "Unix launcher exposes Judge Mode": "/demo",
+    }.items():
+        passed &= check(marker in sh_launcher, label)
 
     tracked_env = subprocess.run(
         ["git", "ls-files", "--error-unmatch", ".env"],
