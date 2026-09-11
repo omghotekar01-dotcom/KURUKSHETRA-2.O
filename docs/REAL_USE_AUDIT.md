@@ -13,30 +13,24 @@ This is deliberately a **bounded incident-response assistant**, not a universal 
 
 ## Real-use gaps found and fixed
 
-### 1. Stack traces now materially influence code ranking
+### 1. Stack traces materially influence code ranking
 
-Before the audit, repository ranking was mainly lexical. A realistic trace such as:
+A realistic trace such as:
 
 ```text
 File "C:\service\backend\payments\charge.py", line 87
 ValueError: invalid provider amount
 ```
 
-could lose signal because file-system punctuation diluted the keyword overlap.
+is now parsed for file-path evidence. Exact/suffix/basename matches receive explainable ranking weight so the named changed source file can outrank unrelated repository noise. This remains correlation, not causal proof.
 
-The repository evidence layer now extracts code paths from incident text/logs and gives explainable ranking weight to exact/suffix/basename path matches. A matching changed file therefore ranks substantially above an unrelated documentation change while still being labeled correlation, not causation.
+### 2. Weakly related code cannot become a patch just because exact lines exist
 
-### 2. Weakly related code can no longer become a patch just because exact lines exist
-
-Patch proposal generation now enforces `PATCH_PROPOSAL_MIN_CORRELATION` (default `0.18`).
-
-If a diff hunk is below that threshold, the system returns a fail-closed response asking for stronger evidence/manual investigation. No repository write occurs.
+Patch proposal generation enforces `PATCH_PROPOSAL_MIN_CORRELATION` (default `0.18`). A hunk below that threshold fails closed and asks for stronger evidence/manual investigation. No repository write occurs.
 
 ### 3. Unsupported operational/configuration changes fail closed
 
-The validation gate no longer treats arbitrary file types as safe text changes.
-
-Supported deterministic paths include:
+Supported deterministic validation paths include:
 
 - frontend TypeScript/JavaScript → locked `npm ci` + production build;
 - backend Python → compile + pytest;
@@ -46,7 +40,7 @@ Configuration/automation/unsupported executable types such as GitHub Actions YAM
 
 ### 4. Frontend validation is reproducible
 
-Remediation validation now uses the committed npm lockfile with:
+Remediation validation uses the committed npm lockfile:
 
 ```text
 npm ci --no-audit --no-fund
@@ -55,21 +49,19 @@ npm run build
 
 rather than allowing dependency resolution to drift during a fix validation.
 
-### 5. Real organization routing no longer requires code edits
+### 5. Real organization routing does not require code edits
 
-`TRIAGE_OWNER_MAP` lets an operator map deterministic components to actual team names:
+`TRIAGE_OWNER_MAP` can map deterministic components to actual team names:
 
 ```env
 TRIAGE_OWNER_MAP=Authentication=identity-platform,Database=data-reliability,Backend=api-platform,Frontend=web-experience,Infrastructure=sre
 ```
 
-The built-in team names remain safe defaults when no mapping is supplied.
+Built-in owners remain fallbacks when no mapping is supplied.
 
 ### 6. Repository CODEOWNERS contributes routing/review hints
 
-When the investigated repository contains CODEOWNERS in a supported standard location, the live evidence layer reads it from the repository default branch and resolves owner candidates for the highest-ranked changed files.
-
-These owner candidates are surfaced as **routing/review suggestions only**. They do not grant authorization and do not override the approval safety boundary.
+When present in a supported standard location, CODEOWNERS is read from the repository default branch and owner candidates are resolved for the highest-ranked changed files.
 
 Supported lookup locations:
 
@@ -79,21 +71,19 @@ CODEOWNERS
 docs/CODEOWNERS
 ```
 
-The configured component-to-team mapping remains the fallback when no matching CODEOWNERS rule exists.
+These are **routing/review suggestions only**. They do not grant authorization and do not override the human approval boundary.
 
-### 7. CI verification is now incident evidence, not just a badge
+### 7. CI verification is incident evidence, not just a badge
 
 The CI verification endpoint records canonical evidence tied to the exact repository, remediation commit, Draft PR and observed checks.
 
-- Real CI `FAIL` derives a failed incident-verification outcome and escalates.
-- `PENDING` / `NO_CHECKS` produces inconclusive evidence instead of success.
-- CI `PASS` is kept as strong evidence but does **not** auto-resolve the original incident; runtime/human verification is still required.
-
-This makes the workflow useful operationally because CI state becomes auditable incident evidence without pretending that green tests prove production recovery.
+- CI `FAIL` derives failed incident verification and escalates.
+- `PENDING` / `NO_CHECKS` is inconclusive rather than success.
+- CI `PASS` remains evidence and still requires runtime/human verification; it cannot auto-resolve the original incident.
 
 ## Realistic regression scenarios
 
-The automated suite now includes realistic incident language rather than only idealized fixture phrases:
+The suite includes realistic incident language rather than only idealized fixtures:
 
 | Scenario | Expected behavior |
 |---|---|
@@ -109,7 +99,7 @@ The automated suite now includes realistic incident language rather than only id
 | Duplicate exact approval | existing remediation state reused rather than duplicated |
 | Missing GitHub auth for a write | explicit `AUTH_REQUIRED`; no fake success |
 | No CI checks | `NO_CHECKS`; never converted into PASS |
-| CI failure | incident verification derives FAIL and escalates |
+| CI failure | derives failed incident verification and escalates |
 | CI pass | retained as evidence; runtime verification still required |
 
 ## Latest audited executable proof point
@@ -138,11 +128,9 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The Windows job performs a fresh checkout/bootstrap before acceptance, so the proof is not dependent on a developer's existing local `node_modules` or Python environment.
+The Windows job performs a fresh checkout/bootstrap before acceptance, so this proof is not dependent on a developer's existing local `node_modules` or Python environment. Subsequent closure commits are documentation-only.
 
 ## What “actually useful” means for this release
-
-A developer can use the product to reduce manual incident investigation by putting these steps in one auditable workflow:
 
 ```text
 bug report + logs + repo
@@ -163,21 +151,11 @@ bug report + logs + repo
 → verified-resolution memory
 ```
 
-The useful behavior is not merely that it produces an answer. The system also knows when **not** to act: weak evidence, stale source, ambiguous replacement, unsupported validator, missing auth, conflicting retry state and absent CI checks all stop or escalate instead of being presented as success.
+The useful behavior is not merely that it produces an answer. It also knows when **not** to act: weak evidence, stale source, ambiguous replacement, unsupported validator, missing auth, conflicting retry state and absent CI checks all stop or escalate instead of being presented as success.
 
 ## Truth boundaries
 
-This release does **not** claim:
-
-- universal root-cause accuracy;
-- proof that a correlated commit caused the incident;
-- automatic semantic code repair for every defect;
-- automatic merge or production deployment;
-- production recovery merely because CI is green;
-- a trained custom ML model;
-- complete CODEOWNERS grammar compatibility for every exotic pattern/escaping edge case;
-- complete DLP or universal prompt-injection prevention;
-- enterprise multi-region/distributed-locking readiness.
+This release does **not** claim universal root-cause accuracy, causal proof from commit correlation, automatic semantic code repair for every defect, automatic merge/deployment, production recovery merely because CI is green, a trained custom ML model, complete CODEOWNERS grammar compatibility, complete DLP/universal prompt-injection prevention, or enterprise distributed-locking readiness.
 
 Those limits are intentional. For this hackathon MVP, the safer and more useful behavior is to expose evidence, make bounded changes only when supported, and fail closed otherwise.
 
