@@ -106,7 +106,12 @@ def test_verification_pass_resolves_incident(tmp_path: Path, monkeypatch) -> Non
 
     record = client.get(f"/api/v1/incidents/{incident_id}").json()
     assert record["status"] == "RESOLVED"
-    assert record["timeline"][-1]["stage"] == "VERIFICATION"
+    stages = [event["stage"] for event in record["timeline"]]
+    assert "VERIFICATION" in stages
+    assert stages[-1] == "MEMORY"
+
+    memory = client.get("/api/v1/memory").json()
+    assert any(item["incident_id"] == incident_id for item in memory)
 
 
 def test_rejected_action_escalates_without_execution(tmp_path: Path, monkeypatch) -> None:
