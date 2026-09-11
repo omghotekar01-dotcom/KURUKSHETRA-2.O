@@ -118,8 +118,29 @@ def _has_pytest_contract(root: Path) -> bool:
     return any(path.is_file() and path.suffix.lower() == ".py" and path.name.startswith("test_") for path in root.rglob("*.py"))
 
 
+def _clear_python_caches(root: Path) -> None:
+    """Ensure trusted verification executes the current source bytes on every platform.
+
+    Windows filesystems can preserve timestamp/size combinations across very fast same-size edits.
+    Removing session-local bytecode caches before each child pytest prevents a stale `.pyc` from
+    making post-patch validation observe the pre-patch implementation.
+    """
+
+    for cache_dir in sorted(root.rglob("__pycache__"), reverse=True):
+        if cache_dir.is_dir():
+            shutil.rmtree(cache_dir, ignore_errors=True)
+    for pyc in root.rglob("*.pyc"):
+        if not pyc.is_file():
+            continue
+        try:
+            pyc.unlink()
+        except OSError:
+            pass
+
+
 def _run_pytest(root: Path) -> CommandEvidence:
-    command = [sys.executable, "-m", "pytest", "-q"]
+    _clear_python_caches(root)
+    command = [sys.executable, "-B", "-m", "pytest", "-q", "--cache-clear"]
     started = time.perf_counter()
     try:
         completed = subprocess.run(
@@ -140,7 +161,7 @@ def _run_pytest(root: Path) -> CommandEvidence:
         exit_code = 124
     duration_ms = int((time.perf_counter() - started) * 1000)
     return CommandEvidence(
-        command=f"{Path(sys.executable).name} -m pytest -q [TRUSTED USER-SUPPLIED TESTS]",
+        command=f"{Path(sys.executable).name} -B -m pytest -q --cache-clear [TRUSTED USER-SUPPLIED TESTS]",
         exit_code=exit_code,
         output=output[-12_000:],
         passed=exit_code == 0,
