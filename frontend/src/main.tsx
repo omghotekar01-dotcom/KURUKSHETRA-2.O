@@ -12,6 +12,7 @@ import './evidence-page.css'
 import './source-context.css'
 import './patch-proposal.css'
 import './remediation-page.css'
+import './remediation-ci.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const evidenceMode = path === '/evidence'
