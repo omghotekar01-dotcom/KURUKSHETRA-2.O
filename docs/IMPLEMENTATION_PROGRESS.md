@@ -3,6 +3,7 @@
 Last updated: 2026-09-11
 Active build branch: `agent-build-core`
 Draft integration PR: `#1` → `develop`
+Project name: **AI Agentic Bug Router**
 
 ## Build principle
 
@@ -15,14 +16,14 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - Deterministic triage for Authentication, Database, Backend, Frontend, Infrastructure and Unclassified incidents.
 - Deterministic LOW/MEDIUM/HIGH action-risk policy.
 - Responsive dashboard with Light theme as default and persistent Light/Dark switcher.
-- API-first structure so the backend can later serve web, PWA/mobile or desktop clients.
+- API-first structure so the same backend can later serve web, PWA/mobile or desktop clients.
 
 ### Persistent incident lifecycle
 - SQLite-backed incident store with IDs, timestamps, lifecycle state and auditable timeline events.
 - Create/list/detail incident APIs and recent-incidents UI.
 - Incident states through investigation, remediation, approval, execution, verification, resolution and escalation.
 
-### Evidence, RCA and remediation
+### Evidence, RCA and routing
 - Curated local runbook/knowledge corpus and deterministic retrieval baseline.
 - Verified resolution memory participates in later retrieval.
 - No-strong-match behavior instead of forcing a historical fix.
@@ -33,92 +34,97 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - Real read-only GitHub context collection for an allowlisted repository.
 - Reads repository metadata, recent commits, commit details, changed files and open issues.
 - Ranks recent commits using incident text/logs/triage versus commit messages and filenames.
-- Correlation is investigation guidance, not proof of causation.
-- Repository evidence is attached to RCA and stored as `REPOSITORY_EVIDENCE`.
-- Provider/policy failure records `REPOSITORY_CONTEXT_UNAVAILABLE`; evidence is never fabricated.
-- Added `GET /api/v1/incidents/{incident_id}/repository-context`.
-
-### Live diff, hunk and bounded source-context diagnosis
-- Consumes real patch text returned by GitHub for changed files when available.
-- Parses unified diff hunks into typed evidence: filename, hunk header, added/removed lines, matched terms and correlation score.
-- Code-aware tokenization splits paths/snake_case so incident signals such as `jwt` match identifiers such as `jwt_signing_key`.
-- Strongest hunks contribute to commit ranking and RCA evidence.
-- RCA identifies the exact file/hunk to inspect next without declaring it faulty.
-- For the top two hunks of the top-ranked commit, the backend performs bounded read-only source retrieval at that exact commit SHA and returns line-numbered surrounding context.
-- Binary/very-large/missing patch or source data remains explicitly unavailable; nothing is invented.
-- Dedicated `/evidence` UI provides correlated commits, changed files, ranked hunks, removed/added lines, matched symptom terms, bounded source context and real GitHub links.
+- Consumes real unified diff patches when GitHub exposes them.
+- Parses and ranks suspicious hunks using code-aware incident-term correlation.
+- Fetches bounded source context at the exact commit SHA for strongest hunks.
+- Dedicated `/evidence` UI exposes correlated commits, changed files, ranked hunks, source context and real GitHub links.
+- Correlation is explicitly investigation guidance, not proof of causation.
 
 ### Exact bounded patch proposal
-- Added typed `PatchProposalRequest` and `PatchProposal` contracts.
-- Added `POST /api/v1/incidents/{incident_id}/patch-proposal`.
-- Proposal generation re-validates the selected commit/hunk against fresh live GitHub evidence.
-- The current milestone prepares a conservative `REVERT_SUSPICIOUS_HUNK` candidate only when the exact added-line sequence is still present in bounded source context.
-- If evidence is stale, source context is missing or the selected hunk cannot be replaced exactly, proposal generation fails closed with `409` rather than inventing a patch.
-- Each proposal includes repository/base commit, exact file, line start, current lines, proposed replacement, diff preview, rationale, confidence, verification commands and explicit warnings.
-- Proposal creation records an auditable `PATCH_PROPOSAL` event but performs **no repository write**.
-- Evidence Lab now exposes `Prepare patch proposal` on eligible hunks and renders a dedicated review surface with current/proposed lines, diff preview, confidence, required checks and a prominent `NO REPOSITORY WRITE` guardrail.
+- `POST /api/v1/incidents/{incident_id}/patch-proposal` creates a reviewable candidate without writing to GitHub.
+- Proposal generation revalidates the selected commit/hunk against fresh live evidence.
+- Current strategy is a conservative `REVERT_SUSPICIOUS_HUNK` candidate only when the exact added-line sequence still exists.
+- Stale, ambiguous or missing source evidence fails closed instead of inventing a patch.
+- Proposal contains exact file, base commit, line start, current lines, replacement lines, diff preview, rationale, confidence and required validation commands.
 
-### Human approval and real bounded GitHub action
-- Explicit `APPROVE` / `REJECT` contracts tied to the exact proposed action.
-- Server re-evaluates action risk at approval time rather than trusting UI state.
-- High-risk deploy/merge/destructive production operations remain blocked/recommendation-only.
+### Approval-gated live remediation
+- Dedicated `/remediate` Remediation Studio.
+- Human can explicitly APPROVE or REJECT the exact reviewed patch proposal.
+- Approval re-fetches live evidence and requires the proposal ID, commit, file, hunk, before-lines and after-lines to still match exactly.
+- Before a write, the current default-branch file is re-read; missing or ambiguous target sequences fail closed.
+- Approved changes are isolated on `incident-fix/...` branches.
+- Only the exact approved sequence is replaced.
+- Branch content is re-read after the write to verify patch integrity.
+- Frontend changes run dependency install + production build in a fresh clone.
+- Backend/Python changes run compile + pytest in a fresh clone.
+- Documentation-only changes use exact content-integrity validation.
+- Unknown executable code types fail closed until a trusted deterministic validator exists.
+- A **Draft PR** is created only after configured validation passes.
+- No automatic merge or deployment exists.
+
+### Live GitHub CI verification
+- Build workflow now also runs on `incident-fix/**` pushes and PRs targeting `main` or `develop`.
+- Added `GET /api/v1/incidents/{incident_id}/patch-verification`.
+- Backend reads the actual Draft PR, remediation commit, GitHub check-runs and combined commit status.
+- CI state is derived as `PASS`, `FAIL`, `PENDING` or `NO_CHECKS`; absence of checks is never treated as success.
+- Failing GitHub checks escalate the incident; passing checks keep the incident in `VERIFYING` because merge/runtime verification still belongs to a human.
+- Remediation Studio exposes a live CI status panel with direct check links.
+- CI state changes are recorded as `PATCH_CI_VERIFICATION` timeline events without duplicating identical poll results.
+
+### Other bounded GitHub action
 - Medium-risk GitHub issue creation requires human approval.
-- After approval, the live adapter can create a real GitHub Issue in an allowlisted repository using `GITHUB_TOKEN` or authenticated GitHub CLI credentials.
-- Success returns `EXECUTED`, `GITHUB` and the real URL.
-- Missing credentials return `AUTH_REQUIRED`, provider failures return `FAILED`; neither is presented as success.
+- Missing credentials return `AUTH_REQUIRED`; provider failures return `FAILED`; neither is presented as success.
 
 ### Verification and verified-resolution memory
 - `PASS` / `FAIL` / `INCONCLUSIVE` verification endpoint and UI.
-- PASS marks incident `RESOLVED`; failed/inconclusive verification escalates.
-- PASS stores symptoms, component, severity, working RCA, approved remediation and verification evidence for future retrieval.
-- Added `/api/v1/memory`.
+- PASS marks an incident `RESOLVED`; failed/inconclusive verification escalates.
+- Verified resolution stores symptoms, component, severity, working RCA, approved remediation and evidence for future retrieval.
 
 ### Emergency fallback
 - Version-controlled demo fixtures remain available for internet/provider failure.
 - `DEMO_MODE` defaults to `false`; the normal product path is live-first.
 - Fallback execution remains visibly `SIMULATED/DEMO` and is never confused with live success.
 
-### Continuous integration
-- GitHub Actions compiles/tests backend and builds the TypeScript/Vite frontend on every branch/PR update.
-- CI has caught real regressions during development and they have been fixed before handoff.
-
 ## Latest confirmed validation
 
-GitHub Actions run #150 on head `a643a31016dcb68261168bab6686171ad2d78dbc` completed successfully:
+GitHub Actions run #200 on implementation head `6b0f84538762d1f9b8073a3fb6e8261033b7861a` completed successfully:
 
 ```text
 Backend compile: PASS
-Backend tests:   32 passed, 2 dependency deprecation warnings, 0 failures
+Backend tests:   41 passed, 2 dependency deprecation warnings, 0 failures
 Frontend install: PASS
 Frontend TypeScript/Vite production build: PASS
 Overall workflow: SUCCESS
 ```
 
-The new coverage includes exact/read-only patch proposal generation, stale-source rejection, proposal API/audit behavior and the Evidence Lab production build in addition to the existing triage, persistence, retrieval, RCA, repository evidence, diff/hunk/source-context, approval, GitHub issue, verification and memory coverage.
+Confirmed coverage includes triage, risk policy, persistence, retrieval, RCA/remediation, live repository evidence, diff/hunk/source-context analysis, exact patch proposal, stale/ambiguous-write rejection, approval-gated branch mutation, validator selection, Draft PR gating, missing-auth fail-closed behavior, verification memory and GitHub CI-state derivation.
 
 ## Current live MVP path
 
 ```text
 Incident + repository
-→ Persist + triage
+→ Persist + triage / route
 → Historical knowledge retrieval
 → Live GitHub repository investigation
-→ Real commit + changed-file evidence
-→ Real ranked diff hunks
-→ Bounded source context at exact commit
+→ Real commits + changed files + diff hunks
+→ Bounded source context
 → Evidence-backed RCA
-→ Exact bounded patch proposal (NO WRITE)
-→ Human review
-→ Remediation + deterministic risk gate
-→ Approved bounded external action
-→ Verification
-→ Resolved / Escalated
+→ Exact patch proposal (NO WRITE)
+→ Human APPROVE / REJECT
+→ Fresh proposal + file revalidation
+→ Isolated incident-fix branch
+→ Apply only approved replacement
+→ Local deterministic validation
+→ Draft PR only if green
+→ Live GitHub CI verification
+→ Human review / runtime verification
+→ Resolved or escalated
 → Verified resolution memory
 ```
 
 ## P0 sequence
 
-1. ~~Incident intake + triage.~~
+1. ~~Incident intake + triage/routing.~~
 2. ~~Persistence + audit timeline.~~
 3. ~~Historical knowledge retrieval.~~
 4. ~~Evidence-backed RCA baseline.~~
@@ -132,35 +138,38 @@ Incident + repository
 12. ~~Real diff parsing + suspicious-hunk ranking + RCA grounding.~~
 13. ~~Operator-grade Evidence Lab + bounded source-context inspection.~~
 14. ~~Exact bounded patch proposal reviewable before any repository write.~~
-15. After explicit proposal approval only: create isolated fix branch, apply only the approved patch and run tests/build.
-16. Create a DRAFT PR only if checks pass; never auto-merge.
-17. Derive verification from real test/CI results.
-18. Add evaluation runner + judge-facing scorecard.
-19. Lock dependencies, run clean-clone acceptance, finish UX/docs/recovery polish.
+15. ~~Approval-gated isolated fix branch + exact patch application + deterministic validation.~~
+16. ~~Draft PR only after validation; never auto-merge.~~
+17. ~~Derive remediation verification from real GitHub CI/check state.~~
+18. Add repeatable Evaluation Lab + judge-facing measured scorecard.
+19. Lock dependencies and add clean-clone / one-command acceptance workflow.
+20. Final responsive Light-theme polish, documentation, demo recovery and security pass.
 
 ## Next highest-value milestone
 
-Approval-gated repository mutation:
+Evaluation Lab with measured, reproducible results only:
 
 ```text
-Reviewed patch proposal
-→ explicit APPROVE / REJECT of the exact proposal
-→ revalidate repository/base commit/file contents
-→ create isolated incident fix branch
-→ apply only the approved exact replacement
-→ run deterministic backend/frontend checks
-→ if checks fail: stop and surface failure
-→ if checks pass: create DRAFT PR only
-→ never auto-merge or deploy
+Versioned benchmark incidents
+→ expected routing/component/severity
+→ retrieval hit / intentional no-match checks
+→ RCA evidence-grounding checks
+→ unsafe-action block checks
+→ remediation validation outcomes
+→ repeatable runner
+→ judge-facing scorecard
 ```
+
+No benchmark number may appear in the UI or documentation unless it was produced by the runner on the current codebase.
 
 ## Known implementation risks
 
-- Exact hackathon PS requirements override generic assumptions if they differ from this direction.
+- Exact hackathon problem-statement constraints override generic assumptions if they differ from this direction.
 - Commit/hunk correlation is heuristic investigation guidance, not causal proof.
 - The current patch strategy is a conservative hunk-revert candidate, not a guarantee of the best semantic fix.
-- GitHub API rate limits/network availability may affect live evidence; emergency fallback remains available.
+- GitHub API rate limits/network availability may affect live evidence or check polling.
 - GitHub may omit patch/content data for binary or large files; unavailable evidence remains unavailable.
+- Passing CI proves configured checks passed; it does not prove production recovery or justify automatic merge.
 - Real integrations must never silently degrade to fake success.
 - No automatic merge, production deployment, destructive database operation or unrestricted repository write is permitted.
 - The public repository must never contain tokens, credentials or private operational data.
