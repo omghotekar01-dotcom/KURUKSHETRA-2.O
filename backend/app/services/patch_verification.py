@@ -37,6 +37,27 @@ def _request(client: httpx.Client, path: str) -> Any:
         raise PatchVerificationUnavailable("GitHub returned a non-JSON verification response.") from exc
 
 
+def _validate_pr_binding(pr: dict[str, Any], *, commit_sha: str, draft_pr_number: int) -> None:
+    observed_number = pr.get("number")
+    if observed_number is not None:
+        try:
+            if int(observed_number) != draft_pr_number:
+                raise PatchVerificationUnavailable(
+                    f"GitHub returned PR #{observed_number} while verification expected Draft PR #{draft_pr_number}."
+                )
+        except (TypeError, ValueError) as exc:
+            raise PatchVerificationUnavailable("GitHub returned an invalid pull-request number during verification.") from exc
+
+    head = pr.get("head")
+    head_sha = str(head.get("sha") or "") if isinstance(head, dict) else ""
+    if not head_sha:
+        raise PatchVerificationUnavailable("GitHub did not return the Draft PR head commit needed for verification.")
+    if head_sha.lower() != commit_sha.lower():
+        raise PatchVerificationUnavailable(
+            "Draft PR head changed after the recorded remediation execution. Refresh remediation state before trusting CI evidence."
+        )
+
+
 def _derive_status(checks: list[CIVerificationCheck], combined_state: str) -> tuple[str, str]:
     normalized_state = (combined_state or "").lower()
     conclusions = {(check.conclusion or "").lower() for check in checks if check.conclusion}
@@ -117,6 +138,7 @@ def verify_patch_ci(
 
     with httpx.Client(base_url=GITHUB_API, headers=headers, timeout=20.0, follow_redirects=True) as client:
         pr = _request(client, f"/repos/{normalized_repo}/pulls/{draft_pr_number}")
+        _validate_pr_binding(pr, commit_sha=commit_sha, draft_pr_number=draft_pr_number)
         check_payload = _request(client, f"/repos/{normalized_repo}/commits/{commit_sha}/check-runs")
         status_payload = _request(client, f"/repos/{normalized_repo}/commits/{commit_sha}/status")
 
