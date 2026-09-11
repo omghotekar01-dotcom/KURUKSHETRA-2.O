@@ -54,7 +54,7 @@ if errorlevel 1 (
 
 echo [LOCAL AI] Running a real local inference warm-up...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$body = @{model='%MODEL%';stream=$false;messages=@(@{role='user';content='Reply with exactly READY and nothing else.'});options=@{temperature=0}} ^| ConvertTo-Json -Depth 8; try { $r = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:11434/api/chat' -ContentType 'application/json' -Body $body -TimeoutSec 120; if ([string]::IsNullOrWhiteSpace([string]$r.message.content)) { exit 2 }; Write-Host ('[LOCAL AI] Native inference reply: ' + ([string]$r.message.content).Trim()) } catch { Write-Host ('[LOCAL AI] Inference probe failed: ' + $_.Exception.Message); exit 3 }"
+  "$payload = @{model='%MODEL%';stream=$false;messages=@(@{role='user';content='Reply with exactly READY and nothing else.'});options=@{temperature=0}}; $body = ConvertTo-Json -InputObject $payload -Depth 8; try { $r = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:11434/api/chat' -ContentType 'application/json' -Body $body -TimeoutSec 120; if ([string]::IsNullOrWhiteSpace([string]$r.message.content)) { exit 2 }; Write-Host ('[LOCAL AI] Native inference reply: ' + ([string]$r.message.content).Trim()) } catch { Write-Host ('[LOCAL AI] Inference probe failed: ' + $_.Exception.Message); exit 3 }"
 if errorlevel 1 (
   echo [LOCAL AI] Ollama and the model are installed, but a real inference call failed.
   echo [LOCAL AI] Close/reopen the Ollama app and retry before the judge demo.
