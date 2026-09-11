@@ -79,6 +79,27 @@ def test_scan_invalidates_reviewed_proposal(monkeypatch) -> None:
     assert "No reviewed proposal" in applied.json()["detail"]
 
 
+def test_failed_repreview_invalidates_previous_review(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
+    reset = client.post(f"/api/v1/autofix/{TARGET_ID}/reset")
+    assert reset.status_code == 200
+
+    preview = client.post(f"/api/v1/autofix/{TARGET_ID}/proposal")
+    assert preview.status_code == 200
+
+    def fail_proposal(target_id: str):
+        raise ValueError(f"planner failed for {target_id}")
+
+    monkeypatch.setattr("app.routers.workspace.propose_fix", fail_proposal)
+    failed_preview = client.post(f"/api/v1/autofix/{TARGET_ID}/proposal")
+    assert failed_preview.status_code == 409
+    assert "planner failed" in failed_preview.json()["detail"]
+
+    applied = client.post(f"/api/v1/autofix/{TARGET_ID}/apply")
+    assert applied.status_code == 409
+    assert "No reviewed proposal" in applied.json()["detail"]
+
+
 def test_reset_invalidates_reviewed_proposal(monkeypatch) -> None:
     monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
     client.post(f"/api/v1/autofix/{TARGET_ID}/reset")
