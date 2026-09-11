@@ -31,6 +31,19 @@ reviewed exact patch
 
 CI PASS is evidence for the remediation commit; it is not merge authority and does not auto-resolve the original incident. Remediation Studio retains the white/purple UI pass, compact layout, friendly failure messages and truthful shimmers for repository inspection, proposal generation, validation and CI reads.
 
+### Latest CI verification hardening
+
+A release-candidate review found two fail-closed gaps in the real GitHub verification path and fixed them before promotion:
+
+1. a green combined GitHub commit status could previously mask an observed check-run that was marked `completed` but had no terminal conclusion, or a check-run with an unknown/unrecognized state;
+2. CI was read for the recorded remediation commit, but the live Draft PR response was not explicitly required to still point at that exact commit.
+
+The verifier now requires every observed check-run to be in a recognized terminal state with a recognized terminal conclusion before reporting `PASS`. Missing conclusions, unknown states and unfamiliar conclusions remain `PENDING` rather than inheriting a green aggregate state.
+
+The live Draft PR is also bound back to the stored remediation execution: its current head SHA must exactly match the recorded remediation commit before any CI evidence is trusted. If the PR head changed after execution, verification fails closed and the operator must refresh remediation state instead of trusting checks from an older commit.
+
+These checks strengthen evidence integrity only. They do not change the existing authority boundary: CI `PASS` remains structured evidence and runtime/human confirmation is still required to resolve the original incident.
+
 Key docs:
 
 - [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_DEMO.md)
@@ -206,6 +219,7 @@ Incident + logs + repository
 → exact approved replacement
 → trusted validation
 → Draft PR only if validation is green
+→ live Draft-PR head binding to recorded remediation commit
 → real GitHub CI/check evidence
 → derived incident-verification evidence
 → external human repository review/merge
@@ -220,6 +234,9 @@ CI behavior remains deliberately conservative:
 
 - real CI failure can derive incident verification `FAIL` and escalate;
 - pending/no checks remain inconclusive;
+- every observed check-run must be completed with a recognized terminal conclusion before CI can report `PASS`;
+- the live Draft PR head must still equal the recorded remediation commit before its CI evidence is trusted;
+- missing/unknown check conclusions and changed PR heads fail closed instead of inheriting a green aggregate state;
 - CI PASS is structured evidence only and does **not** auto-resolve the original runtime incident;
 - no in-product merge endpoint exists.
 
@@ -282,6 +299,8 @@ The current UI pass keeps the project light-first with a white + purple system, 
 - investigation is read-only until explicit approval.
 - every repository patch write is bound to one exact reviewed proposal.
 - stale state fails closed.
+- CI verification is bound to the current live Draft-PR head and the recorded remediation commit.
+- ambiguous or incomplete GitHub check results cannot be upgraded to PASS by a green aggregate status.
 - path traversal and sensitive/build directories are blocked.
 - arbitrary judge-uploaded code is not executed unless explicitly trusted.
 - failed repair validation rolls back.
@@ -294,15 +313,15 @@ The current UI pass keeps the project light-first with a white + purple system, 
 
 ## Latest confirmed full executable validation
 
-GitHub Actions run **#789** / run ID `34643760094` on executable release-candidate head:
+GitHub Actions run **#803** / run ID `34652654144` on executable release-candidate head:
 
-`8c7ab3357af3365bff896397955e779db2847e25`
+`c8827f5914a813ca5f6c8c72ea645baafb1daa92`
 
 completed successfully on 2026-09-11 UTC / 2026-09-12 IST:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         109 passed, 2 dependency warnings, 0 failures
+Backend tests:                         116 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
@@ -317,7 +336,7 @@ Overall workflow:                      PASS
 
 The two Python warnings are dependency deprecations from FastAPI/Starlette test infrastructure and are not test failures.
 
-This validation includes the safety-restored Draft-PR-only remediation boundary, the Test Lab and white/purple UI system, the Qwen Windows warm-up regression check, locked frontend dependencies, and the clean-clone Windows acceptance path.
+This validation includes the Draft-PR-only remediation boundary, fail-closed ambiguous CI/check handling, live Draft-PR head binding to the recorded remediation commit, the Test Lab and white/purple UI system, Qwen Windows warm-up regression checks, locked frontend dependencies, and the clean-clone Windows acceptance path.
 
 ## P0 milestone closure
 
@@ -347,7 +366,8 @@ Completed milestones now include:
 22. release contract coverage for the judge-intake feature set;
 23. Windows launcher stale/reused PID cleanup regression protection;
 24. compact white/purple judge UI + collapsible navigation + Test Lab;
-25. restored Draft-PR-only merge boundary after safety regression review.
+25. restored Draft-PR-only merge boundary after safety regression review;
+26. fail-closed GitHub check-state handling + live Draft-PR head/commit verification binding.
 
 ## Final laptop rehearsal
 
