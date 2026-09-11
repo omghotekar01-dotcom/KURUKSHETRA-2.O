@@ -2,6 +2,7 @@
 
 Last updated: 2026-09-11
 Active build branch: `agent-build-core`
+Draft integration PR: `#1` → `develop`
 
 ## Build principle
 
@@ -43,21 +44,42 @@ Move from the documented architecture to a reliable end-to-end product in small,
 - Added analysis endpoint and timeline events for RCA/remediation.
 - Added UI panels for top hypothesis, confidence, next diagnostic, remediation, risk policy and verification plan.
 
+### Approval, bounded action and verification
+- Added explicit `APPROVE` / `REJECT` contracts tied to the exact proposed action.
+- Server re-evaluates action risk at approval time rather than trusting UI state.
+- High-risk actions remain blocked even when a reviewer clicks approve.
+- Added bounded execution adapter with honest `DEMO/SIMULATED` semantics; it never pretends an external provider changed state.
+- Added `VERIFYING`, `RESOLVED` and escalation transitions.
+- Added `PASS` / `FAIL` / `INCONCLUSIVE` verification endpoint.
+- Added approval, action and verification events to the audit timeline.
+- Added dashboard approval/reject controls, action-result card and verification controls.
+
+### Continuous integration
+- Added GitHub Actions backend compile/test job and frontend TypeScript/Vite build job.
+- First CI run correctly exposed a Python import-path issue and obsolete TypeScript module resolver.
+- Fixed CI to run tests via `python -m pytest` and switched TypeScript to Vite-compatible `moduleResolution: Bundler`.
+- Added `vite-env.d.ts` and a strict TypeScript no-emit check before Vite build.
+
 ## Tests actually executed
 
-Backend regression suite after the latest RCA milestone:
+Latest GitHub Actions run on the full branch:
 
 ```text
-14 passed in 0.49s
+Backend compile: PASS
+Backend tests:   18 passed, 2 dependency deprecation warnings, 0 failures
+Frontend install: PASS
+Frontend TypeScript/Vite build: PASS
+Overall workflow: SUCCESS
 ```
 
-Additional check executed:
+The warnings are from upstream Starlette/FastAPI test-client dependencies, not application test failures.
+
+Additional local smoke validation of the new closed-loop path:
 
 ```text
-python -m compileall -q app tests
+2 passed in 0.36s
+python -m compileall -q app tests -> PASS
 ```
-
-Result: passed.
 
 Covered behavior now includes:
 - Authentication triage.
@@ -74,8 +96,10 @@ Covered behavior now includes:
 - RCA/remediation generation.
 - No-match human-escalation path.
 - Analysis API workflow and `REMEDIATION_READY` transition.
-
-Frontend dependency/build verification is still pending because dependency installation was not available in the current execution environment. Do not record the frontend build as passing until it is actually run.
+- Human approve/reject path.
+- Simulated bounded execution.
+- High-risk action blocking after approval.
+- Verification pass → `RESOLVED`.
 
 ## Current P0 sequence
 
@@ -84,32 +108,32 @@ Frontend dependency/build verification is still pending because dependency insta
 3. ~~Add local historical/runbook corpus and retrieval baseline.~~
 4. ~~Add evidence objects and ranked RCA hypothesis baseline.~~
 5. ~~Add remediation + deterministic risk gate to incident workflow.~~
-6. Add explicit approval event and one bounded GitHub action adapter.
-7. Add verification result and resolution memory.
-8. Add deterministic demo dataset/fallback switch.
-9. Add evaluation runner and scorecard.
-10. Run frontend build + clean-clone setup test, then prepare PR into `develop`.
+6. ~~Add explicit approval event and bounded action adapter.~~
+7. ~~Add verification result and resolution transition.~~
+8. Add structured resolution memory + deterministic demo fixtures/fallback switch.
+9. Add evaluation runner and judge-facing scorecard.
+10. Add optional bounded GitHub issue adapter when credentials/controlled target are configured.
+11. Run clean-clone/setup acceptance test, polish UX, then move draft PR toward review.
 
 ## Next highest-value milestone
 
-Implement the human approval boundary and bounded action flow:
+Persist verified resolution memory and make it reusable by future incidents:
 
 ```text
-REMEDIATION_READY
-→ exact proposed action
-→ policy/risk decision
-→ APPROVE / EDIT / REJECT
-→ bounded adapter (initially safe demo action / GitHub issue)
-→ audit timeline
-→ VERIFYING
+VERIFICATION PASS
+→ structured memory record
+→ symptoms + component + actual/working root cause
+→ approved action
+→ verification evidence
+→ reusable retrieval candidate
 ```
 
-High-risk actions remain recommendation-only. No auto-merge, production deploy, production restart or destructive database action will be implemented in the hackathon build.
+Then add deterministic evaluation fixtures so routing, retrieval, RCA, policy and verification can be scored in a repeatable judge-facing benchmark.
 
 ## Known implementation risks
 
 - Exact PS-specific requirements still override generic assumptions if they differ from the current direction.
-- The current retrieval/RCA path is deliberately deterministic and lightweight; embedding/LLM upgrades must beat the baseline in evaluation before replacing it.
-- External LLM/GitHub actions need deterministic demo fallbacks.
-- Frontend build/dependency install is not yet recorded as passing.
+- Current retrieval/RCA is deliberately deterministic and lightweight; embedding/LLM upgrades must beat the baseline in evaluation before replacing it.
+- Real external integrations must never silently fall back from failure to a fake success state.
+- The frontend currently uses package versions resolved at install time; a lockfile should be committed once dependency versions are stabilized.
 - The repository is public; no secrets or private operational data may be committed.
