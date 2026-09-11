@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, ExternalLink, FileCode2, GitPullRequest, Loader2, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
+import LoadingShimmer from './LoadingShimmer'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -99,14 +100,27 @@ type CIVerification = {
   incident_status: string
 }
 
+type PatchMergeResult = {
+  incident_id: string
+  repository: string
+  draft_pr_number: number
+  merged: boolean
+  merge_sha?: string | null
+  merge_method: string
+  reviewer: string
+  message: string
+  incident_status: string
+  runtime_verification_required: boolean
+}
+
 type Candidate = DiffHunk & { commit: CommitEvidence }
 
 async function readError(response: Response) {
   try {
     const payload = await response.json()
-    return payload.detail ?? JSON.stringify(payload)
+    return payload.detail ?? 'The requested operation could not be completed.'
   } catch {
-    return response.text()
+    return 'The requested operation could not be completed. Check connectivity and try again.'
   }
 }
 
@@ -118,8 +132,11 @@ export default function PatchRemediationPage() {
   const [proposal, setProposal] = useState<PatchProposal | null>(null)
   const [result, setResult] = useState<ExecutionResult | null>(null)
   const [ciVerification, setCiVerification] = useState<CIVerification | null>(null)
+  const [mergeResult, setMergeResult] = useState<PatchMergeResult | null>(null)
   const [reviewer, setReviewer] = useState('human-reviewer')
   const [note, setNote] = useState('Reviewed exact before/after replacement and validation gate.')
+  const [mergeArmed, setMergeArmed] = useState(false)
+  const [mergeConfirmation, setMergeConfirmation] = useState('')
   const [loading, setLoading] = useState('')
   const [error, setError] = useState('')
 
@@ -132,7 +149,7 @@ export default function PatchRemediationPage() {
         setIncidents(payload)
         if (payload.length) setIncidentId(payload[0].id)
       } catch {
-        setError('Backend unavailable. Start FastAPI on port 8000.')
+        setError('Backend is not reachable yet. Start the product and retry.')
       }
     })()
   }, [])
@@ -151,6 +168,9 @@ export default function PatchRemediationPage() {
     setProposal(null)
     setResult(null)
     setCiVerification(null)
+    setMergeResult(null)
+    setMergeArmed(false)
+    setMergeConfirmation('')
   }
 
   async function inspect() {
@@ -168,9 +188,9 @@ export default function PatchRemediationPage() {
         .filter((hunk) => hunk.added_lines.length > 0 && hunk.source_context.length > 0)
         .sort((a, b) => b.correlation_score - a.correlation_score)[0]
       setCandidate(best ?? null)
-      if (!best) setError('No safe patch candidate has both exact added lines and bounded current source context. Refresh evidence or choose another incident.')
+      if (!best) setError('No safe patch candidate has enough exact source context. Refresh evidence or choose another incident.')
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Live repository inspection failed.')
+      setError(requestError instanceof Error ? requestError.message : 'Live repository evidence is unavailable right now.')
     } finally {
       setLoading('')
     }
@@ -183,6 +203,7 @@ export default function PatchRemediationPage() {
     setProposal(null)
     setResult(null)
     setCiVerification(null)
+    setMergeResult(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/patch-proposal`, {
         method: 'POST',
@@ -196,7 +217,7 @@ export default function PatchRemediationPage() {
       if (!response.ok) throw new Error(await readError(response))
       setProposal(await response.json())
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Patch proposal failed.')
+      setError(requestError instanceof Error ? requestError.message : 'A safe patch proposal could not be prepared.')
     } finally {
       setLoading('')
     }
@@ -208,6 +229,9 @@ export default function PatchRemediationPage() {
     setError('')
     setResult(null)
     setCiVerification(null)
+    setMergeResult(null)
+    setMergeArmed(false)
+    setMergeConfirmation('')
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/patch-decision`, {
         method: 'POST',
@@ -217,7 +241,7 @@ export default function PatchRemediationPage() {
       if (!response.ok) throw new Error(await readError(response))
       setResult(await response.json())
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Patch decision failed.')
+      setError(requestError instanceof Error ? requestError.message : 'The patch decision could not be completed.')
     } finally {
       setLoading('')
     }
@@ -227,12 +251,39 @@ export default function PatchRemediationPage() {
     if (!incidentId) return
     setLoading('ci')
     setError('')
+    setMergeArmed(false)
+    setMergeConfirmation('')
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/patch-verification`)
       if (!response.ok) throw new Error(await readError(response))
       setCiVerification(await response.json())
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'GitHub CI verification failed.')
+      setError(requestError instanceof Error ? requestError.message : 'GitHub CI status is unavailable right now.')
+    } finally {
+      setLoading('')
+    }
+  }
+
+  async function mergePullRequest() {
+    if (!incidentId || !mergeArmed || mergeConfirmation.trim().toUpperCase() !== 'MERGE') return
+    setLoading('merge')
+    setError('')
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/patch-merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reviewer,
+          confirmation: mergeConfirmation.trim(),
+          merge_method: 'squash',
+        }),
+      })
+      if (!response.ok) throw new Error(await readError(response))
+      setMergeResult(await response.json())
+      setMergeArmed(false)
+      setMergeConfirmation('')
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'The merge was blocked by a final safety check.')
     } finally {
       setLoading('')
     }
@@ -247,8 +298,8 @@ export default function PatchRemediationPage() {
 
       <section className="remediation-hero">
         <p>REMEDIATION STUDIO</p>
-        <h1>Turn repository evidence into a tested draft pull request.</h1>
-        <div>Nothing is written until you approve the exact proposal. Approval creates an isolated branch, applies only the reviewed replacement, runs deterministic checks, and opens a <b>draft</b> PR only when the checks pass.</div>
+        <h1>Turn repository evidence into a tested pull request.</h1>
+        <div>Nothing is written until you approve the exact proposal. The fix is validated on an isolated branch and starts as a <b>Draft PR</b>. A separate final human gate appears only after real GitHub CI passes.</div>
       </section>
 
       <section className="remediation-card remediation-controls">
@@ -265,6 +316,8 @@ export default function PatchRemediationPage() {
       </section>
 
       {error && <div className="remediation-error">{error}</div>}
+
+      {loading === 'inspect' && !context && <LoadingShimmer lines={5} label="Inspecting live repository evidence" />}
 
       {context && (
         <section className="remediation-card live-context-strip">
@@ -293,6 +346,8 @@ export default function PatchRemediationPage() {
         </section>
       )}
 
+      {loading === 'proposal' && !proposal && <LoadingShimmer lines={5} label="Revalidating exact source and preparing a bounded proposal" />}
+
       {proposal && (
         <section className="remediation-card proposal-review-card">
           <div className="remediation-heading">
@@ -315,7 +370,7 @@ export default function PatchRemediationPage() {
           <div className="full-diff"><small>EXACT DIFF PREVIEW</small><pre>{proposal.diff_preview}</pre></div>
 
           <div className="validation-plan">
-            <b>Validation gate before draft PR</b>
+            <b>Validation gate before Draft PR</b>
             {proposal.verification_commands.map((command) => <code key={command}>{command}</code>)}
           </div>
 
@@ -324,19 +379,21 @@ export default function PatchRemediationPage() {
             <label><span>Review note</span><input value={note} onChange={(event) => setNote(event.target.value)} /></label>
           </div>
 
-          <div className="approval-warning"><ShieldCheck size={16} /><span><b>Approve means a real GitHub write.</b> The backend will revalidate the proposal first, create an isolated `incident-fix/...` branch, apply only these exact lines, run checks, and create a DRAFT PR only if validation passes. It will never merge or deploy.</span></div>
+          <div className="approval-warning"><ShieldCheck size={16} /><span><b>Approve means a real GitHub write.</b> The backend revalidates the proposal, creates an isolated `incident-fix/...` branch, applies only these exact lines, runs checks, and creates a Draft PR only if validation passes. This approval does not merge anything.</span></div>
 
           <div className="decision-row">
             <button className="reject-button" onClick={() => void decide('REJECT')} disabled={Boolean(loading)}>
               {loading === 'reject' ? <Loader2 className="spin" size={15} /> : <XCircle size={15} />} Reject proposal
             </button>
             <button className="approve-button" onClick={() => void decide('APPROVE')} disabled={Boolean(loading) || reviewer.trim().length < 2}>
-              {loading === 'approve' ? <><Loader2 className="spin" size={15} /> Applying + running checks…</> : <><GitPullRequest size={15} /> Approve, validate & create draft PR</>}
+              {loading === 'approve' ? <><Loader2 className="spin" size={15} /> Applying + running checks…</> : <><GitPullRequest size={15} /> Approve, validate & create Draft PR</>}
             </button>
           </div>
           {loading === 'approve' && <div className="long-running-note">Real validation can take a few minutes, especially for a frontend build. Keep this page open.</div>}
         </section>
       )}
+
+      {loading === 'approve' && <LoadingShimmer lines={5} label="Applying the exact reviewed patch and running deterministic validation" />}
 
       {result && (
         <section className={`remediation-card execution-result result-${result.status.toLowerCase()}`}>
@@ -364,7 +421,7 @@ export default function PatchRemediationPage() {
             <div className="ci-verification-panel">
               <div>
                 <b>GitHub CI verification</b>
-                <span>The isolated remediation commit is now tracked against real GitHub Actions/check results. Passing CI does not merge the PR.</span>
+                <span>The remediation commit is tracked against real GitHub checks. CI must pass before the separate human merge gate can unlock.</span>
               </div>
               <button onClick={() => void verifyCI()} disabled={loading === 'ci'}>
                 {loading === 'ci' ? <><Loader2 className="spin" size={14} /> Reading GitHub CI…</> : <><RefreshCw size={14} /> Check live CI status</>}
@@ -373,6 +430,8 @@ export default function PatchRemediationPage() {
           )}
         </section>
       )}
+
+      {loading === 'ci' && <LoadingShimmer lines={4} label="Reading real GitHub Actions and commit status" />}
 
       {ciVerification && (
         <section className={`remediation-card ci-verification-result ci-${ciVerification.status.toLowerCase()}`}>
@@ -401,6 +460,45 @@ export default function PatchRemediationPage() {
               })}
             </div>
           ) : <div className="long-running-note">No GitHub checks are visible yet. Wait for Actions to start, then refresh this status.</div>}
+        </section>
+      )}
+
+      {ciVerification?.status === 'PASS' && !mergeResult && (
+        <section className="remediation-card final-merge-gate">
+          <div className="remediation-heading">
+            <div><ShieldCheck size={20} /><span><b>Final human merge gate</b><small>CI PASS does not merge automatically. This is a separate irreversible repository action.</small></span></div>
+            <strong>LOCKED</strong>
+          </div>
+          <p>Review the real pull request one last time. When armed, the backend refreshes CI again, verifies the PR head still equals the reviewed remediation commit, converts the Draft PR to ready-for-review if needed, then performs a squash merge.</p>
+          <label className="merge-arm-control">
+            <input type="checkbox" checked={mergeArmed} onChange={(event) => setMergeArmed(event.target.checked)} />
+            <span><b>I reviewed the PR and want to merge this exact validated remediation.</b><small>Production recovery will still require separate runtime verification.</small></span>
+          </label>
+          <label className="merge-confirmation-field">
+            <span>Type <b>MERGE</b> to confirm</span>
+            <input value={mergeConfirmation} onChange={(event) => setMergeConfirmation(event.target.value)} placeholder="MERGE" autoComplete="off" />
+          </label>
+          <button className="human-merge-button" type="button" onClick={() => void mergePullRequest()} disabled={Boolean(loading) || !mergeArmed || mergeConfirmation.trim().toUpperCase() !== 'MERGE' || reviewer.trim().length < 2}>
+            {loading === 'merge' ? <><Loader2 className="spin" size={15} /> Revalidating CI + merging…</> : <><GitPullRequest size={15} /> Human-confirm & merge validated PR</>}
+          </button>
+        </section>
+      )}
+
+      {loading === 'merge' && <LoadingShimmer lines={4} label="Revalidating CI, PR head and merge permission" />}
+
+      {mergeResult && (
+        <section className="remediation-card merge-success-card">
+          <div className="remediation-heading">
+            <div><CheckCircle2 size={20} /><span><b>Repository merge complete</b><small>{mergeResult.message}</small></span></div>
+            <strong>{mergeResult.merge_method.toUpperCase()}</strong>
+          </div>
+          <div className="proposal-facts">
+            <span><small>Pull request</small><b>#{mergeResult.draft_pr_number}</b></span>
+            <span><small>Merge SHA</small><b>{mergeResult.merge_sha?.slice(0, 12) ?? 'GitHub merged'}</b></span>
+            <span><small>Reviewer</small><b>{mergeResult.reviewer}</b></span>
+            <span><small>Runtime verification</small><b>{mergeResult.runtime_verification_required ? 'REQUIRED' : '—'}</b></span>
+          </div>
+          <div className="approval-warning"><ShieldCheck size={16} /><span><b>Merge is not production verification.</b> The original incident remains in verification until a human/runtime signal confirms recovery.</span></div>
         </section>
       )}
     </main>
