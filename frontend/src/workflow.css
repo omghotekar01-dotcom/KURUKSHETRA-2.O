@@ -1,0 +1,131 @@
+.status-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.state-pill {
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid #304563;
+  background: #101d30;
+  color: #9fb2cc;
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+
+.approval-box {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #42547a;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(32, 49, 83, .75), rgba(11, 22, 38, .85));
+}
+
+.approval-box > div:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.approval-box b {
+  color: #dce6f7;
+  font-size: 12px;
+}
+
+.approval-box span {
+  color: #9eafc6;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.button-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.button-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.danger-button {
+  border-color: #65313a;
+  color: #ffadb8;
+  background: rgba(70, 23, 31, .32);
+}
+
+.action-result-panel {
+  border-color: #31584e;
+}
+
+.action-result-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+  color: #78dcbc;
+}
+
+.action-result-line > div {
+  display: grid;
+  gap: 4px;
+}
+
+.action-result-line b {
+  color: #d9e9e4;
+  font-size: 13px;
+}
+
+.action-result-line span {
+  color: #91aa9f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.verification-panel {
+  border-color: #3b4f7a;
+}
+
+.verification-actions {
+  justify-content: flex-start;
+}
+
+.final-result h3 {
+  margin: 14px 0 6px;
+}
+
+.final-result p {
+  margin-bottom: 0;
+  color: #aab9cb;
+  line-height: 1.55;
+}
+
+.success-result {
+  border-color: #286554;
+  background: linear-gradient(180deg, rgba(17, 61, 50, .45), rgba(9, 28, 29, .92));
+}
+
+.failure-result {
+  border-color: #66313b;
+  background: linear-gradient(180deg, rgba(76, 22, 31, .42), rgba(29, 12, 20, .92));
+}
+
+@media (max-width: 560px) {
+  .button-row,
+  .verification-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .button-row button {
+    width: 100%;
+  }
+}
