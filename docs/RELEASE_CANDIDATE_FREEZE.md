@@ -12,20 +12,11 @@ The planned **hackathon MVP implementation scope is complete** on the release-ca
 
 ## Frozen executable snapshot
 
-Implementation branch:
+Implementation branch: `agent-build-core`
 
-`agent-build-core`
+Validated executable code head: `b6e4959971b08adcf53fa83b9f98fd8c6aca0f6a`
 
-Validated executable code head:
-
-`b6e4959971b08adcf53fa83b9f98fd8c6aca0f6a`
-
-GitHub Actions validation:
-
-- Workflow run: **#358**
-- Run ID: `34595268159`
-
-Confirmed release-candidate results:
+GitHub Actions validation: **run #358**, run ID `34595268159`.
 
 ```text
 Backend compile:                       PASS
@@ -40,22 +31,11 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The Windows run rebuilt the project from a clean Git checkout before executing the acceptance suite. Commits after `b6e495...` in this closure pass update README/runbook/status documentation only; they do not change the frozen executable product behavior.
+The Windows run rebuilt the project from a clean Git checkout before executing acceptance. Commits after `b6e495...` in this closure pass update README/runbook/status documentation only; they do not change the frozen executable behavior.
 
 ## Release-candidate contract
 
-`scripts/release_contract.py` is part of the acceptance gate. It checks that:
-
-- critical release artifacts exist;
-- `/demo`, `/readiness`, `/evaluation`, `/evidence` and `/remediate` are wired;
-- Judge Mode keeps repository writes locked by default;
-- explicit human approval is required before live remediation;
-- fail-closed Judge Mode behavior remains present;
-- real CI verification is connected;
-- npm lockfile v3 is committed;
-- launchers expose Judge Mode;
-- README preserves the no-auto-merge safety statement and active branch information;
-- `.env` is not tracked by Git.
+`scripts/release_contract.py` is part of the acceptance gate. It verifies critical release artifacts/routes, Judge Mode's locked-by-default write state, explicit human approval, fail-closed behavior, real CI hook, npm lockfile v3, launcher Judge Mode links, README safety statements and that `.env` is not tracked.
 
 ## Completed release scope
 
@@ -88,24 +68,15 @@ Judge/operator proof surfaces:
 /evaluation measured deterministic benchmark
 ```
 
-Reliability/security scope includes dynamic local ports, locked frontend dependencies, clean-clone bootstrap, idempotent remediation reuse, stale/conflicting state rejection, recognized credential redaction, untrusted-repository-evidence handling and prompt-like instruction warnings.
+Reliability/security scope includes dynamic local ports, locked frontend dependencies, clean-clone bootstrap, idempotent remediation reuse, stale/conflicting-state rejection, recognized credential redaction, untrusted-repository-evidence handling and prompt-like instruction warnings.
 
 ## Judge Mode safety boundary
 
-Judge Mode is deliberately **read-only through exact patch proposal**.
-
-A real repository write requires two separate human actions:
-
-1. review the exact patch and explicitly enable **Arm live remediation**;
-2. explicitly click the approval action.
-
-Even after approval, the system only writes to an isolated remediation branch, validates the change and may create a **Draft PR**. It does not merge or deploy.
+Judge Mode is deliberately **read-only through exact patch proposal**. A real repository write requires reviewing the exact patch, explicitly enabling **Arm live remediation**, and then explicitly approving the bounded write. Even then, the system writes only to an isolated remediation branch, validates it, and may create a **Draft PR**. It does not merge or deploy.
 
 A missing/stale/ambiguous candidate produces `SAFE_STOP` instead of a fabricated patch.
 
 ## Final local rehearsal
-
-On the hackathon laptop:
 
 ```powershell
 cd C:\Users\ASUS\OneDrive\Desktop\HACKATHON\KURUKSHETRA-2.O
@@ -116,7 +87,7 @@ git pull --ff-only origin agent-build-core
 .\start.bat
 ```
 
-Expected `verify.bat` release gate:
+Expected release gate:
 
 ```text
 Acceptance summary: 4/4 checks passed
@@ -124,33 +95,17 @@ CLEAN-CLONE ACCEPTANCE: PASS
 RELEASE-CANDIDATE ACCEPTANCE: PASS
 ```
 
-Use the exact URLs printed by `start.bat`. Open **Judge Mode `/demo`** first for the main presentation.
+Use the exact URLs printed by `start.bat`. Open **Judge Mode `/demo`** first.
 
 ## Submission promotion is intentionally separate
 
-At this freeze point:
-
-- implementation is still on `agent-build-core`;
-- Draft PR #1 targets `develop`;
-- `main` remains untouched by design.
-
-Do **not** promote/merge solely because this document says the MVP scope is complete. Final branch promotion should happen only after the team runs the local rehearsal, confirms the desired screenshots/documents, and explicitly approves the final submission step.
+At this freeze point, implementation is still on `agent-build-core`, Draft PR #1 targets `develop`, and `main` remains untouched by design. Final branch promotion happens only after the team runs the local rehearsal and explicitly approves the final submission step.
 
 ## Truth boundaries / intentionally out of scope
 
-The hackathon release does not claim:
+The hackathon release does not claim universal real-world accuracy, causal proof from commit correlation, a custom trained ML model, automatic production recovery, auto merge/deployment, enterprise distributed locking, complete DLP/universal prompt-injection prevention, fully hashed transitive Python locking, or semantic patch synthesis for every code/file type.
 
-- universal real-world bug-fixing accuracy;
-- causal proof from commit correlation;
-- a custom trained ML model;
-- automatic production recovery;
-- automatic merge/deployment;
-- enterprise-scale distributed locking;
-- complete DLP or universal prompt-injection prevention;
-- fully hashed transitive Python dependency locking;
-- semantic synthesis for every programming language/file type.
-
-Those are potential future engineering directions, not missing promises from this hackathon MVP.
+Those are future engineering directions, not missing promises from this hackathon MVP.
 
 ## Freeze rule
 
