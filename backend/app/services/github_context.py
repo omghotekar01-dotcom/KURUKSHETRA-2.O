@@ -11,6 +11,7 @@ from app.schemas.incident import (
     IncidentRecord,
     RepositoryCommitEvidence,
     RepositoryContext,
+    RepositoryDiffHunkEvidence,
     RepositoryFileChange,
     RepositoryIssueEvidence,
 )
@@ -68,27 +69,92 @@ def _tokens(text: str) -> set[str]:
     }
 
 
-def _correlation_score(record: IncidentRecord, message: str, filenames: list[str]) -> float:
-    incident_text = " ".join(
-        [
-            record.incident.title,
-            record.incident.description,
-            " ".join(record.incident.logs),
-            record.triage.component,
-            record.triage.summary,
-        ]
+def _incident_tokens(record: IncidentRecord) -> set[str]:
+    return _tokens(
+        " ".join(
+            [
+                record.incident.title,
+                record.incident.description,
+                " ".join(record.incident.logs),
+                record.triage.component,
+                record.triage.summary,
+                " ".join(record.triage.signals),
+            ]
+        )
     )
-    incident_tokens = _tokens(incident_text)
-    if not incident_tokens:
-        return 0.0
 
-    candidate_tokens = _tokens(" ".join([message, *filenames]))
-    overlap = incident_tokens & candidate_tokens
+
+def _token_score(incident_tokens: set[str], candidate_tokens: set[str], *, multiplier: float = 2.5) -> tuple[float, list[str]]:
+    if not incident_tokens or not candidate_tokens:
+        return 0.0, []
+    overlap = sorted(incident_tokens & candidate_tokens)
     if not overlap:
-        return 0.0
-
+        return 0.0, []
     denominator = max(3, min(10, len(incident_tokens)))
-    return round(min(1.0, (len(overlap) / denominator) * 2.5), 3)
+    score = round(min(1.0, (len(overlap) / denominator) * multiplier), 3)
+    return score, overlap[:10]
+
+
+def _parse_patch_hunks(record: IncidentRecord, filename: str, patch: str) -> list[RepositoryDiffHunkEvidence]:
+    if not patch:
+        return []
+
+    incident_tokens = _incident_tokens(record)
+    hunks: list[RepositoryDiffHunkEvidence] = []
+    header = ""
+    added: list[str] = []
+    removed: list[str] = []
+
+    def flush() -> None:
+        nonlocal header, added, removed
+        if not header:
+            return
+        candidate_tokens = _tokens(" ".join([filename, header, *added, *removed]))
+        score, matched_terms = _token_score(incident_tokens, candidate_tokens, multiplier=3.2)
+        hunks.append(
+            RepositoryDiffHunkEvidence(
+                filename=filename,
+                header=header[:240],
+                added_lines=added[:10],
+                removed_lines=removed[:10],
+                matched_terms=matched_terms,
+                correlation_score=score,
+            )
+        )
+        added = []
+        removed = []
+
+    for raw_line in patch.splitlines():
+        if raw_line.startswith("@@"):
+            flush()
+            header = raw_line
+            continue
+        if not header:
+            continue
+        if raw_line.startswith("+") and not raw_line.startswith("+++"):
+            added.append(raw_line[1:][:260])
+        elif raw_line.startswith("-") and not raw_line.startswith("---"):
+            removed.append(raw_line[1:][:260])
+
+    flush()
+    hunks.sort(key=lambda item: item.correlation_score, reverse=True)
+    return hunks[:4]
+
+
+def _correlation_score(
+    record: IncidentRecord,
+    message: str,
+    filenames: list[str],
+    suspicious_hunks: list[RepositoryDiffHunkEvidence] | None = None,
+) -> float:
+    incident_tokens = _incident_tokens(record)
+    candidate_tokens = _tokens(" ".join([message, *filenames]))
+    base_score, _ = _token_score(incident_tokens, candidate_tokens)
+
+    if suspicious_hunks:
+        top_hunk = suspicious_hunks[0].correlation_score
+        return round(max(base_score, min(1.0, top_hunk * 0.95)), 3)
+    return base_score
 
 
 def _request_json(client: httpx.Client, path: str, *, params: dict[str, Any] | None = None) -> Any:
@@ -151,6 +217,18 @@ def collect_repository_context(
                 )
                 for file in raw_files
             ]
+            suspicious_hunks: list[RepositoryDiffHunkEvidence] = []
+            for file in raw_files:
+                suspicious_hunks.extend(
+                    _parse_patch_hunks(
+                        record,
+                        file.get("filename", "unknown"),
+                        file.get("patch", "") or "",
+                    )
+                )
+            suspicious_hunks.sort(key=lambda hunk: hunk.correlation_score, reverse=True)
+            suspicious_hunks = suspicious_hunks[:6]
+
             commit_info = detail.get("commit", {})
             author_info = commit_info.get("author", {}) or {}
             message = str(commit_info.get("message", "")).split("\n", 1)[0]
@@ -164,7 +242,8 @@ def collect_repository_context(
                     authored_at=author_info.get("date"),
                     url=detail.get("html_url") or item.get("html_url") or f"https://github.com/{repository}/commit/{sha}",
                     files=files,
-                    correlation_score=_correlation_score(record, message, filenames),
+                    suspicious_hunks=suspicious_hunks,
+                    correlation_score=_correlation_score(record, message, filenames, suspicious_hunks),
                 )
             )
 
@@ -187,8 +266,9 @@ def collect_repository_context(
             break
 
     notes = [
-        "Commit correlation is a deterministic relevance signal, not proof of causation.",
+        "Commit and diff-hunk correlation are deterministic relevance signals, not proof of causation.",
         "Repository context is read-only; no GitHub resource is modified during investigation.",
+        "GitHub may omit patch text for binary files or very large diffs; missing patch text is treated as unavailable evidence, never invented.",
     ]
     if not commits:
         notes.append("No recent commits were returned by GitHub.")
