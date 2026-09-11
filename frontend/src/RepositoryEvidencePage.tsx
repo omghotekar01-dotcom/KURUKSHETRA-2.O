@@ -19,6 +19,11 @@ type DiffHunk = {
   added_lines: string[]
   removed_lines: string[]
   matched_terms: string[]
+  source_context: Array<{
+    line_number: number
+    content: string
+    in_hunk: boolean
+  }>
   correlation_score: number
 }
 
@@ -118,7 +123,7 @@ export default function RepositoryEvidencePage() {
         <div>
           <p className="evidence-eyebrow">ENGINEERING EVIDENCE LAB</p>
           <h1>Trace an incident to the exact code changes worth inspecting.</h1>
-          <p>Recent GitHub commits and real unified-diff hunks are ranked against incident symptoms. Scores prioritize investigation; they never claim causal proof.</p>
+          <p>Recent GitHub commits, real unified-diff hunks and bounded source context are ranked against incident symptoms. Scores prioritize investigation; they never claim causal proof.</p>
         </div>
         <div className="evidence-guardrail"><ShieldCheck size={20} /><div><b>Read-only investigation</b><span>No branch, issue, PR, merge or deployment is modified from this screen.</span></div></div>
       </section>
@@ -202,6 +207,18 @@ export default function RepositoryEvidencePage() {
                         {hunk.added_lines.length === 0 ? <pre>—</pre> : hunk.added_lines.map((line, lineIndex) => <pre key={`a-${lineIndex}`}>+ {line}</pre>)}
                       </div>
                     </div>
+                    {hunk.source_context.length > 0 && (
+                      <div className="source-context-block">
+                        <div className="source-context-title"><FileCode2 size={14} /><b>Source context at commit {hunk.commit.short_sha}</b><span>bounded read</span></div>
+                        <div className="source-code-window">
+                          {hunk.source_context.map((line) => (
+                            <div className={line.in_hunk ? 'source-line source-line-active' : 'source-line'} key={line.line_number}>
+                              <span>{line.line_number}</span><code>{line.content || ' '}</code>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <footer>
                       <span>Commit {hunk.commit.short_sha}</span>
                       <a href={hunk.commit.url} target="_blank" rel="noreferrer">Review full diff <ExternalLink size={13} /></a>
