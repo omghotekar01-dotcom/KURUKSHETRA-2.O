@@ -12,8 +12,6 @@ from app.schemas.incident import (
     RepositoryDiffHunkEvidence,
     RepositoryFileChange,
     RepositorySourceLine,
-    Severity,
-    TriageResult,
 )
 from app.services import patch_execution
 from app.services.github_context import _incident_path_hints, _parse_patch_hunks
@@ -71,6 +69,30 @@ def test_realistic_incidents_route_to_expected_component(incident: IncidentIn, e
     assert result.component == expected_component
     assert result.owner_team
     assert result.confidence >= 0.55
+
+
+def test_real_team_owner_mapping_can_be_configured_without_code_changes(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "TRIAGE_OWNER_MAP",
+        "Authentication=identity-platform, Database=data-reliability, Unclassified=central-triage",
+    )
+    auth = triage_incident(
+        IncidentIn(
+            title="JWT validation fails",
+            description="Signed-in users receive unauthorized responses.",
+            logs=["401 jwt signature verification failed"],
+        )
+    )
+    unknown = triage_incident(
+        IncidentIn(
+            title="Unexpected Orion behavior",
+            description="A new internal subsystem is behaving differently than expected.",
+            logs=["orion state mismatch"],
+        )
+    )
+
+    assert auth.owner_team == "identity-platform"
+    assert unknown.owner_team == "central-triage"
 
 
 def _stacktrace_record() -> IncidentRecord:
