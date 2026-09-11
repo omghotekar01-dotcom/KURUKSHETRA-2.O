@@ -107,8 +107,8 @@ def _safe_session_file(root: Path, relative_path: str) -> Path:
 
 
 def _safe_exec_env() -> dict[str, str]:
-    allowed = {"SystemRoot", "WINDIR", "PATH", "TEMP", "TMP", "PATHEXT", "COMSPEC", "HOME"}
-    env = {key: value for key, value in os.environ.items() if key in allowed and value}
+    allowed = {"systemroot", "windir", "path", "temp", "tmp", "pathext", "comspec", "home"}
+    env = {key: value for key, value in os.environ.items() if key.lower() in allowed and value}
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
     return env
@@ -119,12 +119,7 @@ def _has_pytest_contract(root: Path) -> bool:
 
 
 def _clear_python_caches(root: Path) -> None:
-    """Ensure trusted verification executes the current source bytes on every platform.
-
-    Windows filesystems can preserve timestamp/size combinations across very fast same-size edits.
-    Removing session-local bytecode caches before each child pytest prevents a stale `.pyc` from
-    making post-patch validation observe the pre-patch implementation.
-    """
+    """Best-effort cleanup of session-local bytecode caches before trusted verification."""
 
     for cache_dir in sorted(root.rglob("__pycache__"), reverse=True):
         if cache_dir.is_dir():
@@ -142,6 +137,9 @@ def _run_pytest(root: Path) -> CommandEvidence:
     _clear_python_caches(root)
     command = [sys.executable, "-B", "-m", "pytest", "-q", "--cache-clear"]
     started = time.perf_counter()
+    pycache_root = Path(tempfile.mkdtemp(prefix="router-pycache-"))
+    env = _safe_exec_env()
+    env["PYTHONPYCACHEPREFIX"] = str(pycache_root)
     try:
         completed = subprocess.run(
             command,
@@ -150,7 +148,7 @@ def _run_pytest(root: Path) -> CommandEvidence:
             text=True,
             timeout=25,
             check=False,
-            env=_safe_exec_env(),
+            env=env,
         )
         output = (completed.stdout + "\n" + completed.stderr).strip()
         exit_code = completed.returncode
@@ -159,6 +157,8 @@ def _run_pytest(root: Path) -> CommandEvidence:
         stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
         output = f"Trusted pytest timed out after 25 seconds.\n{stdout}\n{stderr}".strip()
         exit_code = 124
+    finally:
+        shutil.rmtree(pycache_root, ignore_errors=True)
     duration_ms = int((time.perf_counter() - started) * 1000)
     return CommandEvidence(
         command=f"{Path(sys.executable).name} -B -m pytest -q --cache-clear [TRUSTED USER-SUPPLIED TESTS]",
