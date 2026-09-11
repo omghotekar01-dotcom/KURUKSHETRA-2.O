@@ -1,53 +1,28 @@
 from __future__ import annotations
 
 import os
-import shutil
-import subprocess
 from uuid import uuid4
 
 import httpx
 
 from app.schemas.incident import ActionExecutionResult, IncidentRecord, ProposedAction
-
-
-DEFAULT_REPOSITORY = "omghotekar01-dotcom/KURUKSHETRA-2.O"
-GITHUB_API = "https://api.github.com"
+from app.services.github_client import (
+    GITHUB_API,
+    configured_repository,
+    github_headers,
+    github_token,
+    normalize_repo,
+    repository_allowed,
+)
 
 
 def _demo_mode() -> bool:
-    return os.getenv("DEMO_MODE", "true").strip().lower() not in {"0", "false", "no", "off"}
+    return os.getenv("DEMO_MODE", "false").strip().lower() not in {"0", "false", "no", "off"}
 
 
 def _github_token() -> str | None:
-    token = os.getenv("GITHUB_TOKEN", "").strip()
-    if token:
-        return token
-
-    allow_cli = os.getenv("ALLOW_GH_CLI_AUTH", "true").strip().lower() not in {"0", "false", "no", "off"}
-    if not allow_cli or shutil.which("gh") is None:
-        return None
-
-    try:
-        result = subprocess.run(
-            ["gh", "auth", "token"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=True,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-
-    return result.stdout.strip() or None
-
-
-def _normalize_repo(value: str) -> str:
-    normalized = value.strip().removesuffix(".git").strip("/")
-    for prefix in ("https://github.com/", "http://github.com/", "github.com/"):
-        if normalized.lower().startswith(prefix):
-            normalized = normalized[len(prefix):]
-            break
-    return normalized.strip("/")
+    """Backward-compatible wrapper used by tests and the live GitHub adapter."""
+    return github_token()
 
 
 def _latest_event_metadata(incident: IncidentRecord, stage: str) -> dict:
@@ -60,6 +35,7 @@ def _latest_event_metadata(incident: IncidentRecord, stage: str) -> dict:
 def _issue_payload(incident: IncidentRecord, action: ProposedAction) -> tuple[str, str]:
     rca = _latest_event_metadata(incident, "RCA")
     remediation = _latest_event_metadata(incident, "REMEDIATION")
+    repository_evidence = _latest_event_metadata(incident, "REPOSITORY_EVIDENCE")
 
     title = f"[Incident {incident.id}] {incident.incident.title}"[:240]
     body = "\n".join(
@@ -71,13 +47,19 @@ def _issue_payload(incident: IncidentRecord, action: ProposedAction) -> tuple[st
             f"- **Severity:** `{incident.triage.severity.value}`",
             f"- **Owner:** `{incident.triage.owner_team}`",
             f"- **Triage confidence:** `{incident.triage.confidence:.0%}`",
+            f"- **Repository:** `{incident.incident.repo or action.target}`",
             "",
             "### Report",
             incident.incident.description,
             "",
             "## Evidence-backed RCA",
-            f"**Working hypothesis:** {rca.get('title', 'Not recorded')} ",
+            f"**Working hypothesis:** {rca.get('title', 'Not recorded')}",
             f"**Confidence:** {rca.get('confidence', 'Not recorded')}",
+            "",
+            "## Live repository evidence",
+            f"**Top correlated commit:** {repository_evidence.get('top_commit', 'No correlated commit recorded')}",
+            f"**Correlation:** {repository_evidence.get('top_correlation', 'Not available')}",
+            f"**Changed files:** {', '.join(repository_evidence.get('changed_files', [])) or 'Not available'}",
             "",
             "## Approved remediation",
             remediation.get("summary", action.description),
@@ -89,7 +71,7 @@ def _issue_payload(incident: IncidentRecord, action: ProposedAction) -> tuple[st
             action.description,
             "",
             "---",
-            "Created by the Kurukshetra Incident Command prototype only after explicit human approval.",
+            "Created by Kurukshetra Incident Command only after explicit human approval.",
         ]
     )
     return title, body
@@ -97,10 +79,10 @@ def _issue_payload(incident: IncidentRecord, action: ProposedAction) -> tuple[st
 
 def _create_github_issue(incident: IncidentRecord, action: ProposedAction) -> ActionExecutionResult:
     action_id = f"ACT-{uuid4().hex[:10].upper()}"
-    configured_repo = _normalize_repo(os.getenv("GITHUB_REPOSITORY", DEFAULT_REPOSITORY))
-    requested_repo = _normalize_repo(action.target or configured_repo)
+    configured_repo = configured_repository()
+    requested_repo = normalize_repo(action.target or configured_repo)
 
-    if requested_repo != configured_repo:
+    if not repository_allowed(requested_repo):
         return ActionExecutionResult(
             action_id=action_id,
             incident_id=incident.id,
@@ -108,7 +90,7 @@ def _create_github_issue(incident: IncidentRecord, action: ProposedAction) -> Ac
             target=requested_repo,
             status="BLOCKED",
             mode="POLICY",
-            message=f"GitHub action blocked: target repository must be {configured_repo}.",
+            message="GitHub action blocked because the target repository is outside the configured allowlist.",
         )
 
     token = _github_token()
@@ -118,21 +100,16 @@ def _create_github_issue(incident: IncidentRecord, action: ProposedAction) -> Ac
             incident_id=incident.id,
             action_type=action.action_type,
             target=requested_repo,
-            status="PREPARED",
-            mode="SAFE_PREVIEW",
-            message="GitHub issue was not created because no GitHub authentication is configured.",
+            status="AUTH_REQUIRED",
+            mode="LIVE",
+            message="GitHub issue was not created because live GitHub authentication is not configured.",
         )
 
     title, body = _issue_payload(incident, action)
     try:
         response = httpx.post(
             f"{GITHUB_API}/repos/{requested_repo}/issues",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "kurukshetra-incident-command",
-            },
+            headers=github_headers(token=token),
             json={"title": title, "body": body},
             timeout=12.0,
         )
@@ -168,7 +145,7 @@ def execute_bounded_action(
     action: ProposedAction,
     incident: IncidentRecord | None = None,
 ) -> ActionExecutionResult:
-    """Execute only explicitly bounded adapters after the policy and human-approval gates."""
+    """Execute explicitly bounded adapters only after policy and human-approval gates."""
     action_id = f"ACT-{uuid4().hex[:10].upper()}"
 
     if _demo_mode():
@@ -179,7 +156,7 @@ def execute_bounded_action(
             target=action.target,
             status="SIMULATED",
             mode="DEMO",
-            message="Action recorded in demo mode; no external system was modified.",
+            message="Emergency demo mode is enabled; no external system was modified.",
         )
 
     action_type = action.action_type.strip().lower()
@@ -201,7 +178,7 @@ def execute_bounded_action(
         incident_id=incident_id,
         action_type=action.action_type,
         target=action.target,
-        status="PREPARED",
-        mode="SAFE_PREVIEW",
-        message="No live adapter is configured for this action type; the approved action remains a safe preview.",
+        status="UNAVAILABLE",
+        mode="LIVE",
+        message="No live adapter is configured for this action type; nothing was executed.",
     )
