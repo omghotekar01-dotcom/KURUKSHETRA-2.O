@@ -7,13 +7,14 @@ Project name: **AI Agentic Bug Router**
 
 ## Status
 
-**Planned hackathon MVP implementation scope: COMPLETE.**
+**Planned hackathon MVP implementation scope: COMPLETE and real-use audited.**
 
 The project is in release-candidate hardening. Prefer regression fixes, evidence-quality improvements, rehearsal and documentation over broad new scope. `main` remains untouched until the team explicitly approves final submission promotion.
 
 This completion statement is scoped to the agreed hackathon MVP; it is not a claim of universal bug-free or enterprise-production completeness.
 
-Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FREEZE.md).
+Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FREEZE.md).  
+Real-use audit: [`docs/REAL_USE_AUDIT.md`](REAL_USE_AUDIT.md).
 
 ## Completed live MVP
 
@@ -30,6 +31,8 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - Explicit no-strong-match behavior instead of forced answers.
 - Evidence-backed RCA hypothesis, confidence, next diagnostic, remediation and verification plan.
 - Human escalation when evidence is insufficient.
+- Component-to-team ownership can be configured with `TRIAGE_OWNER_MAP` without code edits.
+- Live CODEOWNERS metadata is used as an advisory routing/review hint for highly ranked changed files when present.
 
 ### Live GitHub investigation
 - Read-only investigation for an allowlisted repository.
@@ -37,13 +40,13 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - Real unified-diff patches where GitHub provides them.
 - Suspicious hunk parsing/ranking using incident/code token correlation plus stack-trace/file-path hints.
 - Bounded source context at the exact commit SHA.
-- `/evidence` Engineering Evidence Lab with real GitHub links.
+- `/evidence` Engineering Evidence Lab with real GitHub links and ownership hints.
 - Correlation is explicitly guidance, not proof of causation.
 
 ### Exact bounded patch proposal
 - `POST /api/v1/incidents/{incident_id}/patch-proposal` creates a reviewable candidate with **no repository write**.
 - Candidate is revalidated against fresh live evidence.
-- Conservative `REVERT_SUSPICIOUS_HUNK` strategy only when the exact target remains available and clears the patch safety threshold.
+- Conservative `REVERT_SUSPICIOUS_HUNK` strategy only when the exact target remains available and clears `PATCH_PROPOSAL_MIN_CORRELATION`.
 - Stale, ambiguous, weakly related or missing source state fails closed.
 - Proposal contains exact file/base/hunk/before/after/diff/rationale/confidence/warnings/verification commands.
 
@@ -53,7 +56,9 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - Approval revalidates fresh live state before writing.
 - Writes only to deterministic isolated `incident-fix/...` branches.
 - Only the exact approved sequence is replaced and re-read for integrity.
-- Frontend/Python/documentation validation paths are deterministic and bounded.
+- Frontend validation uses locked `npm ci` + production build.
+- Backend Python validation runs compile + pytest.
+- Explicit documentation text uses exact branch-content integrity.
 - Unknown executable/config/operational file types fail closed without a trusted validator.
 - Draft PR only after validation passes.
 - No automatic merge or production deployment.
@@ -71,10 +76,10 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - CI workflow runs on remediation branches and relevant PRs.
 - `GET /api/v1/incidents/{incident_id}/patch-verification` reads real PR/commit/check/status state.
 - Derived CI result: `PASS`, `FAIL`, `PENDING` or `NO_CHECKS`.
-- The backend now emits canonical `verification_evidence` tied to the real repository, remediation commit, Draft PR and observed checks.
-- A real CI failure derives incident verification outcome `FAIL`, records `VERIFICATION_DERIVED`, and escalates automatically.
+- The backend emits canonical `verification_evidence` tied to the real repository, remediation commit, Draft PR and observed checks.
+- A real CI failure derives incident verification outcome `FAIL`, records `VERIFICATION_DERIVED`, and escalates.
 - Pending/no-check state derives `INCONCLUSIVE` evidence while keeping the incident in verification.
-- A green CI result is structured evidence only: it does **not** auto-resolve the incident because configured checks do not prove the original runtime symptom recovered.
+- A green CI result is structured evidence only: it does **not** auto-resolve because configured checks do not prove the original runtime symptom recovered.
 - Runtime/human verification remains required after CI PASS.
 - Missing checks are never treated as success.
 
@@ -105,13 +110,11 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - GitHub commit/issue/diff/source text redacts recognized credential patterns before UI exposure.
 - Repository content is treated as **untrusted evidence only**, not executable instructions.
 - Prompt-like repository text is deterministically flagged as untrusted data.
-- Team ownership routing can be configured through environment variables without code edits.
 - These are defense-in-depth controls, not claims of complete DLP or universal prompt-injection prevention.
 
-### Judge Mode — final presentation layer
+### Judge Mode
 - Dedicated `/demo` route provides the controlled golden flow.
-- One-click golden authentication incident runs through readiness, routing, retrieval, RCA, live repository evidence and exact patch proposal.
-- Judge Mode shows real proof surfaces instead of presenting a hard-coded success animation.
+- Golden incident runs through readiness, routing, retrieval, RCA, live repository evidence and exact patch proposal.
 - Repository write is **LOCKED BY DEFAULT**.
 - Live remediation requires a separate explicit **Arm live remediation** action followed by explicit human approval.
 - Missing/stale/ambiguous live evidence produces visible `SAFE_STOP` fail-closed behavior.
@@ -134,6 +137,20 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - `DEMO_MODE` defaults `false`.
 - Fallback remains visibly `SIMULATED/DEMO` and cannot be confused with live success.
 
+## Real-use audit result
+
+The audit deliberately tested whether the product is useful outside a scripted demo. It identified and fixed:
+
+1. weak stack-trace/file-path weighting in repository ranking;
+2. weakly correlated hunks being technically eligible for proposal generation;
+3. insufficient validation for config/operational/unknown file types;
+4. frontend validation using dependency resolution rather than the committed lockfile;
+5. hard-coded team ownership;
+6. missing repository CODEOWNERS review/routing hints;
+7. CI status not being recorded as canonical incident verification evidence.
+
+The system now has explicit tests for realistic authentication, database, backend, frontend and infrastructure incidents; unknown/no-match behavior; path-to-code correlation; weak-patch rejection; unsupported-validator rejection; configurable owner routing; CODEOWNERS hints; CI failure/inconclusive derivation; and the rule that green CI cannot auto-resolve a runtime incident.
+
 ## Latest confirmed release-candidate validation
 
 GitHub Actions run **#409** / run ID `34597412643` on executable code head:
@@ -151,29 +168,31 @@ Windows launcher syntax validation:    PASS
 Windows strict environment preflight:  PASS
 Windows clean-checkout bootstrap:      PASS
 Release candidate contract:            PASS
-Clean-clone acceptance:                PASS
+Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The validation specifically includes regression coverage proving that failed CI derives a failed incident verification outcome, pending CI derives inconclusive evidence, and passing CI remains evidence-only until runtime/human verification.
+Subsequent commits in this pass are documentation-only and do not alter that validated executable behavior.
 
 ## Completed product path
 
 ```text
 Incident + repository
-→ persist + triage / route
+→ persist + triage / real-team route
 → historical retrieval
 → live GitHub evidence
 → real commits + files + diff hunks
+→ stack-trace/path correlation
+→ CODEOWNERS routing/review hint
 → bounded source context
 → evidence-backed RCA
-→ exact patch proposal (NO WRITE)
+→ safety-thresholded exact patch proposal (NO WRITE)
 → HUMAN APPROVE / REJECT
 → stable remediation identity
 → fresh proposal/file revalidation
 → deterministic isolated fix branch
 → exact approved patch OR safe retry reuse
-→ deterministic validation
+→ deterministic trusted validation
 → Draft PR only if green OR exact PR reuse
 → real GitHub CI/check verification
 → automatically derived verification evidence
@@ -219,6 +238,7 @@ Judge/proof path:
 22. ~~Readiness + redaction + untrusted-evidence hardening.~~
 23. ~~Judge Mode + recovery/presentation flow.~~
 24. ~~Release-candidate contract + automated freeze acceptance.~~
+25. ~~Real-use usefulness audit and regression hardening.~~
 
 ## What remains before final submission
 
@@ -229,6 +249,7 @@ pull latest agent-build-core
 → run verify.bat locally
 → run start.bat locally
 → rehearse /demo on the actual hackathon laptop/network
+→ test one realistic incident through /evidence
 → capture desired screenshots
 → proofread submission documentation
 → explicitly approve branch promotion
@@ -248,6 +269,7 @@ Branch promotion is intentionally **not** performed automatically.
 - In-process approval serialization fits this single-process MVP; horizontal scale should use shared transactional idempotency.
 - CI PASS proves configured checks passed, not production recovery.
 - Python direct requirements are pinned; transitive Python dependencies are not yet fully hash-locked.
+- CODEOWNERS handling supports common standard patterns but does not claim every exotic escaping edge case.
 - Redaction/injection detection are best-effort defense-in-depth controls.
 - No custom ML model is trained in this MVP; intelligence comes from deterministic triage/retrieval, repository evidence correlation, RCA rules and approval-gated orchestration.
 - No automatic merge, production deployment, destructive data operation, unrestricted repository write or IAM/secret mutation is permitted.
