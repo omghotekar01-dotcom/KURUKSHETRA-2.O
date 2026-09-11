@@ -136,6 +136,11 @@ def main() -> int:
     model_runtime = (ROOT / "backend" / "app" / "services" / "model_runtime.py").read_text(encoding="utf-8")
     passed &= check("/api/tags" in model_runtime and "/api/chat" in model_runtime, "local Qwen supports native Ollama fallback")
 
+    local_ai_setup = (ROOT / "setup-local-ai.bat").read_text(encoding="utf-8")
+    passed &= check("ConvertTo-Json -InputObject $payload -Depth 8" in local_ai_setup, "Windows Qwen warm-up serializes without a CMD-escaped PowerShell pipeline")
+    passed &= check("^| ConvertTo-Json" not in local_ai_setup, "Windows Qwen warm-up does not leak CMD pipe escaping into PowerShell")
+    passed &= check("Invoke-RestMethod" in local_ai_setup and "/api/chat" in local_ai_setup, "Windows Qwen warm-up performs a real local inference request")
+
     evaluation_router = (ROOT / "backend" / "app" / "routers" / "evaluation.py").read_text(encoding="utf-8")
     passed &= check("probe_integrations" in evaluation_router and "github_write_readiness" in evaluation_router, "readiness exposes active no-write integration probes")
 
