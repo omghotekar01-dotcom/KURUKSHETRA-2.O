@@ -238,6 +238,15 @@ class RemediationPlan(BaseModel):
     risk: Optional[RiskDecision] = None
 
 
+class AgentReasoningTrace(BaseModel):
+    mode: str = "DETERMINISTIC_RAG"
+    provider: str = "deterministic"
+    model: str = "evidence-rules-v1"
+    retrieval_sources: List[str] = Field(default_factory=list)
+    grounded: bool = True
+    fallback_reason: Optional[str] = None
+
+
 class AnalysisBundle(BaseModel):
     incident_id: str
     evidence: EvidenceBundle
@@ -245,6 +254,7 @@ class AnalysisBundle(BaseModel):
     hypotheses: List[RootCauseHypothesis] = Field(default_factory=list)
     remediation: Optional[RemediationPlan] = None
     needs_human_investigation: bool = False
+    agent_trace: Optional[AgentReasoningTrace] = None
 
 
 class ApprovalRequest(BaseModel):
