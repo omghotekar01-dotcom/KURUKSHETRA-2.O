@@ -11,79 +11,22 @@ It can accept realistic software incidents, route them to a technical area, opti
 
 This is deliberately a **bounded incident-response assistant**, not a universal autonomous bug fixer. It does not claim to synthesize the correct semantic fix for every programming language or incident.
 
-## Real-use gaps found and fixed
+## Real-use hardening completed
 
-### 1. Stack traces materially influence code ranking
-
-A realistic trace such as:
-
-```text
-File "C:\service\backend\payments\charge.py", line 87
-ValueError: invalid provider amount
-```
-
-is now parsed for file-path evidence. Exact/suffix/basename matches receive explainable ranking weight so the named changed source file can outrank unrelated repository noise. This remains correlation, not causal proof.
-
-### 2. Weakly related code cannot become a patch just because exact lines exist
-
-Patch proposal generation enforces `PATCH_PROPOSAL_MIN_CORRELATION` (default `0.18`). A hunk below that threshold fails closed and asks for stronger evidence/manual investigation. No repository write occurs.
-
-### 3. Unsupported operational/configuration changes fail closed
-
-Supported deterministic validation paths include:
-
-- frontend TypeScript/JavaScript → locked `npm ci` + production build;
-- backend Python → compile + pytest;
-- explicit documentation text (`.md`, `.txt`, `.rst`) → exact branch content-integrity verification.
-
-Configuration/automation/unsupported executable types such as GitHub Actions YAML, Terraform, Dockerfile, shell/PowerShell scripts and unknown file types are blocked from automatic Draft PR creation unless a trusted validator is added.
-
-### 4. Frontend validation is reproducible
-
-Remediation validation uses the committed npm lockfile:
-
-```text
-npm ci --no-audit --no-fund
-npm run build
-```
-
-rather than allowing dependency resolution to drift during a fix validation.
-
-### 5. Real organization routing does not require code edits
-
-`TRIAGE_OWNER_MAP` can map deterministic components to actual team names:
-
-```env
-TRIAGE_OWNER_MAP=Authentication=identity-platform,Database=data-reliability,Backend=api-platform,Frontend=web-experience,Infrastructure=sre
-```
-
-Built-in owners remain fallbacks when no mapping is supplied.
-
-### 6. Repository CODEOWNERS contributes routing/review hints
-
-When present in a supported standard location, CODEOWNERS is read from the repository default branch and owner candidates are resolved for the highest-ranked changed files.
-
-Supported lookup locations:
-
-```text
-.github/CODEOWNERS
-CODEOWNERS
-docs/CODEOWNERS
-```
-
-These are **routing/review suggestions only**. They do not grant authorization and do not override the human approval boundary.
-
-### 7. CI verification is incident evidence, not just a badge
-
-The CI verification endpoint records canonical evidence tied to the exact repository, remediation commit, Draft PR and observed checks.
-
+- Stack-trace/file-path clues now materially influence changed-code ranking.
+- Patch proposal generation enforces `PATCH_PROPOSAL_MIN_CORRELATION` (default `0.18`).
+- Frontend remediation validates with locked `npm ci` + production build.
+- Backend Python remediation validates with compile + pytest.
+- Unknown/configuration/operational file types fail closed without a trusted validator.
+- `TRIAGE_OWNER_MAP` maps components to real organization teams without code edits.
+- Repository CODEOWNERS can provide advisory routing/review hints for ranked files.
+- Duplicate exact approvals reuse existing remediation state.
+- Missing GitHub auth surfaces `AUTH_REQUIRED` rather than fake success.
 - CI `FAIL` derives failed incident verification and escalates.
-- `PENDING` / `NO_CHECKS` is inconclusive rather than success.
-- CI `PASS` remains evidence and still requires runtime/human verification; it cannot auto-resolve the original incident.
+- CI `PENDING` / `NO_CHECKS` remains inconclusive.
+- CI `PASS` is evidence only and still requires runtime/human verification.
 
 ## Realistic regression scenarios
-
-The suite includes realistic incident language rather than only idealized fixtures:
 
 | Scenario | Expected behavior |
 |---|---|
@@ -104,16 +47,8 @@ The suite includes realistic incident language rather than only idealized fixtur
 
 ## Latest audited executable proof point
 
-Executable code head:
-
-`18112b436803f747a23d60bf5ce73c952f9523a7`
-
-GitHub Actions:
-
-- run **#409**
-- run ID `34597412643`
-
-Confirmed results:
+Executable code head: `18112b436803f747a23d60bf5ce73c952f9523a7`  
+GitHub Actions: **run #409**, run ID `34597412643`
 
 ```text
 Backend compile:                       PASS
@@ -128,9 +63,9 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The Windows job performs a fresh checkout/bootstrap before acceptance, so this proof is not dependent on a developer's existing local `node_modules` or Python environment. Subsequent closure commits are documentation-only.
+The Windows job performs a fresh checkout/bootstrap before acceptance, so this proof is not dependent on an existing local `node_modules` or Python environment. Subsequent closure commits are documentation-only.
 
-## What “actually useful” means for this release
+## Actual supported workflow
 
 ```text
 bug report + logs + repo
@@ -159,7 +94,7 @@ This release does **not** claim universal root-cause accuracy, causal proof from
 
 Those limits are intentional. For this hackathon MVP, the safer and more useful behavior is to expose evidence, make bounded changes only when supported, and fail closed otherwise.
 
-## Final operator check on the hackathon laptop
+## Final operator check
 
 ```powershell
 cd C:\Users\ASUS\OneDrive\Desktop\HACKATHON\KURUKSHETRA-2.O
