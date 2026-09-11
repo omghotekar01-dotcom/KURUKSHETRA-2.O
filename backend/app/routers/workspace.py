@@ -55,6 +55,7 @@ def _clear_reviewed(target_id: str) -> None:
 
 @router.post("/{target_id}/scan", response_model=WorkspaceScanResult)
 def scan(target_id: str) -> WorkspaceScanResult:
+    _clear_reviewed(target_id)
     try:
         return scan_target(target_id)
     except (KeyError, FileNotFoundError, ValueError) as exc:
