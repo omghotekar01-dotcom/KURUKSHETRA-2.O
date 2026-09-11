@@ -14,6 +14,7 @@ from app.schemas.incident import (
     IncidentStatus,
     IncidentSummary,
     ProposedAction,
+    RepositoryContext,
     ResolutionMemory,
     RiskDecision,
     RiskLevel,
@@ -25,13 +26,14 @@ from app.schemas.incident import (
 from app.services.analysis import analyze_incident
 from app.services.demo import get_demo_scenario, list_demo_scenarios
 from app.services.execution import execute_bounded_action
+from app.services.github_context import GitHubContextUnavailable, collect_repository_context
 from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
 from app.services.triage import triage_incident
 
 app = FastAPI(
     title="Kurukshetra Incident Command API",
-    version="0.8.0",
+    version="0.9.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
@@ -106,6 +108,53 @@ def get_incident(incident_id: str) -> IncidentRecord:
     return incident
 
 
+def _repository_context_for(incident: IncidentRecord, *, record_event: bool) -> RepositoryContext:
+    try:
+        context = collect_repository_context(incident)
+    except GitHubContextUnavailable as exc:
+        if record_event:
+            incident_store.append_event(
+                incident.id,
+                "REPOSITORY_CONTEXT_UNAVAILABLE",
+                str(exc),
+                {"repository": incident.incident.repo},
+            )
+        raise
+
+    if record_event:
+        top = context.commits[0] if context.commits else None
+        incident_store.append_event(
+            incident.id,
+            "REPOSITORY_EVIDENCE",
+            f"Collected live GitHub evidence from {context.repository}.",
+            {
+                "repository": context.repository,
+                "source": context.source,
+                "authenticated": context.authenticated,
+                "commit_count": len(context.commits),
+                "open_issue_count": len(context.open_issues),
+                "top_commit": top.short_sha if top else None,
+                "top_commit_message": top.message if top else None,
+                "top_correlation": top.correlation_score if top else None,
+                "changed_files": [file.filename for file in top.files[:6]] if top else [],
+            },
+        )
+    return context
+
+
+@app.get("/api/v1/incidents/{incident_id}/repository-context", response_model=RepositoryContext)
+def repository_context(incident_id: str) -> RepositoryContext:
+    incident = incident_store.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if not incident.incident.repo:
+        raise HTTPException(status_code=409, detail="Attach a GitHub repository to the incident before repository investigation.")
+    try:
+        return _repository_context_for(incident, record_event=True)
+    except GitHubContextUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @app.post("/api/v1/incidents/{incident_id}/investigate", response_model=EvidenceBundle)
 def investigate_incident(incident_id: str) -> EvidenceBundle:
     incident = incident_store.get(incident_id)
@@ -138,16 +187,24 @@ def analyze_incident_endpoint(incident_id: str) -> AnalysisBundle:
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
 
+    live_repository_context = None
+    if incident.incident.repo:
+        try:
+            live_repository_context = _repository_context_for(incident, record_event=True)
+        except GitHubContextUnavailable:
+            live_repository_context = None
+
     analysis = analyze_incident(
         incident,
         memories=incident_store.list_resolution_memory(limit=100),
+        repository_context=live_repository_context,
     )
     if analysis.needs_human_investigation:
         incident_store.set_status(incident_id, IncidentStatus.escalated)
         incident_store.append_event(
             incident_id,
             "RCA",
-            "No strong historical match; escalated for human investigation.",
+            "No sufficiently strong historical or repository evidence; escalated for human investigation.",
             {},
         )
         return analysis
