@@ -8,6 +8,7 @@ import ReadinessPage from './ReadinessPage'
 import JudgeDemoPage from './JudgeDemoPage'
 import AgentIntelligencePage from './AgentIntelligencePage'
 import AutofixPrototypePage from './AutofixPrototypePage'
+import JudgeIntakePage from './JudgeIntakePage'
 import AppNavigation from './AppNavigation'
 import ThemeToggle from './ThemeToggle'
 import './styles.css'
@@ -26,23 +27,26 @@ import './app-navigation.css'
 import './agent-intelligence.css'
 import './autofix-prototype.css'
 import './autofix-strategy.css'
+import './judge-intake.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const screen = path === '/demo'
   ? <JudgeDemoPage />
   : path === '/prototype' || path === '/autofix'
     ? <AutofixPrototypePage />
-    : path === '/ai'
-      ? <AgentIntelligencePage />
-      : path === '/readiness'
-        ? <ReadinessPage />
-        : path === '/evaluation'
-          ? <EvaluationLabPage />
-          : path === '/remediate'
-            ? <PatchRemediationPage />
-            : path === '/evidence'
-              ? <RepositoryEvidencePage />
-              : <App />
+    : path === '/intake'
+      ? <JudgeIntakePage />
+      : path === '/ai'
+        ? <AgentIntelligencePage />
+        : path === '/readiness'
+          ? <ReadinessPage />
+          : path === '/evaluation'
+            ? <EvaluationLabPage />
+            : path === '/remediate'
+              ? <PatchRemediationPage />
+              : path === '/evidence'
+                ? <RepositoryEvidencePage />
+                : <App />
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
