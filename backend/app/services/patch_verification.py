@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from app.schemas.incident import IncidentRecord, IncidentStatus
+from app.schemas.incident import IncidentRecord, IncidentStatus, VerificationOutcome
 from app.schemas.patch import CIVerificationCheck, PatchVerificationResult
 from app.services.github_client import GITHUB_API, github_headers, github_token, normalize_repo, repository_allowed
 
@@ -63,6 +63,34 @@ def _derive_status(checks: list[CIVerificationCheck], combined_state: str) -> tu
     return "PENDING", "GitHub verification state is not final yet."
 
 
+def _derive_incident_verification(
+    *,
+    status: str,
+    repository: str,
+    commit_sha: str,
+    draft_pr_number: int,
+    checks: list[CIVerificationCheck],
+) -> tuple[VerificationOutcome | None, str, bool]:
+    observed = []
+    for check in checks:
+        terminal = check.conclusion or check.status
+        observed.append(f"{check.name}={terminal}")
+    check_summary = ", ".join(observed) if observed else "no check-runs observed"
+    evidence = (
+        f"GitHub remediation verification for {repository}@{commit_sha[:12]} on Draft PR #{draft_pr_number}: "
+        f"CI={status}; {check_summary}."
+    )
+
+    if status == "FAIL":
+        return VerificationOutcome.failed, evidence, False
+    if status in {"PENDING", "NO_CHECKS"}:
+        return VerificationOutcome.inconclusive, evidence, True
+
+    # Passing CI is necessary evidence that the isolated remediation branch is green,
+    # but it does not prove the original production/runtime symptom recovered.
+    return None, evidence, True
+
+
 def verify_patch_ci(
     incident: IncidentRecord,
     *,
@@ -94,6 +122,13 @@ def verify_patch_ci(
     ]
 
     status, message = _derive_status(checks, str(status_payload.get("state") or ""))
+    derived_outcome, verification_evidence, runtime_required = _derive_incident_verification(
+        status=status,
+        repository=normalized_repo,
+        commit_sha=commit_sha,
+        draft_pr_number=draft_pr_number,
+        checks=checks,
+    )
     if status == "FAIL":
         incident_status = IncidentStatus.escalated
     else:
@@ -111,4 +146,7 @@ def verify_patch_ci(
         message=message,
         checks=checks,
         incident_status=incident_status,
+        derived_incident_outcome=derived_outcome,
+        verification_evidence=verification_evidence,
+        runtime_verification_required=runtime_required,
     )
