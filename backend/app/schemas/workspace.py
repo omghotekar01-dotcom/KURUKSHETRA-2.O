@@ -83,3 +83,54 @@ class ModelRuntimeStatus(BaseModel):
     ready: bool
     endpoint: str | None = None
     note: str
+
+
+class ModelProbeResult(BaseModel):
+    connected: bool
+    provider: str
+    model: str
+    latency_ms: int
+    reply: str
+    note: str
+
+
+class AdhocFileInput(BaseModel):
+    path: str = Field(min_length=1, max_length=240)
+    content: str = Field(max_length=256_000)
+
+
+class WorkspaceKnowledgeHit(BaseModel):
+    id: str
+    component: str
+    issue: str
+    fix: str
+    source: str
+    score: float = Field(ge=0.0, le=1.0)
+
+
+class AdhocIntakeRequest(BaseModel):
+    problem: str = Field(min_length=8, max_length=4_000)
+    files: list[AdhocFileInput] = Field(min_length=1, max_length=12)
+    trusted_test_execution: bool = False
+
+
+class AdhocWorkspaceState(BaseModel):
+    session_id: str
+    problem: str
+    files: list[WorkspaceFile]
+    knowledge: list[WorkspaceKnowledgeHit] = Field(default_factory=list)
+    before_verification: CommandEvidence
+    execution_mode: Literal["STATIC_ONLY", "TRUSTED_PYTEST"]
+    model_runtime: ModelRuntimeStatus
+    safe_boundary: str
+
+
+class AdhocFixResult(BaseModel):
+    state: AdhocWorkspaceState
+    proposal: WorkspaceFixProposal
+    applied: bool
+    rolled_back: bool
+    after_verification: CommandEvidence
+    final_status: Literal["VERIFIED_FIXED", "STATIC_CHECK_PASSED", "ROLLED_BACK"]
+    patched_files: dict[str, str] = Field(default_factory=dict)
+    audit: list[str] = Field(default_factory=list)
