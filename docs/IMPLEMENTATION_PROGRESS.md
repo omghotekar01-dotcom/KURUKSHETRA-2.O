@@ -1,234 +1,245 @@
 # Implementation Progress
 
 Last updated: 2026-09-11  
-Active build branch: `agent-build-core`  
+Active release-candidate branch: `agent-build-core`  
 Draft integration PR: `#1` → `develop`  
 Project name: **AI Agentic Bug Router**
 
-## Build principle
+## Status
 
-Build a real, live-first MVP in small, runnable, testable milestones. Emergency demo mode exists only as a visibly labeled fallback. `main` remains untouched until the final reviewed release candidate is ready.
+**Planned hackathon MVP implementation scope: COMPLETE.**
+
+The project is now in release-candidate freeze. From this point, prefer rehearsal, screenshots, documentation corrections and bug fixes only. `main` remains untouched until the team explicitly approves final submission promotion.
+
+This completion statement is scoped to the agreed hackathon MVP; it is not a claim of universal bug-free or enterprise-production completeness.
 
 ## Completed live MVP
 
-### Foundation and incident lifecycle
-- FastAPI/Pydantic backend + React/Vite/TypeScript frontend.
-- SQLite-backed incident persistence, IDs, lifecycle state and auditable timeline.
+### Foundation + incident lifecycle
+- FastAPI/Pydantic backend and React/Vite/TypeScript frontend.
+- SQLite incident persistence, lifecycle state, timestamps and auditable timeline.
 - Deterministic triage for Authentication, Database, Backend, Frontend, Infrastructure and Unclassified incidents.
 - Deterministic LOW/MEDIUM/HIGH action-risk policy.
 - Responsive Light-theme-first UI with persistent Light/Dark switcher.
 
-### Evidence, routing and RCA
+### Evidence, routing + RCA
 - Curated local runbook/knowledge retrieval baseline.
 - Verified resolution memory participates in later retrieval.
-- No-strong-match behavior instead of forced historical answers.
+- Explicit no-strong-match behavior instead of forced answers.
 - Evidence-backed RCA hypothesis, confidence, next diagnostic, remediation and verification plan.
 - Human escalation when evidence is insufficient.
 
 ### Live GitHub investigation
-- Read-only GitHub context for an allowlisted repository.
-- Reads repository metadata, recent commits, commit details, changed files and open issues.
-- Uses real unified-diff patches when GitHub exposes them.
-- Parses and ranks suspicious hunks using incident/code token correlation.
-- Fetches bounded source context at the exact commit SHA for top hunks.
-- `/evidence` exposes correlated commits, changed files, ranked hunks, source context and GitHub links.
-- Correlation is explicitly investigation guidance, not proof of causation.
+- Read-only investigation for an allowlisted repository.
+- Real repository metadata, recent commits, commit details, changed files and open issues.
+- Real unified-diff patches where GitHub provides them.
+- Suspicious hunk parsing/ranking using incident/code token correlation.
+- Bounded source context at the exact commit SHA.
+- `/evidence` Engineering Evidence Lab with real GitHub links.
+- Correlation is explicitly guidance, not proof of causation.
 
 ### Exact bounded patch proposal
 - `POST /api/v1/incidents/{incident_id}/patch-proposal` creates a reviewable candidate with **no repository write**.
-- Proposal generation revalidates the selected live commit/hunk.
-- Current conservative strategy is `REVERT_SUSPICIOUS_HUNK` only when the exact added-line sequence still exists.
-- Stale, ambiguous or missing source evidence fails closed.
-- Proposal contains exact file, base commit, hunk, before/after lines, diff preview, rationale, confidence, warnings and verification commands.
+- Candidate is revalidated against fresh live evidence.
+- Conservative `REVERT_SUSPICIOUS_HUNK` strategy only when the exact target remains available.
+- Stale, ambiguous or missing source state fails closed.
+- Proposal contains exact file/base/hunk/before/after/diff/rationale/confidence/warnings/verification commands.
 
-### Approval-gated remediation
+### Human-controlled remediation
 - `/remediate` Remediation Studio.
-- Human explicitly APPROVES or REJECTS the exact proposal.
-- Approval re-fetches and revalidates proposal/commit/file/hunk/before/after state.
-- Writes occur only on isolated deterministic `incident-fix/...` branches.
-- Only the exact approved sequence is replaced.
-- Written content is re-read and verified.
-- Frontend code runs dependency install + production build in a fresh clone.
-- Backend Python runs compile + pytest in a fresh clone.
-- Documentation-only changes use exact content-integrity validation.
-- Unknown executable code types fail closed until a trusted validator exists.
-- Draft PR is created only after validation passes.
-- No automatic merge or production deployment exists.
+- Explicit APPROVE / REJECT for the exact proposal.
+- Approval revalidates fresh live state before writing.
+- Writes only to deterministic isolated `incident-fix/...` branches.
+- Only the exact approved sequence is replaced and re-read for integrity.
+- Frontend/Python/documentation validation paths are deterministic and bounded.
+- Unknown executable types fail closed without a trusted validator.
+- Draft PR only after validation passes.
+- No automatic merge or production deployment.
 
-### Retry-safe remediation and idempotency
-- Exact incident + proposal receives a deterministic `REM-...` identity.
-- Duplicate approvals are serialized in the current API process.
-- Completed successful remediation is reconstructed from the audit timeline instead of rewritten.
-- Deterministic branches replace timestamp-suffixed duplicates.
-- Interrupted retries can reuse an exact branch when state remains safe.
+### Retry safety + idempotency
+- Stable `REM-...` remediation identity for an exact incident/proposal.
+- Duplicate approvals reuse completed remediation instead of writing again.
+- Deterministic branch naming and safe partial-state recovery.
 - Already-patched exact branches are reused without rewriting.
-- Conflicting branch state fails closed.
-- Existing open PR is reused; matching closed PR blocks automatic recreation.
-- Audit metadata records branch, commit, PR, validation and reuse state.
+- Conflicting branch/PR state fails closed.
+- Existing open exact PR is reused instead of duplicated.
+- Timeline stores remediation identity, branch, commit, PR, validation and reuse state.
 
-### Live GitHub CI verification
-- Build workflow runs on `incident-fix/**` pushes and PRs targeting `main` or `develop`.
-- `GET /api/v1/incidents/{incident_id}/patch-verification` reads actual PR/commit/check-runs/status.
-- Derived state is `PASS`, `FAIL`, `PENDING` or `NO_CHECKS`; absence of checks is never success.
-- Failure escalates; PASS remains `VERIFYING` until human review/runtime verification.
-- Remediation Studio exposes live check details/links.
+### Real GitHub CI verification
+- CI workflow runs on remediation branches and relevant PRs.
+- `GET /api/v1/incidents/{incident_id}/patch-verification` reads real PR/commit/check/status state.
+- Derived result: `PASS`, `FAIL`, `PENDING` or `NO_CHECKS`.
+- Missing checks are never treated as success.
+- PASS still requires human review/runtime verification.
 
 ### Evaluation Lab
 - Versioned deterministic benchmark `2026.09.11-v1` via `GET /api/v1/evaluation/run`.
-- Measures routing, expected retrieval, RCA grounding, intentional no-match escalation, risk policy, unsafe-action blocking and approval-gate correctness.
-- `/evaluation` exposes measured numerators/denominators and expected-vs-observed cases.
-- Metrics are computed by backend functions when run; no accuracy value is hard-coded in the UI.
-- Benchmark results are not presented as universal real-world accuracy.
+- Measures routing, retrieval, RCA grounding, no-match escalation, risk policy, unsafe-action blocking and approval-gate behavior.
+- `/evaluation` shows measured numerators/denominators and expected-vs-observed cases.
+- No accuracy metric is hard-coded into the frontend.
+- Benchmark score is explicitly not a universal real-world accuracy claim.
 
-### Reproducible startup and clean-clone acceptance
-- Exact direct backend package versions.
-- Exact direct frontend/tooling versions.
-- Committed `frontend/package-lock.json` lockfile v3 with integrity hashes.
+### Reproducible startup
+- Exact direct backend/frontend package versions and committed npm lockfile v3.
 - Bootstrap requires lockfile and uses `npm ci`.
 - `.python-version` = Python 3.11; `.nvmrc` = Node 22.23.2.
-- `scripts/preflight.py`, `scripts/bootstrap.py`, `scripts/acceptance.py`.
-- Windows: `verify.bat`, `start.bat`, `stop.bat`.
-- Unix/macOS: `scripts/verify.sh`, `scripts/start.sh`, `scripts/stop.sh`.
-- Launcher picks the first free backend port (preferred `8000`, fallback beginning `8011`) and frontend port (preferred `5173`, fallback beginning `5181`).
-- Actual selected API base is injected into Vite using `VITE_API_BASE_URL`.
-- Development CORS accepts local `localhost` / `127.0.0.1` origins on local ports; production does not use that broad development rule.
-- Launcher waits for backend `/health` and frontend HTTP before reporting `READY`.
-- Selected ports and launcher PIDs are stored under ignored `.run/` state.
-- GitHub Actions performs a real `windows-latest` clean-checkout preflight/bootstrap/acceptance path.
+- Preflight, bootstrap and acceptance scripts.
+- Windows `verify.bat`, `start.bat`, `stop.bat`.
+- Unix/macOS start/verify/stop scripts.
+- Windows launcher automatically selects free backend + frontend ports and injects the actual API URL into Vite.
+- Backend/frontend health gates before `READY`.
+- Local development CORS supports localhost/127.0.0.1 dynamic ports without broadening production rules.
+- GitHub Actions performs a real Windows clean-checkout bootstrap + acceptance path.
 
-### Readiness and evidence-security hardening
-- `GET /api/v1/evaluation/readiness` and `/readiness` provide a judge/operator-facing readiness surface.
-- Reports `READY`/`DEGRADED`, `LIVE_FIRST`/`FALLBACK_DEMO`, configuration checks and GitHub access mode without returning credential values.
-- Readiness explicitly shows that repository writes require human approval, high-risk actions are recommendation-only, auto-merge is disabled and auto-production-deploy is disabled.
-- Incident title, description, environment and logs redact recognized credential patterns before normal persistence/display.
-- GitHub commit messages, issue titles/labels, diff lines and bounded source snippets redact recognized credential patterns before UI exposure.
-- Repository content is explicitly treated as **untrusted evidence only**, never executable instructions.
-- Prompt-like repository text is detected deterministically and surfaced as an untrusted-data warning.
-- This detection/redaction is defense-in-depth, not a claim of complete prompt-injection or secret-scanning coverage.
+### Readiness + security hardening
+- `GET /api/v1/evaluation/readiness` and `/readiness` surface READY/DEGRADED and LIVE_FIRST/FALLBACK_DEMO state.
+- Readiness reports authentication/configuration state without returning credentials.
+- Explicit human-approval, no-auto-merge and no-auto-deploy safety indicators.
+- Incident fields/logs redact recognized credential patterns before normal persistence/display.
+- GitHub commit/issue/diff/source text redacts recognized credential patterns before UI exposure.
+- Repository content is treated as **untrusted evidence only**, not executable instructions.
+- Prompt-like repository text is deterministically flagged as untrusted data.
+- These are defense-in-depth controls, not claims of complete DLP or universal prompt-injection prevention.
 
-### Verification and memory
-- PASS / FAIL / INCONCLUSIVE runtime-verification endpoint/UI.
-- PASS marks an incident resolved; failure/inconclusive escalates.
-- Verified resolution stores symptoms, component, severity, working RCA, approved remediation and verification evidence for later retrieval.
+### Judge Mode — final presentation layer
+- Dedicated `/demo` route provides the controlled golden flow.
+- One-click golden authentication incident runs through readiness, routing, retrieval, RCA, live repository evidence and exact patch proposal.
+- Judge Mode shows real proof surfaces instead of presenting a hard-coded success animation.
+- Repository write is **LOCKED BY DEFAULT**.
+- Live remediation requires a separate explicit **Arm live remediation** action followed by explicit human approval.
+- Missing/stale/ambiguous live evidence produces visible `SAFE_STOP` fail-closed behavior.
+- Exact proposal diff, file, confidence and candidate commit are reviewable before approval.
+- Optional approved flow surfaces isolated branch, Draft PR and real GitHub CI state.
+- Reset clears presentation state only; incident audit history remains.
+
+### Release-candidate contract
+- `scripts/release_contract.py` is included in `scripts/acceptance.py`.
+- Acceptance now has four gates: backend compile, backend tests, frontend production build and release-candidate contract.
+- Contract checks required files/routes, Judge Mode locked-by-default behavior, explicit approval, fail-closed path, CI hook, lockfile v3, launcher Judge Mode links, README safety statements and that `.env` is not tracked.
+
+### Verification + resolution memory
+- PASS / FAIL / INCONCLUSIVE runtime verification.
+- PASS resolves; failed/inconclusive verification escalates.
+- Verified resolution stores reusable symptoms/component/severity/RCA/remediation/evidence.
 
 ### Emergency fallback
-- Version-controlled deterministic fixtures exist for internet/provider failure.
-- `DEMO_MODE` defaults to `false`.
-- Fallback execution remains visibly `SIMULATED/DEMO` and is never presented as live success.
+- Deterministic fixtures exist only for internet/provider failure.
+- `DEMO_MODE` defaults `false`.
+- Fallback remains visibly `SIMULATED/DEMO` and cannot be confused with live success.
 
-## Latest confirmed validation
+## Latest confirmed release-candidate validation
 
-GitHub Actions run **#335** / run ID `34594076848` on implementation head `1a9197cece79f5b3b1e59826ff99ae09f5b54864` completed successfully:
+GitHub Actions run **#358** / run ID `34595268159` on executable code head:
+
+`b6e4959971b08adcf53fa83b9f98fd8c6aca0f6a`
+
+completed successfully:
 
 ```text
-Backend compile:                      PASS
-Backend tests:                        59 passed, 2 dependency warnings, 0 failures
-Frontend locked npm install:          PASS
-Frontend TypeScript/Vite build:       PASS
-Windows launcher syntax validation:   PASS
-Windows strict environment preflight: PASS
-Windows clean-checkout bootstrap:     PASS
-Windows clean-clone acceptance:       PASS
+Backend compile:                       PASS
+Backend tests:                         59 passed, 2 dependency warnings, 0 failures
+Frontend locked npm install:           PASS
+Frontend TypeScript/Vite build:        PASS
+Windows launcher syntax validation:    PASS
+Windows strict environment preflight:  PASS
+Windows clean-checkout bootstrap:      PASS
+Release candidate contract:            PASS
+Clean-clone acceptance:                4/4 PASS
+Release-candidate acceptance:          PASS
 ```
 
-The subsequent milestone-document commit changes documentation only and does not alter the tested executable code.
+Later commits in this freeze pass update documentation only; the executable release-candidate proof point remains `b6e495...` / run #358.
 
-Current regression coverage includes triage, risk, persistence, retrieval, RCA, GitHub evidence, stale-write rejection, patch proposal/execution, idempotency/retry reuse, CI verification, Evaluation Lab, dynamic-port CORS/startup behavior, readiness secrecy/policy state, incident credential redaction, prompt-like untrusted-instruction detection, repository diff credential redaction and verified-memory behavior.
-
-## Current live path
+## Completed product path
 
 ```text
 Incident + repository
-→ Persist + triage / route
-→ Historical retrieval
-→ Live GitHub evidence
-→ Real commits + files + diff hunks
-→ Bounded source context
-→ Evidence-backed RCA
-→ Exact patch proposal (NO WRITE)
-→ Human APPROVE / REJECT
-→ Stable remediation identity
-→ Fresh proposal/file revalidation
-→ Deterministic isolated fix branch
-→ Exact patch OR safe retry reuse
-→ Deterministic validation
-→ Draft PR only if green OR reuse exact existing PR
-→ Real GitHub CI verification
-→ Human review / runtime verification
-→ Resolved or escalated
-→ Verified resolution memory
+→ persist + triage / route
+→ historical retrieval
+→ live GitHub evidence
+→ real commits + files + diff hunks
+→ bounded source context
+→ evidence-backed RCA
+→ exact patch proposal (NO WRITE)
+→ HUMAN APPROVE / REJECT
+→ stable remediation identity
+→ fresh proposal/file revalidation
+→ deterministic isolated fix branch
+→ exact approved patch OR safe retry reuse
+→ deterministic validation
+→ Draft PR only if green OR exact PR reuse
+→ real GitHub CI verification
+→ human runtime verification
+→ resolved or escalated
+→ verified resolution memory
 ```
 
-Parallel proof surfaces:
+Judge/proof path:
 
 ```text
-Evaluation Lab → measured deterministic benchmark
-System Readiness → runtime mode + configuration + safety boundary
-```
-
-Reproducible operator path:
-
-```text
-Fresh clone → preflight → locked bootstrap → automatic free ports
-→ acceptance → one-command start → backend + frontend health → READY
+/demo       → controlled golden demonstration
+/readiness  → runtime + safety status
+/evidence   → live engineering evidence
+/remediate  → operator remediation studio
+/evaluation → measured deterministic benchmark
 ```
 
 ## P0 sequence
 
 1. ~~Incident intake + triage/routing.~~
 2. ~~Persistence + audit timeline.~~
-3. ~~Historical knowledge retrieval.~~
-4. ~~Evidence-backed RCA baseline.~~
-5. ~~Remediation + deterministic risk gate.~~
+3. ~~Historical retrieval.~~
+4. ~~Evidence-backed RCA.~~
+5. ~~Risk-gated remediation.~~
 6. ~~Explicit human approval.~~
 7. ~~Verification + resolution transition.~~
-8. ~~Structured verified-resolution memory.~~
+8. ~~Verified-resolution memory.~~
 9. ~~Emergency deterministic fallback.~~
-10. ~~Real bounded GitHub issue action.~~
+10. ~~Bounded GitHub issue action.~~
 11. ~~Live GitHub repository investigation.~~
-12. ~~Real diff parsing + suspicious-hunk ranking + RCA grounding.~~
-13. ~~Operator-grade Evidence Lab + bounded source context.~~
-14. ~~Exact bounded patch proposal before repository write.~~
-15. ~~Approval-gated isolated branch + exact patch + validation.~~
-16. ~~Draft PR only after validation; never auto-merge.~~
+12. ~~Diff parsing + suspicious-hunk ranking.~~
+13. ~~Evidence Lab + source context.~~
+14. ~~Exact no-write patch proposal.~~
+15. ~~Approval-gated isolated branch + patch + validation.~~
+16. ~~Draft PR only after green validation.~~
 17. ~~Real GitHub CI/check verification.~~
-18. ~~Repeatable Evaluation Lab + measured scorecard.~~
-19. ~~Remediation idempotency and retry-safe branch/PR reuse.~~
-20. ~~Locked dependencies + preflight + dynamic-port one-command startup + Windows clean-clone acceptance.~~
-21. ~~Judge-facing readiness + credential redaction + untrusted-evidence/prompt-injection hardening baseline.~~
-22. Final submission freeze: clean-clone rehearsal, judge-flow rehearsal, docs/screenshots, integration review and release candidate.
+18. ~~Evaluation Lab + measured scorecard.~~
+19. ~~Idempotent retry-safe remediation.~~
+20. ~~Locked dependencies + preflight + dynamic-port startup + clean-clone acceptance.~~
+21. ~~Readiness + redaction + untrusted-evidence hardening.~~
+22. ~~Judge Mode + recovery/presentation flow.~~
+23. ~~Release-candidate contract + automated freeze acceptance.~~
 
-## Next highest-value milestone
+## What remains before final submission
 
-**Release-candidate rehearsal, not more random features.**
+No planned feature development remains for the hackathon MVP.
+
+Only the team-controlled finalization steps remain:
 
 ```text
-fresh pull / verify
-→ one-command start
-→ readiness check
-→ golden incident demo
-→ Evidence Lab
-→ patch proposal
-→ explicit approval
-→ validation / Draft PR
-→ live CI check
-→ Evaluation Lab
-→ recovery/fallback rehearsal
-→ README/screenshots/docs audit
-→ release-candidate freeze
+pull latest agent-build-core
+→ run verify.bat locally
+→ run start.bat locally
+→ rehearse /demo on the actual hackathon laptop/network
+→ capture desired screenshots
+→ proofread submission documentation
+→ explicitly approve branch promotion
+→ promote reviewed release to submission branch/main
 ```
 
-## Known implementation risks / truth boundaries
+Branch promotion is intentionally **not** performed automatically.
 
-- Exact hackathon problem-statement constraints override generic assumptions if they differ from this direction.
-- Commit/hunk correlation is heuristic investigation guidance, not causal proof.
+## Known truth boundaries / future work
+
+- Exact official hackathon problem-statement constraints override generic assumptions if different.
+- Commit/hunk correlation is heuristic guidance, not causal proof.
 - Current patch strategy is a conservative hunk-revert candidate, not guaranteed best semantic fix.
-- Current benchmark is intentionally small/deterministic; a perfect score is not a general accuracy claim.
+- Benchmark is intentionally small/deterministic and is not universal accuracy.
 - GitHub rate limits/network availability can affect live evidence/check polling.
-- GitHub can omit patch/content for binary or large files; missing evidence stays missing.
-- In-process approval serialization fits the single-process MVP; horizontal scale needs a shared idempotency store/database constraint.
-- Passing CI proves configured checks passed; it does not prove production recovery or justify merge.
-- Python top-level requirements are pinned, but transitive Python dependencies are still resolved by pip rather than a fully hashed lock.
-- Deterministic redaction and injection-marker detection are best-effort safeguards, not complete DLP/content-security systems.
-- No automatic merge, production deployment, destructive database operation, unrestricted repository write, IAM mutation or secret mutation is permitted.
-- Public repository history must never contain real tokens, credentials or private operational data.
+- GitHub may omit content/patch for binary or large files.
+- In-process approval serialization fits this single-process MVP; horizontal scale should use shared transactional idempotency.
+- CI PASS proves configured checks passed, not production recovery.
+- Python direct requirements are pinned; transitive Python dependencies are not yet fully hash-locked.
+- Redaction/injection detection are best-effort defense-in-depth controls.
+- No custom ML model is trained in this MVP; intelligence comes from deterministic triage/retrieval, repository evidence correlation, RCA rules and approval-gated orchestration.
+- No automatic merge, production deployment, destructive data operation, unrestricted repository write or IAM/secret mutation is permitted.
