@@ -6,6 +6,7 @@ import {
   Gauge,
   GitPullRequest,
   Menu,
+  ScanSearch,
   ShieldCheck,
   Sparkles,
   X,
@@ -21,6 +22,7 @@ type Readiness = {
 
 const items = [
   { href: '/', label: 'Incident Command', icon: Activity },
+  { href: '/prototype', label: 'Real AutoFix', icon: ScanSearch },
   { href: '/demo', label: 'Judge Demo', icon: Sparkles },
   { href: '/ai', label: 'AI Reasoning Lab', icon: Bot },
   { href: '/evidence', label: 'Evidence Lab', icon: FileSearch },
@@ -77,7 +79,7 @@ export default function AppNavigation() {
         <div className="global-nav-section-label">Workspace</div>
         <nav className="global-nav-links" aria-label="Application navigation">
           {items.map(({ href, label, icon: Icon }) => {
-            const active = href === '/' ? path === '/' : path === href
+            const active = href === '/' ? path === '/' : path === href || (href === '/prototype' && path === '/autofix')
             return (
               <a
                 key={href}
@@ -95,8 +97,8 @@ export default function AppNavigation() {
 
         <div className="global-nav-spacer" />
         <div className="global-nav-trust">
-          <div className="global-nav-trust-title"><ShieldCheck size={15} /> Human-controlled</div>
-          <p>No auto-merge. No production deploy. Repository writes remain approval-gated.</p>
+          <div className="global-nav-trust-title"><ShieldCheck size={15} /> Workspace-controlled</div>
+          <p>Real local edits stay inside an allowlisted project. No auto-merge. No production deploy. Verified repair or rollback.</p>
         </div>
         <div className="global-nav-runtime">
           <span className={`runtime-dot ${readiness?.status === 'READY' ? 'ready' : ''}`} />
