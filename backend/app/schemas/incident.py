@@ -1,5 +1,6 @@
+from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,6 +18,19 @@ class RiskLevel(str, Enum):
     high = "HIGH"
 
 
+class IncidentStatus(str, Enum):
+    new = "NEW"
+    triaging = "TRIAGING"
+    investigating = "INVESTIGATING"
+    rca_ready = "RCA_READY"
+    remediation_ready = "REMEDIATION_READY"
+    awaiting_approval = "AWAITING_APPROVAL"
+    executing = "EXECUTING"
+    verifying = "VERIFYING"
+    resolved = "RESOLVED"
+    escalated = "ESCALATED"
+
+
 class IncidentIn(BaseModel):
     title: str = Field(min_length=3, max_length=160)
     description: str = Field(min_length=5, max_length=10000)
@@ -32,6 +46,34 @@ class TriageResult(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     summary: str
     signals: List[str] = Field(default_factory=list)
+
+
+class TimelineEvent(BaseModel):
+    timestamp: datetime
+    stage: str
+    message: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class IncidentRecord(BaseModel):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    status: IncidentStatus
+    incident: IncidentIn
+    triage: TriageResult
+    timeline: List[TimelineEvent] = Field(default_factory=list)
+
+
+class IncidentSummary(BaseModel):
+    id: str
+    title: str
+    status: IncidentStatus
+    severity: Severity
+    component: str
+    owner_team: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class ProposedAction(BaseModel):
