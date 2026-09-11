@@ -15,6 +15,9 @@ HIGH_RISK_TOKENS = (
 )
 MEDIUM_RISK_TOKENS = (
     "create branch",
+    "create github issue",
+    "create issue",
+    "github issue",
     "apply patch",
     "draft pr",
     "pull request",
