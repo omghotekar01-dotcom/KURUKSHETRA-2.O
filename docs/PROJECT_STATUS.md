@@ -12,6 +12,8 @@
 
 The repository collaboration workflow is established. Current effort is focused on problem/market research and evaluating an upgraded agentic engineering incident-response direction before the final architecture and individual work distribution are frozen.
 
+A recurring research loop is active to check current public sources and add meaningful findings to `TEAM_BRAIN/` on `develop`. It must preserve working code/structure, avoid fabricated sources, and make no changes when there is no substantive new information.
+
 ## Repository State
 
 - Repository: `omghotekar01-dotcom/KURUKSHETRA-2.O`
@@ -35,10 +37,14 @@ The repository collaboration workflow is established. Current effort is focused 
 - [x] `TEAM_BRAIN/` research and prompt knowledge base initialized on `develop`
 - [x] Project-wide master AI operating prompt created
 - [x] Product strategy, competitor gap map and architecture playbook created
+- [x] Architecture research/tradeoff notes created
+- [x] Security and autonomous-action guardrail playbook created
+- [x] Agent evaluation/benchmark framework created
 - [x] Experiment/evaluation backlog created
 - [x] Reusable prompt library created
 - [x] Primary source index created
 - [x] Decision log initialized
+- [x] Recurring public research/update loop configured
 
 ## In Progress
 
@@ -94,6 +100,9 @@ TEAM_BRAIN/
 ├── PRODUCT_STRATEGY.md
 ├── COMPETITOR_GAPS.md
 ├── ARCHITECTURE_PLAYBOOK.md
+├── ARCHITECTURE_RESEARCH.md
+├── SECURITY_AND_GUARDRAILS.md
+├── EVALUATION_FRAMEWORK.md
 ├── EXPERIMENT_BACKLOG.md
 ├── PROMPT_LIBRARY.md
 ├── SOURCES.md
@@ -134,7 +143,11 @@ This direction is not final until aligned with the exact hackathon problem state
 
 **PROVISIONAL RESEARCH ARCHITECTURE ONLY — NOT FROZEN.**
 
-See `TEAM_BRAIN/ARCHITECTURE_PLAYBOOK.md`.
+See:
+- `TEAM_BRAIN/ARCHITECTURE_PLAYBOOK.md`
+- `TEAM_BRAIN/ARCHITECTURE_RESEARCH.md`
+- `TEAM_BRAIN/SECURITY_AND_GUARDRAILS.md`
+- `TEAM_BRAIN/EVALUATION_FRAMEWORK.md`
 
 ## Technology Stack
 
@@ -168,6 +181,7 @@ Current likely direction:
 4. The AI incident-response market already contains strong products (Datadog, PagerDuty, Sentry, Rootly, incident.io, GitHub agents). Generic “AI bug router” positioning is insufficient.
 5. Overbuilding observability infrastructure or autonomous production actions would be a poor 24-hour tradeoff.
 6. External API/network dependence requires demo-mode fallbacks.
+7. Large volumes of generated documentation can become counterproductive; research additions should stay deduplicated, source-backed and implementation-relevant.
 
 ## Handoff Instructions for ChatGPT / Codex / Astra
 
@@ -177,11 +191,13 @@ Before making substantial changes:
 2. Read this `docs/PROJECT_STATUS.md`.
 3. Read `TEAM_BRAIN/README.md` and `TEAM_BRAIN/DECISION_LOG.md`.
 4. Read relevant strategy/research/prompt files.
-5. Inspect current branches, code and latest commits.
-6. Never overwrite working modules or casually restructure the repository.
-7. Work on the correct dedicated/feature branch.
-8. Explicitly flag breaking API/schema changes.
-9. Update this status and/or decision log after meaningful milestones.
+5. For autonomous actions/code changes, read `TEAM_BRAIN/SECURITY_AND_GUARDRAILS.md`.
+6. For model/agent changes, read `TEAM_BRAIN/EVALUATION_FRAMEWORK.md`.
+7. Inspect current branches, code and latest commits.
+8. Never overwrite working modules or casually restructure the repository.
+9. Work on the correct dedicated/feature branch.
+10. Explicitly flag breaking API/schema changes.
+11. Update this status and/or decision log after meaningful milestones.
 
 ## Next Required Actions
 
