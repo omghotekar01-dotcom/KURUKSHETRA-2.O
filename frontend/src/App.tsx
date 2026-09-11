@@ -35,6 +35,21 @@ type IncidentRecord = {
   }>
 }
 
+type KnowledgeMatch = {
+  id: string
+  component: string
+  issue: string
+  fix: string
+  source: string
+  score: number
+}
+
+type EvidenceBundle = {
+  incident_id: string
+  matches: KnowledgeMatch[]
+  no_strong_match: boolean
+}
+
 type IncidentSummary = {
   id: string
   title: string
@@ -57,10 +72,11 @@ export default function App() {
   const [form, setForm] = useState(emptyForm)
   const [incident, setIncident] = useState<IncidentRecord | null>(null)
   const [recent, setRecent] = useState<IncidentSummary[]>([])
+  const [evidence, setEvidence] = useState<EvidenceBundle | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const activeStageCount = useMemo(() => (incident ? 2 : 1), [incident])
+  const activeStageCount = useMemo(() => (evidence ? 3 : incident ? 2 : 1), [incident, evidence])
 
   useEffect(() => {
     void loadRecent()
@@ -80,6 +96,7 @@ export default function App() {
     event.preventDefault()
     setLoading(true)
     setError('')
+    setEvidence(null)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents`, {
@@ -103,6 +120,15 @@ export default function App() {
 
       const created: IncidentRecord = await response.json()
       setIncident(created)
+
+      const investigationResponse = await fetch(`${API_BASE}/api/v1/incidents/${created.id}/investigate`, { method: 'POST' })
+      if (investigationResponse.ok) {
+        const bundle: EvidenceBundle = await investigationResponse.json()
+        setEvidence(bundle)
+        const refreshed = await fetch(`${API_BASE}/api/v1/incidents/${created.id}`)
+        if (refreshed.ok) setIncident(await refreshed.json())
+      }
+
       await loadRecent()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to create incident.')
@@ -211,6 +237,25 @@ export default function App() {
                     <div><small>Confidence</small><strong>{Math.round(incident.triage.confidence * 100)}%</strong></div>
                   </div>
                 </article>
+
+                {evidence && (
+                  <article className="panel">
+                    <div className="panel-title">Historical evidence <span className="baseline-tag">lexical baseline</span></div>
+                    {evidence.no_strong_match ? (
+                      <p className="muted">No sufficiently relevant historical runbook match was found. The workflow should continue without forcing a known fix.</p>
+                    ) : (
+                      <ul className="match-list">
+                        {evidence.matches.map((match) => (
+                          <li key={match.id}>
+                            <div className="match-head"><b>{match.id} · {match.component}</b><span>{Math.round(match.score * 100)}%</span></div>
+                            <p>{match.issue}</p>
+                            <small>Known response: {match.fix}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </article>
+                )}
 
                 <article className="panel">
                   <div className="panel-title">Investigation timeline</div>
