@@ -6,6 +6,8 @@ import PatchRemediationPage from './PatchRemediationPage'
 import EvaluationLabPage from './EvaluationLabPage'
 import ReadinessPage from './ReadinessPage'
 import JudgeDemoPage from './JudgeDemoPage'
+import AgentIntelligencePage from './AgentIntelligencePage'
+import AppNavigation from './AppNavigation'
 import ThemeToggle from './ThemeToggle'
 import './styles.css'
 import './workflow.css'
@@ -19,34 +21,32 @@ import './remediation-ci.css'
 import './evaluation-page.css'
 import './readiness-page.css'
 import './judge-demo.css'
+import './app-navigation.css'
+import './agent-intelligence.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
-const evidenceMode = path === '/evidence'
-const remediationMode = path === '/remediate'
-const evaluationMode = path === '/evaluation'
-const readinessMode = path === '/readiness'
-const judgeMode = path === '/demo'
-const screen = judgeMode
+const screen = path === '/demo'
   ? <JudgeDemoPage />
-  : readinessMode
-    ? <ReadinessPage />
-    : evaluationMode
-      ? <EvaluationLabPage />
-      : remediationMode
-        ? <PatchRemediationPage />
-        : evidenceMode
-          ? <RepositoryEvidencePage />
-          : <App />
+  : path === '/ai'
+    ? <AgentIntelligencePage />
+    : path === '/readiness'
+      ? <ReadinessPage />
+      : path === '/evaluation'
+        ? <EvaluationLabPage />
+        : path === '/remediate'
+          ? <PatchRemediationPage />
+          : path === '/evidence'
+            ? <RepositoryEvidencePage />
+            : <App />
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {screen}
-    {!evidenceMode && !remediationMode && !evaluationMode && !readinessMode && !judgeMode && <>
-      <a className="judge-mode-shortcut" href="/demo">Judge Mode</a>
-      <a className="evidence-lab-shortcut" href="/evidence">Live Evidence Lab</a>
-      <a className="evidence-lab-shortcut remediation-shortcut" href="/remediate">Remediation Studio</a>
-      <a className="evidence-lab-shortcut evaluation-shortcut" href="/evaluation">Evaluation Lab</a>
-    </>}
+    <div className="global-app-shell">
+      <AppNavigation />
+      <div className="global-app-main">
+        {screen}
+      </div>
+    </div>
     <ThemeToggle />
   </React.StrictMode>,
 )
