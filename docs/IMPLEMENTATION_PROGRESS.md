@@ -219,12 +219,14 @@ Benchmark results are scoped to the displayed cases and are not universal real-w
 - `verify.bat` fails closed immediately when bootstrap fails.
 - launchers select safe local ports and inject the actual backend URL into Vite.
 - backend/frontend health gates must pass before `READY`.
-- Windows `start.bat` now prints detected AI runtime plus direct URLs for `/prototype`, `/intake`, `/ai`, `/demo`, `/evidence`, `/remediate`, `/evaluation`, `/readiness`.
+- stale/missing/reused Windows launcher PID files are treated as hints rather than proof of process ownership; cleanup verifies the process before termination, will not kill the active launcher/ancestor tree, and remains non-fatal for stale cleanup races.
+- CI now contains an explicit Windows regression test for both a nonexistent stale PID and a PID reused by the current PowerShell launcher process tree.
+- Windows `start.bat` prints detected AI runtime plus direct URLs for `/prototype`, `/intake`, `/ai`, `/demo`, `/evidence`, `/remediate`, `/evaluation`, `/readiness`.
 - Unix/macOS launcher exposes the same judge-facing routes.
 
 ## Release contract
 
-`scripts/release_contract.py` now protects the new core feature set from accidental deletion. Acceptance requires, among other artifacts:
+`scripts/release_contract.py` protects the core feature set from accidental deletion. Acceptance requires, among other artifacts:
 
 - Real AutoFix route/page;
 - Judge Intake route/page/CSS;
@@ -257,11 +259,11 @@ Benchmark results are scoped to the displayed cases and are not universal real-w
 
 ## Latest confirmed full executable validation
 
-GitHub Actions run **#632** / run ID `34619390410` on executable release-contract head:
+GitHub Actions run **#644** / run ID `34620804814` on release-candidate head:
 
-`a9221524011c2609e718bc1e3c6505445d5a90d6`
+`723a31b74ba044e7619545b1ab6ace08ae9b6ec7`
 
-completed successfully:
+completed successfully on 2026-09-11:
 
 ```text
 Backend compile:                       PASS
@@ -269,6 +271,7 @@ Backend tests:                         102 passed, 2 dependency warnings, 0 fail
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
+Windows stale/reused PID safety test:  PASS
 Windows strict environment preflight:  PASS
 Windows clean-checkout bootstrap:      PASS
 Windows clean-clone acceptance:        PASS
@@ -278,7 +281,7 @@ Overall workflow:                      PASS
 
 The two Python warnings are dependency deprecations from FastAPI/Starlette test infrastructure and are not test failures.
 
-Subsequent changes after this exact fully verified executable head are launcher presentation and documentation hardening only; those changes still receive their own CI runs before final promotion.
+This run closes the Windows startup regression observed during final laptop rehearsal: stale or PID-reused `.run` records no longer abort dependency bootstrap or cause the launcher to attempt to terminate its own process tree.
 
 ## P0 milestone closure
 
@@ -305,7 +308,8 @@ Completed milestones now include:
 19. isolated judge-supplied bug/file intake;
 20. explicit trusted-test execution boundary;
 21. RAG + Qwen bounded repair over judge-supplied evidence;
-22. release contract coverage for the judge-intake feature set.
+22. release contract coverage for the judge-intake feature set;
+23. Windows launcher stale/reused PID cleanup regression protection.
 
 ## Final laptop rehearsal
 
