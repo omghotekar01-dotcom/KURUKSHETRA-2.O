@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from app.schemas.incident import ApprovalDecision, IncidentStatus, PatchProposal
+from app.schemas.incident import ApprovalDecision, IncidentStatus, PatchProposal, VerificationOutcome
 
 
 class PatchDecisionRequest(BaseModel):
@@ -59,3 +59,6 @@ class PatchVerificationResult(BaseModel):
     message: str
     checks: list[CIVerificationCheck] = Field(default_factory=list)
     incident_status: IncidentStatus
+    derived_incident_outcome: Optional[VerificationOutcome] = None
+    verification_evidence: str = ""
+    runtime_verification_required: bool = True
