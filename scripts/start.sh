@@ -86,10 +86,12 @@ cat <<EOF
 
 READY
 Dashboard:       http://localhost:5173
+Judge Mode:      http://localhost:5173/demo
 API health:      $API_BASE/health
 API docs:        $API_BASE/docs
 Evidence Lab:    http://localhost:5173/evidence
 Remediation:     http://localhost:5173/remediate
 Evaluation Lab:  http://localhost:5173/evaluation
+Readiness:       http://localhost:5173/readiness
 Stop services:   ./scripts/stop.sh
 EOF
