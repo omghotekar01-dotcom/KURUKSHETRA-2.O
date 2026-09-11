@@ -84,7 +84,7 @@ Open the frontend URL printed by `start.bat`, then open:
 /prototype
 ```
 
-Click **Reset broken target** before presenting. This restores the checked-in broken baseline and reruns the real target tests.
+Click **Reset broken target** before presenting. This restores the checked-in broken baseline and reruns the real target tests. Reset also invalidates any previously armed repair preview.
 
 ## 60–90 second judge demonstration
 
@@ -132,7 +132,7 @@ Source parser: scheme.lower() != "token"
 
 It therefore identifies `app.py` and the exact mismatch instead of inventing a generic auth explanation.
 
-### Step 4 — preview exact patch
+### Step 4 — preview and arm the exact patch
 
 Click **2. Preview exact fix**.
 
@@ -143,18 +143,25 @@ The UI displays the unified diff before any write:
 +    if scheme.lower() != "bearer":
 ```
 
+That preview is also the approval boundary. The backend stores the exact no-write `WorkspaceFixProposal` that was returned to the operator. A later Apply is allowed to consume that reviewed proposal once; it does not silently regenerate a different AI or deterministic candidate at write time.
+
 ### Step 5 — real Auto Fix
 
 Click **3. Auto Fix + Verify**.
 
 The backend:
 
-1. rechecks workspace containment;
-2. rechecks that the file still matches the reviewed preimage;
-3. writes the corrected source file;
-4. reruns the exact same pytest command;
-5. reports `FIXED` only when pytest exits `0`;
-6. restores the original file automatically if verification fails.
+1. requires a previously previewed proposal; direct Apply without one returns a conflict instead of writing;
+2. consumes the exact reviewed proposal once;
+3. rechecks workspace containment and the currently diagnosed target file;
+4. requires the source file to still byte-match the reviewed `before` state;
+5. writes only the reviewed `after` state;
+6. reruns the exact same pytest command;
+7. reports `FIXED` only when pytest exits `0`;
+8. restores the original source automatically if verification fails;
+9. does **not** substitute another candidate after a failed reviewed repair — the operator must preview again.
+
+If anyone changes the file between Preview and Apply, the write fails closed as stale. Reset also clears the armed preview, so an old approval cannot be reused after restoring the demo target.
 
 The judge-facing proof should end as:
 
@@ -166,7 +173,7 @@ with the post-fix pytest output visible.
 
 Recommended line:
 
-> “The AI can suggest the edit, but tests decide whether the machine is allowed to call it fixed.”
+> “The model may suggest the edit, but the human-approved diff is the only write authority, and tests decide whether the machine is allowed to call it fixed.”
 
 ## Why this is not a simulation
 
@@ -178,6 +185,7 @@ Every important artifact exists outside the presentation UI:
 - actual pytest stdout/stderr;
 - actual source-file write;
 - actual unified diff;
+- exact preview-to-write binding;
 - actual post-edit rerun;
 - actual rollback if the rerun fails.
 
@@ -197,25 +205,28 @@ Current boundaries:
 - source files above the bounded read size skipped;
 - no shell command emitted by a model is executed;
 - validators are hard-coded platform capabilities, not free-form model text;
+- a file write requires a preceding exact proposal preview;
+- the reviewed proposal is consumed once and Reset invalidates it;
 - stale source state aborts the edit;
-- failed verification causes rollback.
+- failed verification causes rollback;
+- a failed reviewed patch cannot silently trigger an unreviewed substitute patch through the API write path.
 
-For a real startup product this can later become a user-approved workspace registration flow, but the trust boundary should remain explicit.
+For this single-process hackathon MVP, the armed reviewed proposal is held in process. A horizontally scaled production service should move that approval object and its one-time-consume semantics to a shared transactional store while preserving the same exact-proposal boundary.
 
 ## If Ollama is unavailable during judging
 
 Do not panic and do not call the demo fake.
 
-`/prototype` still performs the real failure → file edit → test verification loop through deterministic source/test evidence. The AI runtime card will truthfully show fallback state.
+`/prototype` still performs the real failure → reviewed file edit → test verification loop through deterministic source/test evidence. The AI runtime card will truthfully show fallback state.
 
 If a Gemini free-tier key is configured and available, the general RCA system can use it as the secondary synthesis provider.
 
 ## Reset after the demo
 
-Click **Reset broken target**. The platform restores `baseline/app.py.txt` into `app.py` and proves that the target is broken again.
+Click **Reset broken target**. The platform invalidates any armed preview, restores `baseline/app.py.txt` into `app.py` and proves that the target is broken again.
 
 This makes the complete judge sequence repeatable without manually editing files between presentations.
 
 ## Final pitch
 
-> “Most coding agents stop at generating code. Our product owns the engineering control loop: reproduce the bug, ground the diagnosis in the project, modify only the granted workspace, rerun trusted validation, roll back on failure, and create reusable incident knowledge only after proof.”
+> “Most coding agents stop at generating code. Our product owns the engineering control loop: reproduce the bug, ground the diagnosis in the project, bind writes to the exact human-reviewed patch, modify only the granted workspace, rerun trusted validation, roll back on failure, and create reusable incident knowledge only after proof.”
