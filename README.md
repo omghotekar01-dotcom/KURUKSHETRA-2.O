@@ -2,9 +2,9 @@
 
 **From bug report to evidence-backed, human-approved, verified fix.**
 
-AI Agentic Bug Router is a live-first engineering incident-response MVP. It can reproduce a real local regression, retrieve relevant engineering knowledge, ground reasoning in source/tests and live repository evidence, prepare an exact bounded patch, require review before writes, rerun trusted validation, roll back failed repairs, carry verified remediation evidence into an auditable workflow, and—only after a second explicit human confirmation—merge the exact CI-green remediation pull request.
+AI Agentic Bug Router is a live-first engineering incident-response MVP. It can reproduce a real local regression, retrieve relevant engineering knowledge, ground reasoning in source/tests and live repository evidence, prepare an exact bounded patch, require review before writes, rerun trusted validation, roll back failed repairs, and carry verified remediation evidence into an auditable Draft-PR workflow.
 
-The system never auto-merges from CI and never deploys production code.
+The product never merges pull requests or deploys production code. Merge remains an external human repository action after review.
 
 > **Hackathon development note:** the active implementation is on `agent-build-core`. `main` remains intentionally untouched until final submission promotion is explicitly approved.
 
@@ -102,7 +102,7 @@ See [`docs/AI_WORKSPACE_UX.md`](docs/AI_WORKSPACE_UX.md) for the UX and truth-bo
 1. **Repository / Incident** — investigate a live allowlisted GitHub repository.
 2. **Files + Tests** — drag/drop bounded source and optional trusted tests into an isolated workspace.
 3. **Project / Compilation** — use a registered broken project and deterministic validator.
-4. **Full Governed Flow** — exercise evidence → approval → isolated branch → Draft PR → real CI → optional second human merge gate.
+4. **Full Governed Flow** — exercise evidence → approval → isolated branch → Draft PR → real CI → external human review/merge.
 
 ## Strongest hackathon proof
 
@@ -169,24 +169,15 @@ Incident + logs + repository
 → Draft PR only if green OR reuse exact existing PR
 → live GitHub CI/check verification
 → derived verification evidence
-→ optional SECOND explicit human merge gate after CI PASS
+→ external human PR review / merge under repository controls
 → runtime/human verification
 → resolved / escalated
 → verified-resolution memory
 ```
 
-### Human-confirmed merge
+### Merge boundary
 
-The product still has **no CI-driven auto-merge**. CI PASS only unlocks a separate final merge card in Remediation Studio. To merge, the operator must:
-
-1. have a real remediation Draft PR created from the exact reviewed patch;
-2. refresh and obtain real GitHub CI `PASS`;
-3. review the pull request;
-4. explicitly arm the final merge control;
-5. type `MERGE`;
-6. click the final merge action.
-
-Before merging, the backend refreshes CI again, verifies the pull request is still open, verifies its head SHA still equals the exact reviewed remediation commit, checks allowlisted write permission, converts the Draft PR to ready-for-review if needed and then requests the selected GitHub merge. A merge still leaves the incident in runtime verification; repository merge is not treated as proof that production recovered.
+The product deliberately stops at a validated **Draft PR**. CI PASS records strong evidence for the remediation commit, but it does not grant merge authority. Final PR review and merge happen externally under normal GitHub/repository controls, and runtime/human verification is still required before the original incident can be considered recovered.
 
 ## Live GitHub configuration
 
@@ -216,7 +207,7 @@ A local environment token remains an optional alternative. Never paste tokens in
 
 ## RAG and model boundary
 
-RAG is not the authority layer. Curated runbooks and previously verified resolution memory provide retrieval context; live GitHub evidence is treated separately. Local Qwen/Gemini may synthesize a bounded candidate, but the model cannot decide whether tests passed, bypass approval, choose arbitrary shell commands, access unrestricted OS paths, merge by itself, deploy or declare production recovery.
+RAG is not the authority layer. Curated runbooks and previously verified resolution memory provide retrieval context; live GitHub evidence is treated separately. Local Qwen/Gemini may synthesize a bounded candidate, but the model cannot decide whether tests passed, bypass approval, choose arbitrary shell commands, access unrestricted OS paths, merge, deploy or declare production recovery.
 
 **The model can reason and propose; evidence, validators and explicit human authority hold control.**
 
@@ -238,7 +229,7 @@ This prevents a working local Qwen installation from being reported unavailable 
 - bootstrap/remediation frontend validation uses `npm ci`
 - Windows dependency-lock recovery handles project-owned Vite/Rolldown file locks
 - GitHub Actions includes Linux backend/frontend jobs and a real Windows clean-checkout bootstrap/acceptance job
-- release contract asserts the AI Workspace, Test Lab, judge-intake, model-probe, AutoFix, UI loading system, merge safety gate and security surfaces remain present
+- release contract asserts the AI Workspace, Test Lab, judge-intake, model-probe, AutoFix, UI loading system and core security surfaces remain present
 
 ## Security and truth boundaries
 
@@ -251,10 +242,9 @@ This prevents a working local Qwen installation from being reported unavailable 
 - Arbitrary uploaded code is not executed unless trusted-test execution is explicitly enabled.
 - Failed repair validation restores the original isolated file.
 - Weak or absent generic model evidence produces no arbitrary patch.
-- There is no unattended/CI-driven auto-merge and no production deployment action.
-- A final repository merge requires a second explicit human confirmation after fresh CI and head-SHA revalidation.
+- No in-product merge or production deployment action exists.
 - CI failure can derive failed incident-verification evidence.
-- CI PASS never auto-resolves an incident; runtime/human verification remains required even after merge.
+- CI PASS never auto-resolves an incident; runtime/human verification remains required.
 - Recognized credential patterns are redacted from incident and repository evidence surfaces.
 - Repository/uploaded text is treated as untrusted evidence, not executable instructions.
 - Correlation is investigation guidance, not causal proof.
