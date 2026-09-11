@@ -2,9 +2,9 @@
 
 **From bug report to evidence-backed, human-approved, verified fix.**
 
-AI Agentic Bug Router is a live-first engineering incident-response MVP. It can reproduce a real local regression, retrieve relevant engineering knowledge, ground reasoning in source/tests and live repository evidence, prepare an exact bounded patch, require review before writes, rerun trusted validation, roll back failed repairs, and carry verified remediation evidence into an auditable workflow.
+AI Agentic Bug Router is a live-first engineering incident-response MVP. It can reproduce a real local regression, retrieve relevant engineering knowledge, ground reasoning in source/tests and live repository evidence, prepare an exact bounded patch, require review before writes, rerun trusted validation, roll back failed repairs, carry verified remediation evidence into an auditable workflow, and—only after a second explicit human confirmation—merge the exact CI-green remediation pull request.
 
-The system never auto-merges or deploys production code.
+The system never auto-merges from CI and never deploys production code.
 
 > **Hackathon development note:** the active implementation is on `agent-build-core`. `main` remains intentionally untouched until final submission promotion is explicitly approved.
 
@@ -27,7 +27,7 @@ setup-local-ai.bat
 start.bat
 ```
 
-`setup-local-ai.bat` now does more than check configuration: it starts/reaches Ollama, pulls `qwen3:4b`, confirms the model is installed and performs a real local inference warm-up before it reports success. If Ollama is unavailable, the built-in deterministic proof targets still work; arbitrary judge-supplied repair fails closed rather than pretending a model ran.
+`setup-local-ai.bat` starts/reaches Ollama, pulls `qwen3:4b`, confirms the model is installed and performs a real local inference warm-up before it reports success. If Ollama is unavailable, the built-in deterministic proof targets still work; arbitrary judge-supplied repair fails closed rather than pretending a model ran.
 
 The launcher checks the toolchain, bootstraps dependencies, selects free local ports, injects the real backend URL into Vite, waits for backend/frontend health, prints the detected AI runtime, prints exact live URLs and opens the AI Workspace. Use the URLs printed by `start.bat`; do not assume default ports are free.
 
@@ -49,6 +49,7 @@ Run a local Ollama service with `qwen3:4b` separately if you want the generic ju
 ## Product surfaces
 
 - **AI Workspace** — `/` or `/workspace` — conversational engineering entry point for a bug description, GitHub repository, drag/drop source/test files, RAG context and truthful integration status
+- **Test Lab** — `/test` — one judge-friendly launcher for repository incidents, uploaded files/tests, controlled broken projects/compilations and the full governed PR flow
 - Incident Command — `/incidents` — persisted incident lifecycle, routing, evidence, RCA, approval and audit timeline
 - **Real AutoFix** — `/prototype` — guaranteed real broken-project FAIL → reviewed repair → same-validator PASS proof
 - **Judge Intake** — `/intake` — dedicated judge-supplied bug/source/test workflow with isolated RAG + grounded model repair
@@ -61,7 +62,21 @@ Run a local Ollama service with `qwen3:4b` separately if you want the generic ju
 - FastAPI health — backend `/health`
 - FastAPI docs — backend `/docs`
 
-The specialist pages are intentionally preserved. The AI Workspace is the simple product entry point; the other pages expose the engineering evidence and control boundaries a technical judge may want to inspect directly.
+The specialist pages are intentionally preserved. The AI Workspace is the simple product entry point; Test Lab helps a user choose the right proof path; the specialist pages expose the engineering evidence and control boundaries a technical judge may want to inspect directly.
+
+## Product UI system
+
+The judge-facing application uses one white + purple visual system across all primary surfaces:
+
+- Apple-like system typography and restrained spacing;
+- compact conversational composer instead of an oversized chat box;
+- visible drag/drop affordance for bounded source/test files;
+- collapsible desktop navigation with persistent state and a mobile drawer;
+- solid code/diff/terminal surfaces for readability;
+- purple glass only for navigation/control surfaces where it helps hierarchy;
+- truthful shimmer/skeleton states for model, repository, CI and validation work;
+- reduced-motion and reduced-transparency accessibility fallbacks;
+- denser Incident Command and Judge Demo layouts to avoid empty vertical space.
 
 ## AI Workspace
 
@@ -78,9 +93,16 @@ Users can:
 - inspect triage, RCA, RAG and live GitHub evidence;
 - review a grounded isolated-file patch and run the existing validator path.
 
-The interface uses a light-first, high-legibility product hierarchy with restrained liquid-glass navigation/control surfaces, subtle parallax/depth in the workspace background, responsive dark mode, reduced-motion/reduced-transparency support, and real loading skeletons rather than fabricated placeholder metrics.
-
 See [`docs/AI_WORKSPACE_UX.md`](docs/AI_WORKSPACE_UX.md) for the UX and truth-boundary rationale.
+
+## Test Lab
+
+`/test` provides a simple decision surface for four real workflows rather than pretending every defect is the same kind of input:
+
+1. **Repository / Incident** — investigate a live allowlisted GitHub repository.
+2. **Files + Tests** — drag/drop bounded source and optional trusted tests into an isolated workspace.
+3. **Project / Compilation** — use a registered broken project and deterministic validator.
+4. **Full Governed Flow** — exercise evidence → approval → isolated branch → Draft PR → real CI → optional second human merge gate.
 
 ## Strongest hackathon proof
 
@@ -147,10 +169,24 @@ Incident + logs + repository
 → Draft PR only if green OR reuse exact existing PR
 → live GitHub CI/check verification
 → derived verification evidence
-→ human runtime verification
+→ optional SECOND explicit human merge gate after CI PASS
+→ runtime/human verification
 → resolved / escalated
 → verified-resolution memory
 ```
+
+### Human-confirmed merge
+
+The product still has **no CI-driven auto-merge**. CI PASS only unlocks a separate final merge card in Remediation Studio. To merge, the operator must:
+
+1. have a real remediation Draft PR created from the exact reviewed patch;
+2. refresh and obtain real GitHub CI `PASS`;
+3. review the pull request;
+4. explicitly arm the final merge control;
+5. type `MERGE`;
+6. click the final merge action.
+
+Before merging, the backend refreshes CI again, verifies the pull request is still open, verifies its head SHA still equals the exact reviewed remediation commit, checks allowlisted write permission, converts the Draft PR to ready-for-review if needed and then requests the selected GitHub merge. A merge still leaves the incident in runtime verification; repository merge is not treated as proof that production recovered.
 
 ## Live GitHub configuration
 
@@ -178,13 +214,11 @@ A local environment token remains an optional alternative. Never paste tokens in
 
 `/readiness` performs a read-only GitHub permission probe and reports whether the configured credential actually has push permission for the allowlisted repository. The probe does **not** create a branch, commit or PR and never returns the credential value.
 
-The product deliberately does not expose an automatic merge action. A successful remediation stops at a **Draft PR**; final review/merge remains a deliberate human GitHub action.
-
 ## RAG and model boundary
 
-RAG is not the authority layer. Curated runbooks and previously verified resolution memory provide retrieval context; live GitHub evidence is treated separately. Local Qwen/Gemini may synthesize a bounded candidate, but the model cannot decide whether tests passed, bypass approval, choose arbitrary shell commands, access unrestricted OS paths, merge, deploy or declare production recovery.
+RAG is not the authority layer. Curated runbooks and previously verified resolution memory provide retrieval context; live GitHub evidence is treated separately. Local Qwen/Gemini may synthesize a bounded candidate, but the model cannot decide whether tests passed, bypass approval, choose arbitrary shell commands, access unrestricted OS paths, merge by itself, deploy or declare production recovery.
 
-**The model can reason and propose; evidence and validators hold authority.**
+**The model can reason and propose; evidence, validators and explicit human authority hold control.**
 
 ### Ollama/Qwen compatibility
 
@@ -204,23 +238,23 @@ This prevents a working local Qwen installation from being reported unavailable 
 - bootstrap/remediation frontend validation uses `npm ci`
 - Windows dependency-lock recovery handles project-owned Vite/Rolldown file locks
 - GitHub Actions includes Linux backend/frontend jobs and a real Windows clean-checkout bootstrap/acceptance job
-- release contract asserts the AI Workspace, judge-intake, model-probe, AutoFix and safety surfaces remain present
+- release contract asserts the AI Workspace, Test Lab, judge-intake, model-probe, AutoFix, UI loading system, merge safety gate and security surfaces remain present
 
 ## Security and truth boundaries
 
 - Investigation is read-only until explicit approval.
 - Patch proposal generation performs no write.
-- Every write is tied to one exact reviewed proposal.
+- Every patch write is tied to one exact reviewed proposal.
 - Stale/conflicting state fails closed.
 - Judge uploads are copied into an isolated temporary workspace.
 - Path traversal, absolute paths and sensitive/build directories are blocked from judge intake.
 - Arbitrary uploaded code is not executed unless trusted-test execution is explicitly enabled.
 - Failed repair validation restores the original isolated file.
 - Weak or absent generic model evidence produces no arbitrary patch.
-- High-risk merge/deploy/destructive actions remain recommendation-only.
-- No automatic merge or production deployment exists.
+- There is no unattended/CI-driven auto-merge and no production deployment action.
+- A final repository merge requires a second explicit human confirmation after fresh CI and head-SHA revalidation.
 - CI failure can derive failed incident-verification evidence.
-- CI PASS never auto-resolves an incident; runtime/human verification remains required.
+- CI PASS never auto-resolves an incident; runtime/human verification remains required even after merge.
 - Recognized credential patterns are redacted from incident and repository evidence surfaces.
 - Repository/uploaded text is treated as untrusted evidence, not executable instructions.
 - Correlation is investigation guidance, not causal proof.
@@ -234,7 +268,7 @@ See [`docs/IMPLEMENTATION_PROGRESS.md`](docs/IMPLEMENTATION_PROGRESS.md) for the
 ## Project documentation
 
 - [`docs/IMPLEMENTATION_PROGRESS.md`](docs/IMPLEMENTATION_PROGRESS.md) — current capability/status ledger
-- [`docs/AI_WORKSPACE_UX.md`](docs/AI_WORKSPACE_UX.md) — final product UX, loading, live-state and connector direction
+- [`docs/AI_WORKSPACE_UX.md`](docs/AI_WORKSPACE_UX.md) — product UX, loading, live-state and connector direction
 - [`docs/JUDGE_SUPPLIED_INTAKE.md`](docs/JUDGE_SUPPLIED_INTAKE.md) — arbitrary judge bug/file workflow and safety model
 - [`docs/REAL_AUTOFIX_PROTOTYPE.md`](docs/REAL_AUTOFIX_PROTOTYPE.md) — repeatable real local repair proof
 - [`docs/IIT_BOMBAY_FINAL_DEMO.md`](docs/IIT_BOMBAY_FINAL_DEMO.md) — final judge-facing demo sequence
