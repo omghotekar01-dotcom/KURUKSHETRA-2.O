@@ -66,6 +66,16 @@ jobs:
         run: |
           [scriptblock]::Create((Get-Content scripts/start.ps1 -Raw)) | Out-Null
           [scriptblock]::Create((Get-Content scripts/stop.ps1 -Raw)) | Out-Null
+      - name: Verify stale and reused PID cleanup is safe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .run -Force | Out-Null
+          Set-Content -Path .run\frontend.pid -Value 99999999
+          Set-Content -Path .run\backend.pid -Value $PID
+          & powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop.ps1
+          if ($LASTEXITCODE -ne 0) { throw "stop.ps1 returned exit code $LASTEXITCODE" }
+          if (Test-Path .run\frontend.pid) { throw "stale frontend PID record was not removed" }
+          if (Test-Path .run\backend.pid) { throw "reused launcher PID record was not removed" }
       - name: Environment preflight
         run: python scripts/preflight.py --strict --ci
       - name: Bootstrap clean checkout
