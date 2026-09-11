@@ -113,6 +113,23 @@ External LLM, GitHub, Gmail/Slack or remote database failure must not make the e
 Reason:
 Hackathon network/API failures are predictable risks.
 
+## D-011 — Local launcher must recover from backend port collisions
+
+Status: ACCEPTED
+
+Decision:
+The one-command launcher selects the first free backend port in `8000–8099`, injects that exact API base into the Vite process, and keeps the browser-facing development origin on `http://localhost:5173`. If frontend port 5173 is occupied, startup fails clearly instead of silently reusing an unrelated service.
+
+Reason:
+A hackathon laptop can already have another API on port 8000. Reusing an unknown service caused the dashboard to surface `Failed to fetch`; choosing a free backend port while preserving the trusted frontend origin makes the startup path deterministic and avoids misleading cross-origin failures.
+
+Consequences:
+- Backend URLs printed by the launcher may use a port other than 8000.
+- `.run/backend.port` records the selected backend port for operator diagnostics.
+- The launcher does not treat an arbitrary listener on 5173 as this project.
+
+Date: 2026-09-11
+
 ---
 
 ## Decision template
