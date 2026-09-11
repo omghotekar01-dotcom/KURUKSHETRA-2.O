@@ -12,7 +12,7 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 
 ### Foundation
 - FastAPI/Pydantic backend and React/Vite/TypeScript frontend.
-- Deterministic triage baseline for Authentication, Database, Backend, Frontend, Infrastructure and Unclassified incidents.
+- Deterministic triage for Authentication, Database, Backend, Frontend, Infrastructure and Unclassified incidents.
 - Deterministic LOW/MEDIUM/HIGH action-risk policy.
 - Responsive dashboard with Light theme as default and persistent Light/Dark switcher.
 - API-first structure so the backend can later serve web, PWA/mobile or desktop clients.
@@ -30,79 +30,62 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - Human escalation when neither historical nor repository evidence is strong enough.
 
 ### Live GitHub repository investigation
-- Added real read-only GitHub context collection for an allowlisted repository.
-- Reads repository metadata, recent commits, commit details, changed files and open issues from GitHub.
-- Ranks recent commits using a deterministic incident-correlation signal based on incident text/logs/triage versus commit messages and filenames.
-- Correlation is explicitly presented as investigation guidance, not proof of causation.
-- Live repository evidence is attached to RCA and stored in the incident timeline as `REPOSITORY_EVIDENCE`.
-- A provider/policy failure records `REPOSITORY_CONTEXT_UNAVAILABLE`; the system does not fabricate repository evidence.
+- Real read-only GitHub context collection for an allowlisted repository.
+- Reads repository metadata, recent commits, commit details, changed files and open issues.
+- Ranks recent commits using incident text/logs/triage versus commit messages and filenames.
+- Correlation is investigation guidance, not proof of causation.
+- Repository evidence is attached to RCA and stored as `REPOSITORY_EVIDENCE`.
+- Provider/policy failure records `REPOSITORY_CONTEXT_UNAVAILABLE`; evidence is never fabricated.
 - Added `GET /api/v1/incidents/{incident_id}/repository-context`.
-- Dashboard now shows repository, default branch, access mode, correlated commits, changed files and open issues with real links.
 
-### Live diff/hunk investigation
-- GitHub commit inspection now consumes real patch text returned for changed files when available.
-- Unified diff hunks are parsed into bounded evidence objects containing file, hunk header, added lines, removed lines and matched incident terms.
-- Code-aware tokenization splits paths and snake_case identifiers, so incident terms such as `jwt` can match `auth/jwt.py` and `jwt_signing_key`.
-- Each hunk receives an incident-correlation score and the strongest hunks contribute to commit ranking.
-- RCA now cites the top live diff hunk when it crosses the evidence threshold and tells the operator exactly which file/hunk to inspect next.
-- Missing GitHub patch text for binary/very-large diffs is treated as unavailable evidence and is never fabricated.
-- Diff correlation remains a prioritization signal, not a declaration that the code is faulty.
+### Live diff, hunk and bounded source-context diagnosis
+- Consumes real patch text returned by GitHub for changed files when available.
+- Parses unified diff hunks into typed evidence: filename, hunk header, added/removed lines, matched terms and correlation score.
+- Code-aware tokenization splits paths/snake_case so incident signals such as `jwt` match identifiers such as `jwt_signing_key`.
+- Strongest hunks contribute to commit ranking and RCA evidence.
+- RCA identifies the exact file/hunk to inspect next without declaring it faulty.
+- For the top two hunks of the top-ranked commit, the backend performs bounded read-only source retrieval at that exact commit SHA and returns line-numbered surrounding context.
+- Binary/very-large/missing patch or source data remains explicitly unavailable; nothing is invented.
+- Dedicated `/evidence` UI provides a judge/operator-friendly live evidence lab with correlated commits, changed files, ranked hunks, removed/added lines, matched symptom terms, bounded source context and real GitHub links.
+- The main application now exposes a one-click `Live Evidence Lab` shortcut.
 
 ### Human approval and real bounded GitHub action
 - Explicit `APPROVE` / `REJECT` contracts tied to the exact proposed action.
 - Server re-evaluates action risk at approval time rather than trusting UI state.
-- High-risk operations such as deploy/merge/destructive production actions remain blocked/recommendation-only.
+- High-risk deploy/merge/destructive production operations remain blocked/recommendation-only.
 - Medium-risk GitHub issue creation requires human approval.
 - After approval, the live adapter can create a real GitHub Issue in an allowlisted repository using `GITHUB_TOKEN` or authenticated GitHub CLI credentials.
-- Successful action returns `EXECUTED`, `GITHUB` and the real GitHub URL.
-- Missing credentials return `AUTH_REQUIRED`, `LIVE`; provider errors return `FAILED`; neither path is presented as success.
-- Only real `EXECUTED` (or explicit emergency `SIMULATED`) action results advance to verification.
+- Success returns `EXECUTED`, `GITHUB` and the real URL.
+- Missing credentials return `AUTH_REQUIRED`, provider failures return `FAILED`; neither is presented as success.
 
-### Verification and verified resolution memory
+### Verification and verified-resolution memory
 - `PASS` / `FAIL` / `INCONCLUSIVE` verification endpoint and UI.
 - PASS marks incident `RESOLVED`; failed/inconclusive verification escalates.
-- PASS stores symptoms, component, severity, working RCA, approved remediation and verification evidence in reusable resolution memory.
+- PASS stores symptoms, component, severity, working RCA, approved remediation and verification evidence for future retrieval.
 - Added `/api/v1/memory`.
 
-### Emergency deterministic fallback
+### Emergency fallback
 - Version-controlled demo fixtures remain available for internet/provider failure.
-- `DEMO_MODE` defaults to `false`; the product path is live-first.
-- Demo execution remains clearly labelled `SIMULATED/DEMO` and is never confused with a live provider action.
+- `DEMO_MODE` defaults to `false`; the normal product path is live-first.
+- Fallback execution remains visibly `SIMULATED/DEMO` and is never confused with live success.
 
 ### Continuous integration
 - GitHub Actions compiles/tests backend and builds the TypeScript/Vite frontend on every branch/PR update.
-- CI has caught real regressions during development, including import-path, TypeScript resolver, stale policy expectation, icon-export and diff-tokenization test failures; each was fixed before handoff.
+- CI has caught real regressions during development, including Python import path, TypeScript resolver, stale policy expectation, icon export and code-tokenization issues; regressions were fixed before handoff.
 
 ## Latest confirmed validation
 
-GitHub Actions run on head `77bc2f072be50b3ef82b1840256d7d1bb62cf3b1` is green:
+GitHub Actions run #134 on head `e30cc1f9667db89f7a57514ac70bd692e0520e72` is fully green:
 
 ```text
 Backend compile: PASS
 Backend tests:   29 passed, 2 dependency deprecation warnings, 0 failures
 Frontend install: PASS
-Frontend TypeScript/Vite build: PASS
-Overall: SUCCESS
+Frontend TypeScript/Vite production build: PASS
+Overall workflow: SUCCESS
 ```
 
-Confirmed coverage includes:
-- triage and unknown/low-confidence paths
-- risk policy and high-risk blocking
-- SQLite persistence and timeline
-- create/list/get APIs and 404s
-- historical retrieval/no-match handling
-- RCA/remediation workflow
-- approve/reject path
-- live GitHub issue execution contract
-- missing-auth fail-closed behavior
-- verification → resolution/escalation
-- verified incident memory
-- GitHub repository allowlist rejection
-- live GitHub repository context mapping/correlation/open-issue filtering
-- real patch parsing and diff-hunk correlation
-- code-identifier tokenization for incident matching
-- repository and diff evidence included in RCA
-- frontend production build
+Confirmed coverage includes triage, risk policy, SQLite persistence, historical retrieval, RCA/remediation, approval/rejection, live GitHub issue action contract, missing-auth fail-closed behavior, verification/resolution memory, repository allowlist enforcement, live GitHub repository context, real patch parsing, suspicious-hunk ranking, code-aware symptom matching, bounded source context, RCA evidence grounding and frontend production build.
 
 ## Current live MVP path
 
@@ -111,7 +94,9 @@ Incident + repository
 → Persist + triage
 → Historical knowledge retrieval
 → Live GitHub repository investigation
-→ Real commit + changed-file + diff-hunk evidence
+→ Real commit + changed-file evidence
+→ Real ranked diff hunks
+→ Bounded source context at exact commit
 → Evidence-backed RCA
 → Remediation + deterministic risk gate
 → Human approval
@@ -121,7 +106,7 @@ Incident + repository
 → Verified resolution memory
 ```
 
-## Current P0 sequence
+## P0 sequence
 
 1. ~~Incident intake + triage.~~
 2. ~~Persistence + audit timeline.~~
@@ -135,36 +120,35 @@ Incident + repository
 10. ~~Real bounded GitHub issue action.~~
 11. ~~Live GitHub repository metadata/commit/file/issue investigation.~~
 12. ~~Real diff parsing + suspicious-hunk ranking + RCA grounding.~~
-13. Surface ranked hunks cleanly in the dashboard and add surrounding source-context inspection.
-14. Add bounded patch proposal, branch + draft PR workflow behind approval.
-15. Add automated test/CI verification of the proposed patch.
-16. Add evaluation runner + judge-facing scorecard.
-17. Lock frontend dependencies, run clean-clone acceptance, polish UX and move PR toward review.
+13. ~~Operator-grade Evidence Lab + bounded source-context inspection.~~
+14. Add an exact bounded patch proposal that is reviewable before any write.
+15. After explicit approval only: create isolated fix branch, apply approved patch and run tests/build.
+16. Create a DRAFT PR only if checks pass; never auto-merge.
+17. Derive verification from real test/CI results.
+18. Add evaluation runner + judge-facing scorecard.
+19. Lock dependencies, run clean-clone acceptance, finish UX/docs/recovery polish.
 
 ## Next highest-value milestone
 
-Turn the backend diff evidence into an operator-grade diagnosis surface and patch proposal pipeline:
+Patch proposal without silent mutation:
 
 ```text
 Live incident
-→ ranked commit
-→ ranked diff hunk
-→ fetch surrounding source context
-→ explain why the exact change is suspicious
-→ prepare smallest bounded patch proposal
-→ human reviews exact diff
-→ no repository write until approval
+→ ranked commit/hunk/source context
+→ prepare smallest exact patch proposal
+→ show before/after diff + rationale + confidence + verification commands
+→ human approves or rejects exact proposal
+→ no branch/file write before approval
 ```
 
-After that, the approved patch workflow will create an isolated fix branch, run tests/build checks and create a DRAFT PR only if verification passes. No automatic merge or production deployment.
+The following milestone will take an approved proposal, create an isolated fix branch, apply only that approved change, run deterministic checks and create a DRAFT PR only when checks pass. Automatic merge or production deployment is explicitly out of scope.
 
 ## Known implementation risks
 
 - Exact hackathon PS requirements override generic assumptions if they differ from this direction.
-- Commit and diff-hunk correlation are deterministic heuristics; they guide investigation and do not establish causal proof.
-- Current historical retrieval/RCA is lightweight; any embedding/LLM upgrade must beat the deterministic baseline in evaluation before replacing it.
-- GitHub public API rate limits and network availability can affect live context retrieval; emergency fallback remains available.
-- GitHub can omit patch text for binary or large diffs; unavailable patch evidence must remain explicitly unavailable.
-- Real external integrations must never silently fall back to fake success.
-- No automatic merge, production deployment, destructive database operation or unrestricted repository write is permitted in the MVP.
+- Commit/hunk correlation is heuristic investigation guidance, not causal proof.
+- GitHub API rate limits/network availability may affect live evidence; emergency fallback remains available.
+- GitHub may omit patch/content data for binary or large files; unavailable evidence remains unavailable.
+- Real integrations must never silently degrade to fake success.
+- No automatic merge, production deployment, destructive database operation or unrestricted repository write is permitted.
 - The public repository must never contain tokens, credentials or private operational data.
