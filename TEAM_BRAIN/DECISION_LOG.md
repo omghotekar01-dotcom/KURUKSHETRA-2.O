@@ -167,6 +167,25 @@ Consequences:
 
 Date: 2026-09-11
 
+## D-014 — Local AutoFix writes bind to the exact reviewed proposal
+
+Status: ACCEPTED
+
+Decision:
+The local-workspace AutoFix API must require an explicit no-write Preview before Apply. Apply consumes only the exact `WorkspaceFixProposal` previously shown to the operator; it must not regenerate, replace or upgrade that proposal at write time. Reset invalidates the approval. If the target file or diagnosed state changes after Preview, Apply fails closed. If the reviewed edit fails real validation, the original source is restored and a different candidate requires a new Preview.
+
+Reason:
+Human approval is meaningful only when the artifact being executed is exactly the artifact that was reviewed. Allowing Apply to regenerate a model or deterministic candidate after Preview creates a time-of-check/time-of-use trust gap even when the regenerated patch is probably equivalent.
+
+Consequences:
+- Direct Apply without an armed Preview is rejected.
+- The source preimage is exact-matched immediately before writing.
+- A stale file mutation between Preview and Apply is rejected rather than overwritten.
+- A failed reviewed candidate rolls back; the API does not silently fall through to an unreviewed substitute candidate.
+- The current single-process MVP may keep the one-time reviewed proposal in process; multi-worker/production deployment must move this state to a shared transactional approval store without weakening exact-proposal semantics.
+
+Date: 2026-09-11
+
 ---
 
 ## Decision template
