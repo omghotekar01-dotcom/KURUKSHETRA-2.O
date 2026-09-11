@@ -130,6 +130,24 @@ Consequences:
 
 Date: 2026-09-11
 
+## D-012 — CI derives verification evidence but cannot prove runtime recovery
+
+Status: ACCEPTED
+
+Decision:
+Real GitHub Actions/check state is converted into canonical incident-verification evidence. Failed CI may derive a failed verification outcome and escalate the incident automatically. Pending or absent checks remain inconclusive. Passing CI remains evidence-only and must not automatically resolve the incident; human/runtime confirmation is still required.
+
+Reason:
+A green build proves the configured checks passed on the isolated remediation commit. It does not prove the original production symptom, dependency, environment or user workflow recovered. Treating CI success as automatic incident resolution would create a false closed loop.
+
+Consequences:
+- `PATCH_CI_VERIFICATION` stores observed GitHub state plus derived evidence.
+- `VERIFICATION_DERIVED` makes that derivation auditable in the incident timeline.
+- CI failure can safely move the incident to escalation without waiting for manual confirmation.
+- CI success keeps the incident in `VERIFYING` until runtime/human evidence is supplied.
+
+Date: 2026-09-11
+
 ---
 
 ## Decision template
