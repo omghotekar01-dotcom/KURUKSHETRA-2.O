@@ -154,6 +154,7 @@ Write-Host "API docs:        $ApiBase/docs"
 Write-Host "Evidence Lab:    $DashboardBase/evidence"
 Write-Host "Remediation:     $DashboardBase/remediate"
 Write-Host "Evaluation Lab:  $DashboardBase/evaluation"
+Write-Host "Readiness:       $DashboardBase/readiness"
 Write-Host "Stop services:   stop.bat"
 Write-Host ""
 
