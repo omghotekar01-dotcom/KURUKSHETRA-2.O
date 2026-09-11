@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from app.schemas.incident import (
     AnalysisBundle,
     EvidenceBundle,
@@ -68,10 +70,14 @@ def analyze_incident(
         ),
     )
 
+    configured_repo = os.getenv("GITHUB_REPOSITORY", "omghotekar01-dotcom/KURUKSHETRA-2.O")
     action = ProposedAction(
-        action_type="draft remediation plan",
-        target=record.incident.repo or record.triage.owner_team,
-        description=f"Prepare a bounded remediation using knowledge item {top.id}: {top.fix}",
+        action_type="create github issue",
+        target=record.incident.repo or configured_repo,
+        description=(
+            "Create a GitHub incident issue containing the evidence-backed RCA, approved remediation, "
+            "and verification plan for human tracking."
+        ),
         confidence=confidence,
         destructive=False,
     )
@@ -81,6 +87,7 @@ def analyze_incident(
         steps=[
             "Confirm the top hypothesis with the next diagnostic check.",
             top.fix,
+            "Create a tracked GitHub incident issue after explicit human approval.",
             "Run the defined verification before marking the incident resolved.",
         ],
         verification=VERIFICATION.get(
