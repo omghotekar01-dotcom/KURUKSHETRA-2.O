@@ -72,6 +72,27 @@ def test_reset_invalidates_reviewed_proposal(monkeypatch) -> None:
     assert "No reviewed proposal" in applied.json()["detail"]
 
 
+def test_changed_workspace_rejects_stale_reviewed_proposal(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
+    reset = client.post(f"/api/v1/autofix/{TARGET_ID}/reset")
+    assert reset.status_code == 200
+    workspace = Path(reset.json()["workspace_path"])
+
+    preview = client.post(f"/api/v1/autofix/{TARGET_ID}/proposal")
+    assert preview.status_code == 200
+
+    source_path = workspace / "app.py"
+    source = source_path.read_text(encoding="utf-8")
+    source_path.write_text(source.replace('scheme.lower() != "token"', 'scheme.lower() != "legacy"'), encoding="utf-8")
+
+    applied = client.post(f"/api/v1/autofix/{TARGET_ID}/apply")
+    assert applied.status_code == 409
+    assert "Workspace changed after diagnosis" in applied.json()["detail"]
+    assert 'scheme.lower() != "legacy"' in source_path.read_text(encoding="utf-8")
+
+    reset_target(TARGET_ID)
+
+
 def test_real_demo_target_fails_then_is_fixed_and_proven(monkeypatch) -> None:
     monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
     reset = reset_target(TARGET_ID)
