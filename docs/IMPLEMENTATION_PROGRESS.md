@@ -1,6 +1,6 @@
 # Implementation Progress
 
-Last updated: 2026-09-11  
+Last updated: 2026-09-12  
 Active release-candidate branch: `agent-build-core`  
 Draft integration PR: `#1` → `develop`  
 Project name: **AI Agentic Bug Router**
@@ -12,6 +12,24 @@ Project name: **AI Agentic Bug Router**
 The product now has both a controlled real repair proof and a judge-supplied challenge path. Continue with regression fixes, rehearsal and evidence-quality improvements only; do not add broad scope before the final. `main` remains untouched until explicit team approval.
 
 This status is scoped to the implemented MVP. It is not a claim that arbitrary software defects can always be autonomously repaired or that a green CI run proves production recovery.
+
+### Latest safety correction
+
+During the judge-UI polish pass, an in-product human-confirmed PR merge executor was briefly introduced. That conflicted with the canonical TEAM_BRAIN guardrail that treats protected-branch merge/deploy as high-risk and recommendation-only for this prototype. The executor, merge API/schema/service/tests and merge-specific UI were removed before release validation.
+
+The enforced boundary is again:
+
+```text
+reviewed exact patch
+→ isolated fix branch
+→ deterministic validation
+→ Draft PR
+→ real GitHub CI/check evidence
+→ external human repository review/merge
+→ runtime/human verification
+```
+
+CI PASS is evidence for the remediation commit; it is not merge authority and does not auto-resolve the original incident. Remediation Studio retains the white/purple UI pass, compact layout, friendly failure messages and truthful shimmers for repository inspection, proposal generation, validation and CI reads.
 
 Key docs:
 
@@ -132,6 +150,7 @@ Ollama localhost
 - starts/reaches the Ollama service;
 - pulls `qwen3:4b`;
 - confirms the model is installed;
+- performs a real native `/api/chat` warm-up;
 - fails instead of falsely reporting readiness.
 
 `POST /api/v1/autofix/model-runtime/probe` performs a **real chat-completions inference request** and reports provider, model, latency, reply and connection status.
@@ -189,6 +208,7 @@ Incident + logs + repository
 → Draft PR only if validation is green
 → real GitHub CI/check evidence
 → derived incident-verification evidence
+→ external human repository review/merge
 → runtime/human verification
 → resolved or escalated
 → verified resolution memory
@@ -200,13 +220,25 @@ CI behavior remains deliberately conservative:
 
 - real CI failure can derive incident verification `FAIL` and escalate;
 - pending/no checks remain inconclusive;
-- CI PASS is structured evidence only and does **not** auto-resolve the original runtime incident.
+- CI PASS is structured evidence only and does **not** auto-resolve the original runtime incident;
+- no in-product merge endpoint exists.
 
 ## Evaluation Lab
 
 `/evaluation` runs the deterministic benchmark rather than showing hard-coded accuracy claims. It measures routing, retrieval/no-match behavior, RCA grounding, risk policy, unsafe-action blocking and approval-gate behavior with visible numerator/denominator evidence.
 
 Benchmark results are scoped to the displayed cases and are not universal real-world accuracy claims.
+
+## Judge UI / Test Lab
+
+The current UI pass keeps the project light-first with a white + purple system, Apple-like system typography, stronger card separation, denser layouts and bounded liquid-glass use on navigation/control surfaces. Code, diffs and terminal evidence remain on solid high-contrast surfaces.
+
+- `/` / `/workspace`: compact engineering composer with visible drag/drop evidence attachment.
+- `/test`: one entry point for repository incidents, uploaded files/tests, controlled broken projects/compilations and the governed Draft-PR path.
+- left navigation collapses on desktop and persists the state locally.
+- Judge Demo and Incident Command use denser layouts to avoid large empty vertical gaps.
+- Evaluation/Remediation and long-running operations expose truthful shimmer/loading states instead of fabricated placeholder data.
+- simulation/demo behavior remains fallback-only and visibly labeled.
 
 ## Reproducible startup
 
@@ -220,14 +252,17 @@ Benchmark results are scoped to the displayed cases and are not universal real-w
 - launchers select safe local ports and inject the actual backend URL into Vite.
 - backend/frontend health gates must pass before `READY`.
 - stale/missing/reused Windows launcher PID files are treated as hints rather than proof of process ownership; cleanup verifies the process before termination, will not kill the active launcher/ancestor tree, and remains non-fatal for stale cleanup races.
-- CI now contains an explicit Windows regression test for both a nonexistent stale PID and a PID reused by the current PowerShell launcher process tree.
-- Windows `start.bat` prints detected AI runtime plus direct URLs for `/prototype`, `/intake`, `/ai`, `/demo`, `/evidence`, `/remediate`, `/evaluation`, `/readiness`.
+- CI contains an explicit Windows regression test for both a nonexistent stale PID and a PID reused by the current PowerShell launcher process tree.
+- Windows `start.bat` prints detected AI runtime plus direct URLs for `/test`, `/prototype`, `/intake`, `/ai`, `/demo`, `/evidence`, `/remediate`, `/evaluation`, `/readiness`.
 - Unix/macOS launcher exposes the same judge-facing routes.
 
 ## Release contract
 
 `scripts/release_contract.py` protects the core feature set from accidental deletion. Acceptance requires, among other artifacts:
 
+- AI Workspace and Test Lab routes;
+- collapsible persistent navigation;
+- white/purple product styling and async shimmer layer;
 - Real AutoFix route/page;
 - Judge Intake route/page/CSS;
 - file attachment UI;
@@ -237,7 +272,7 @@ Benchmark results are scoped to the displayed cases and are not universal real-w
 - preview-before-apply UI;
 - isolated intake backend;
 - intake/model-probe regression tests;
-- judge-intake documentation;
+- explicit no-auto-merge README boundary;
 - Windows and Unix launcher links.
 
 ## Security / truth boundaries
@@ -245,12 +280,12 @@ Benchmark results are scoped to the displayed cases and are not universal real-w
 - `.env` is not tracked.
 - recognized credentials are redacted from normal incident/repository evidence surfaces.
 - investigation is read-only until explicit approval.
-- every write is bound to one exact reviewed proposal.
+- every repository patch write is bound to one exact reviewed proposal.
 - stale state fails closed.
 - path traversal and sensitive/build directories are blocked.
 - arbitrary judge-uploaded code is not executed unless explicitly trusted.
 - failed repair validation rolls back.
-- no automatic merge or production deployment exists.
+- no automatic merge, in-product merge endpoint or production deployment exists.
 - no arbitrary model-generated shell execution exists.
 - no unrestricted OS/repository writes exist.
 - commit/hunk correlation is investigation guidance, not causal proof.
@@ -259,15 +294,15 @@ Benchmark results are scoped to the displayed cases and are not universal real-w
 
 ## Latest confirmed full executable validation
 
-GitHub Actions run **#644** / run ID `34620804814` on release-candidate head:
+GitHub Actions run **#789** / run ID `34643760094` on executable release-candidate head:
 
-`723a31b74ba044e7619545b1ab6ace08ae9b6ec7`
+`8c7ab3357af3365bff896397955e779db2847e25`
 
-completed successfully on 2026-09-11:
+completed successfully on 2026-09-11 UTC / 2026-09-12 IST:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         102 passed, 2 dependency warnings, 0 failures
+Backend tests:                         109 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
@@ -276,12 +311,13 @@ Windows strict environment preflight:  PASS
 Windows clean-checkout bootstrap:      PASS
 Windows clean-clone acceptance:        PASS
 Release-candidate contract:            PASS
+Acceptance summary:                    4/4 checks passed
 Overall workflow:                      PASS
 ```
 
 The two Python warnings are dependency deprecations from FastAPI/Starlette test infrastructure and are not test failures.
 
-This run closes the Windows startup regression observed during final laptop rehearsal: stale or PID-reused `.run` records no longer abort dependency bootstrap or cause the launcher to attempt to terminate its own process tree.
+This validation includes the safety-restored Draft-PR-only remediation boundary, the Test Lab and white/purple UI system, the Qwen Windows warm-up regression check, locked frontend dependencies, and the clean-clone Windows acceptance path.
 
 ## P0 milestone closure
 
@@ -309,7 +345,9 @@ Completed milestones now include:
 20. explicit trusted-test execution boundary;
 21. RAG + Qwen bounded repair over judge-supplied evidence;
 22. release contract coverage for the judge-intake feature set;
-23. Windows launcher stale/reused PID cleanup regression protection.
+23. Windows launcher stale/reused PID cleanup regression protection;
+24. compact white/purple judge UI + collapsible navigation + Test Lab;
+25. restored Draft-PR-only merge boundary after safety regression review.
 
 ## Final laptop rehearsal
 
@@ -321,12 +359,13 @@ pull latest agent-build-core
 → setup-local-ai.bat
 → start.bat
 → confirm startup says LIVE LOCAL QWEN when Ollama is intended
+→ /test: choose the proof path appropriate to the judge input
 → /intake: Test Qwen now and require live model-call success
 → /prototype: Reset → Scan FAIL → Preview → Apply → same pytest PASS
 → /intake: attach a small trusted source + failing test → RAG → Qwen diff → Apply → VERIFIED_FIXED
 → /ai: one known case + one no-match safe-stop
 → /evidence: one real repository evidence walkthrough
-→ /remediate: show exact approval/Draft-PR boundary without merging
+→ /remediate: show exact approval/Draft-PR/CI boundary without merging
 → /evaluation: show measured benchmark evidence
 → capture screenshots / rehearse recovery path
 ```
