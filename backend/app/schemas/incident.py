@@ -110,6 +110,44 @@ class EvidenceBundle(BaseModel):
     no_strong_match: bool = False
 
 
+class RepositoryFileChange(BaseModel):
+    filename: str
+    status: str
+    additions: int = 0
+    deletions: int = 0
+    changes: int = 0
+
+
+class RepositoryCommitEvidence(BaseModel):
+    sha: str
+    short_sha: str
+    message: str
+    author: str
+    authored_at: Optional[datetime] = None
+    url: str
+    files: List[RepositoryFileChange] = Field(default_factory=list)
+    correlation_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class RepositoryIssueEvidence(BaseModel):
+    number: int
+    title: str
+    state: str
+    url: str
+    labels: List[str] = Field(default_factory=list)
+
+
+class RepositoryContext(BaseModel):
+    repository: str
+    default_branch: str
+    fetched_at: datetime
+    authenticated: bool
+    source: str = "github-live"
+    commits: List[RepositoryCommitEvidence] = Field(default_factory=list)
+    open_issues: List[RepositoryIssueEvidence] = Field(default_factory=list)
+    notes: List[str] = Field(default_factory=list)
+
+
 class ProposedAction(BaseModel):
     action_type: str
     target: str
@@ -145,6 +183,7 @@ class RemediationPlan(BaseModel):
 class AnalysisBundle(BaseModel):
     incident_id: str
     evidence: EvidenceBundle
+    repository_context: Optional[RepositoryContext] = None
     hypotheses: List[RootCauseHypothesis] = Field(default_factory=list)
     remediation: Optional[RemediationPlan] = None
     needs_human_investigation: bool = False
