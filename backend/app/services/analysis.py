@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.schemas.incident import (
+    AgentReasoningTrace,
     AnalysisBundle,
     EvidenceBundle,
     IncidentRecord,
@@ -11,6 +12,7 @@ from app.schemas.incident import (
     RootCauseHypothesis,
 )
 from app.services.github_client import configured_repository
+from app.services.llm_reasoning import synthesize_grounded_reasoning
 from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
 
@@ -73,6 +75,13 @@ def _github_issue_action(record: IncidentRecord, confidence: float) -> ProposedA
     )
 
 
+def _trace_sources(matches, repository_context: RepositoryContext | None) -> list[str]:
+    sources = {match.source for match in matches}
+    if repository_context is not None:
+        sources.add(repository_context.source)
+    return sorted(sources)
+
+
 def analyze_incident(
     record: IncidentRecord,
     memories: list[ResolutionMemory] | None = None,
@@ -96,6 +105,14 @@ def analyze_incident(
             hypotheses=[],
             remediation=None,
             needs_human_investigation=True,
+            agent_trace=AgentReasoningTrace(
+                mode="DETERMINISTIC_RAG",
+                provider="deterministic",
+                model="evidence-rules-v1",
+                retrieval_sources=_trace_sources(matches, repository_context),
+                grounded=True,
+                fallback_reason="No sufficiently strong evidence; LLM synthesis intentionally skipped.",
+            ),
         )
 
     if matches:
@@ -219,6 +236,34 @@ def analyze_incident(
             ]
         )
 
+    synthesis = synthesize_grounded_reasoning(record, matches, repository_context)
+    agent_trace = AgentReasoningTrace(
+        mode="LLM_RAG" if synthesis.payload is not None else "DETERMINISTIC_RAG",
+        provider=synthesis.provider,
+        model=synthesis.model,
+        retrieval_sources=_trace_sources(matches, repository_context),
+        grounded=True,
+        fallback_reason=synthesis.fallback_reason,
+    )
+    if synthesis.payload is not None:
+        hypothesis = hypothesis.model_copy(
+            update={
+                "title": synthesis.payload["title"],
+                "rationale": synthesis.payload["rationale"],
+                "next_diagnostic": synthesis.payload["next_diagnostic"],
+            }
+        )
+        remediation_summary = synthesis.payload["remediation_summary"]
+        remediation_steps = list(synthesis.payload["remediation_steps"])
+        if ownership_step:
+            remediation_steps.append(ownership_step)
+        remediation_steps.extend(
+            [
+                "Keep every repository write behind explicit human approval.",
+                "Run the defined verification before marking the incident resolved.",
+            ]
+        )
+
     action = _github_issue_action(record, hypothesis.confidence)
     risk = evaluate_action(action)
     remediation = RemediationPlan(
@@ -239,4 +284,5 @@ def analyze_incident(
         hypotheses=[hypothesis],
         remediation=remediation,
         needs_human_investigation=False,
+        agent_trace=agent_trace,
     )
