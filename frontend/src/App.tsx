@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Activity, AlertCircle, CheckCircle2, GitBranch, History, Loader2, ShieldCheck, Sparkles, XCircle } from 'lucide-react'
+import {
+  Activity,
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  GitBranch,
+  Github,
+  History,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  XCircle,
+} from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 const stages = ['Intake', 'Triage', 'Evidence', 'RCA', 'Remediation', 'Approval', 'Verification']
@@ -53,9 +65,46 @@ type EvidenceBundle = {
   no_strong_match: boolean
 }
 
+type RepositoryFileChange = {
+  filename: string
+  status: string
+  additions: number
+  deletions: number
+  changes: number
+}
+
+type RepositoryCommitEvidence = {
+  sha: string
+  short_sha: string
+  message: string
+  author: string
+  authored_at?: string | null
+  url: string
+  files: RepositoryFileChange[]
+  correlation_score: number
+}
+
+type RepositoryContext = {
+  repository: string
+  default_branch: string
+  fetched_at: string
+  authenticated: boolean
+  source: string
+  commits: RepositoryCommitEvidence[]
+  open_issues: Array<{
+    number: number
+    title: string
+    state: string
+    url: string
+    labels: string[]
+  }>
+  notes: string[]
+}
+
 type AnalysisBundle = {
   incident_id: string
   evidence: EvidenceBundle
+  repository_context?: RepositoryContext | null
   hypotheses: Array<{
     id: string
     title: string
@@ -113,6 +162,7 @@ const emptyForm = {
   title: '401 errors after today\'s deployment',
   description: 'Production users can authenticate, but API requests immediately return unauthorized responses.',
   environment: 'production',
+  repo: 'omghotekar01-dotcom/KURUKSHETRA-2.O',
   logs: 'JWT signature verification failed',
 }
 
@@ -171,6 +221,7 @@ export default function App() {
           title: form.title.trim(),
           description: form.description.trim(),
           environment: form.environment,
+          repo: form.repo.trim() || null,
           logs: form.logs
             .split('\n')
             .map((line) => line.trim())
@@ -187,12 +238,14 @@ export default function App() {
       setIncident(created)
 
       const analysisResponse = await fetch(`${API_BASE}/api/v1/incidents/${created.id}/analyze`, { method: 'POST' })
-      if (analysisResponse.ok) {
-        const bundle: AnalysisBundle = await analysisResponse.json()
-        setAnalysis(bundle)
-        await refreshIncident(created.id)
+      if (!analysisResponse.ok) {
+        const detail = await analysisResponse.text()
+        throw new Error(detail || `Analysis failed with ${analysisResponse.status}`)
       }
 
+      const bundle: AnalysisBundle = await analysisResponse.json()
+      setAnalysis(bundle)
+      await refreshIncident(created.id)
       await loadRecent()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to create incident.')
@@ -280,11 +333,11 @@ export default function App() {
       <section className="content">
         <header>
           <div>
-            <p className="eyebrow">KURUKSHETRA 2.0 · WORKING BUILD</p>
+            <p className="eyebrow">KURUKSHETRA 2.0 · LIVE-FIRST MVP</p>
             <h1>Evidence-backed incident response</h1>
-            <p className="muted">Investigate, authorize, execute and verify through one auditable workflow.</p>
+            <p className="muted">Investigate live repository context, authorize bounded actions and verify outcomes through one auditable workflow.</p>
           </div>
-          <span className="status">● Closed-loop build</span>
+          <span className="status">● Live-first build</span>
         </header>
 
         <section className="stage-row">
@@ -306,6 +359,16 @@ export default function App() {
               <span>Description</span>
               <textarea rows={5} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} minLength={5} required />
             </label>
+            <label>
+              <span>GitHub repository</span>
+              <input
+                value={form.repo}
+                onChange={(event) => setForm({ ...form, repo: event.target.value })}
+                placeholder="owner/repository"
+                autoComplete="off"
+              />
+              <small className="field-help">Used for read-only live commit/file/issue investigation. The configured allowlist is enforced by the backend.</small>
+            </label>
             <div className="form-row">
               <label>
                 <span>Environment</span>
@@ -322,7 +385,7 @@ export default function App() {
             </div>
             {error && <div className="error-box"><AlertCircle size={16} /> {error}</div>}
             <button className="primary submit-button" disabled={loading || workflowBusy}>
-              {loading ? <><Loader2 className="spin" size={16} /> Analyzing…</> : 'Create & analyze incident'}
+              {loading ? <><Loader2 className="spin" size={16} /> Investigating live context…</> : 'Create & investigate incident'}
             </button>
           </form>
 
@@ -348,9 +411,9 @@ export default function App() {
 
                 {analysis && (
                   <article className="panel">
-                    <div className="panel-title">Historical evidence <span className="baseline-tag">lexical baseline</span></div>
+                    <div className="panel-title">Historical evidence <span className="baseline-tag">knowledge memory</span></div>
                     {analysis.evidence.no_strong_match ? (
-                      <p className="muted">No sufficiently relevant historical runbook match was found. The workflow escalates instead of forcing a known fix.</p>
+                      <p className="muted">No sufficiently relevant historical knowledge match was found. Repository evidence is evaluated independently instead of forcing a remembered fix.</p>
                     ) : (
                       <ul className="match-list">
                         {analysis.evidence.matches.map((match) => (
@@ -364,6 +427,58 @@ export default function App() {
                     )}
                   </article>
                 )}
+
+                {analysis?.repository_context ? (
+                  <article className="panel repository-panel">
+                    <div className="panel-title">
+                      <span className="repo-title"><Github size={16} /> Live GitHub repository evidence</span>
+                      <span className="live-badge">LIVE</span>
+                    </div>
+                    <div className="repo-summary">
+                      <div><small>Repository</small><strong>{analysis.repository_context.repository}</strong></div>
+                      <div><small>Branch</small><strong>{analysis.repository_context.default_branch}</strong></div>
+                      <div><small>Access</small><strong>{analysis.repository_context.authenticated ? 'Authenticated' : 'Public read-only'}</strong></div>
+                    </div>
+
+                    <div className="repo-section-title">Recent commits ranked by incident correlation</div>
+                    <div className="commit-list">
+                      {analysis.repository_context.commits.slice(0, 4).map((commit) => (
+                        <a className="commit-card" key={commit.sha} href={commit.url} target="_blank" rel="noreferrer">
+                          <div className="commit-card-head">
+                            <code>{commit.short_sha}</code>
+                            <span>{Math.round(commit.correlation_score * 100)}% correlation</span>
+                          </div>
+                          <strong>{commit.message}</strong>
+                          <small>{commit.author} · {commit.files.length} changed file{commit.files.length === 1 ? '' : 's'}</small>
+                          {commit.files.length > 0 && (
+                            <div className="file-chip-row">
+                              {commit.files.slice(0, 5).map((file) => <span key={file.filename}>{file.filename}</span>)}
+                            </div>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+
+                    {analysis.repository_context.open_issues.length > 0 && (
+                      <>
+                        <div className="repo-section-title">Related open repository issues</div>
+                        <div className="issue-link-list">
+                          {analysis.repository_context.open_issues.slice(0, 4).map((issue) => (
+                            <a href={issue.url} target="_blank" rel="noreferrer" key={issue.number}>
+                              <span>#{issue.number} · {issue.title}</span><ExternalLink size={13} />
+                            </a>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    <p className="evidence-disclaimer">Correlation highlights where to investigate first. It does not label a commit as the root cause without verification.</p>
+                  </article>
+                ) : incident.incident.repo && analysis ? (
+                  <article className="panel repository-panel repository-unavailable">
+                    <div className="panel-title"><span className="repo-title"><Github size={16} /> Live GitHub repository evidence</span></div>
+                    <p className="muted">Live repository context was unavailable for this analysis. The workflow did not fabricate repository evidence; check the incident timeline for the exact provider/policy failure.</p>
+                  </article>
+                ) : null}
 
                 {analysis?.hypotheses[0] && (
                   <article className="panel analysis-panel">
@@ -393,7 +508,7 @@ export default function App() {
                         <div className="button-row">
                           <button type="button" className="secondary danger-button" disabled={workflowBusy} onClick={() => void decideAction('REJECT')}>Reject</button>
                           <button type="button" className="primary" disabled={workflowBusy} onClick={() => void decideAction('APPROVE')}>
-                            {workflowBusy ? 'Recording…' : 'Approve action'}
+                            {workflowBusy ? 'Executing…' : 'Approve & execute'}
                           </button>
                         </div>
                       </div>
@@ -406,6 +521,11 @@ export default function App() {
                     <div className="panel-title">Action result <span className="state-pill">{approval.execution.mode}</span></div>
                     <div className="action-result-line"><CheckCircle2 size={18} /><div><b>{approval.execution.status}</b><span>{approval.execution.message}</span></div></div>
                     <small className="policy-note">Action ID: {approval.execution.action_id} · Target: {approval.execution.target}</small>
+                    {approval.execution.external_url && (
+                      <a className="external-action-link" href={approval.execution.external_url} target="_blank" rel="noreferrer">
+                        Open created GitHub resource <ExternalLink size={14} />
+                      </a>
+                    )}
                   </article>
                 )}
 
@@ -444,8 +564,8 @@ export default function App() {
             ) : (
               <article className="panel empty-panel">
                 <Sparkles size={28} />
-                <h2>Ready for the first incident</h2>
-                <p className="muted">Submit an incident to create a persisted case, deterministic triage result and audit timeline.</p>
+                <h2>Ready for the first live incident</h2>
+                <p className="muted">Submit an incident with a GitHub repository to create a persisted case, collect live repository evidence and build an auditable RCA workflow.</p>
               </article>
             )}
           </section>
