@@ -5,7 +5,7 @@ import {
   CheckCircle2,
   FileCode2,
   FileUp,
-  Github,
+  GitBranch,
   GitPullRequest,
   Loader2,
   Paperclip,
@@ -402,7 +402,7 @@ export default function BugWorkspacePage() {
           )}
 
           <div className="workspace-repo-row">
-            <Github size={16} />
+            <GitBranch size={16} />
             <input value={repo} onChange={(event) => { setRepo(event.target.value); resetResults() }} placeholder="owner/repository" aria-label="GitHub repository" />
             <select value={environment} onChange={(event) => setEnvironment(event.target.value)} aria-label="Environment">
               <option value="production">Production</option>
@@ -415,7 +415,7 @@ export default function BugWorkspacePage() {
             <div className="workspace-tools">
               <button type="button" onClick={() => fileInput.current?.click()}><Paperclip size={16} /> Attach files</button>
               <input ref={fileInput} type="file" multiple hidden accept=".py,.js,.jsx,.ts,.tsx,.json,.yaml,.yml,.toml,.md,.txt" onChange={(event) => void onFiles(event)} />
-              <span className="source-pill"><Github size={14} /> GitHub</span>
+              <span className="source-pill"><GitBranch size={14} /> GitHub</span>
               <span className="source-pill"><BrainCircuit size={14} /> RAG</span>
               <label className="workspace-trust-toggle" title="Only enable for Python tests you trust">
                 <input type="checkbox" checked={trustedTests} onChange={(event) => { setTrustedTests(event.target.checked); resetResults() }} />
@@ -517,7 +517,7 @@ export default function BugWorkspacePage() {
       )}
 
       <section className="workspace-capability-strip">
-        <div><Github size={17} /><span><b>Live GitHub evidence</b><small>Commits, diffs, files and issues</small></span></div>
+        <div><GitBranch size={17} /><span><b>Live GitHub evidence</b><small>Commits, diffs, files and issues</small></span></div>
         <div><BrainCircuit size={17} /><span><b>Grounded reasoning</b><small>RAG + bounded model synthesis</small></span></div>
         <div><ShieldCheck size={17} /><span><b>Human authority</b><small>Review before every meaningful write</small></span></div>
       </section>
