@@ -19,6 +19,12 @@ def main() -> int:
         ".env.example",
         ".github/workflows/build.yml",
         "frontend/package-lock.json",
+        "frontend/src/BugWorkspacePage.tsx",
+        "frontend/src/LoadingShimmer.tsx",
+        "frontend/src/bug-workspace.css",
+        "frontend/src/workspace-depth.css",
+        "frontend/src/apple-polish.css",
+        "frontend/src/busy-polish.css",
         "frontend/src/JudgeDemoPage.tsx",
         "frontend/src/judge-demo.css",
         "frontend/src/JudgeIntakePage.tsx",
@@ -31,6 +37,7 @@ def main() -> int:
         "backend/app/services/model_runtime.py",
         "backend/tests/test_workspace_intake.py",
         "backend/tests/test_model_runtime_probe.py",
+        "backend/tests/test_github_write_readiness.py",
         "docs/JUDGE_DEMO_RUNBOOK.md",
         "docs/JUDGE_SUPPLIED_INTAKE.md",
         "docs/SECURITY_READINESS_MILESTONE.md",
@@ -46,6 +53,8 @@ def main() -> int:
 
     main_tsx = (ROOT / "frontend" / "src" / "main.tsx").read_text(encoding="utf-8")
     route_contracts = {
+        "AI Workspace is the root product surface": "path === '/' || path === '/workspace'",
+        "Incident Command remains available at /incidents": "path === '/incidents'",
         "Judge Mode route /demo": "path === '/demo'",
         "Real AutoFix route /prototype": "path === '/prototype'",
         "Judge Intake route /intake": "path === '/intake'",
@@ -57,6 +66,18 @@ def main() -> int:
     }
     for label, marker in route_contracts.items():
         passed &= check(marker in main_tsx, label)
+
+    workspace_page = (ROOT / "frontend" / "src" / "BugWorkspacePage.tsx").read_text(encoding="utf-8")
+    workspace_contracts = {
+        "AI Workspace accepts drag/drop file evidence": "onDrop" in workspace_page and "Attach files" in workspace_page,
+        "AI Workspace accepts a GitHub repository": "GitHub repository" in workspace_page and "owner/repository" in workspace_page,
+        "AI Workspace exposes trusted-test opt-in": "Trusted tests" in workspace_page,
+        "AI Workspace exposes live integration proof": "Test live integrations" in workspace_page and "probe_integrations=true" in workspace_page,
+        "AI Workspace preserves explicit reviewed apply": "Apply reviewed patch + verify" in workspace_page,
+        "AI Workspace links live evidence to remediation": 'href="/evidence"' in workspace_page and 'href="/remediate"' in workspace_page,
+    }
+    for label, condition in workspace_contracts.items():
+        passed &= check(condition, label)
 
     judge_page = (ROOT / "frontend" / "src" / "JudgeDemoPage.tsx").read_text(encoding="utf-8")
     judge_contracts = {
@@ -88,6 +109,12 @@ def main() -> int:
     }
     for label, condition in backend_intake_contracts.items():
         passed &= check(condition, label)
+
+    model_runtime = (ROOT / "backend" / "app" / "services" / "model_runtime.py").read_text(encoding="utf-8")
+    passed &= check("/api/tags" in model_runtime and "/api/chat" in model_runtime, "local Qwen supports native Ollama fallback")
+
+    evaluation_router = (ROOT / "backend" / "app" / "routers" / "evaluation.py").read_text(encoding="utf-8")
+    passed &= check("probe_integrations" in evaluation_router and "github_write_readiness" in evaluation_router, "readiness exposes active no-write integration probes")
 
     lock_path = ROOT / "frontend" / "package-lock.json"
     if lock_path.is_file():
