@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ExternalLink,
   GitBranch,
-  Github,
   History,
   Loader2,
   ShieldCheck,
@@ -431,7 +430,7 @@ export default function App() {
                 {analysis?.repository_context ? (
                   <article className="panel repository-panel">
                     <div className="panel-title">
-                      <span className="repo-title"><Github size={16} /> Live GitHub repository evidence</span>
+                      <span className="repo-title"><GitBranch size={16} /> Live GitHub repository evidence</span>
                       <span className="live-badge">LIVE</span>
                     </div>
                     <div className="repo-summary">
@@ -475,7 +474,7 @@ export default function App() {
                   </article>
                 ) : incident.incident.repo && analysis ? (
                   <article className="panel repository-panel repository-unavailable">
-                    <div className="panel-title"><span className="repo-title"><Github size={16} /> Live GitHub repository evidence</span></div>
+                    <div className="panel-title"><span className="repo-title"><GitBranch size={16} /> Live GitHub repository evidence</span></div>
                     <p className="muted">Live repository context was unavailable for this analysis. The workflow did not fabricate repository evidence; check the incident timeline for the exact provider/policy failure.</p>
                   </article>
                 ) : null}
