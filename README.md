@@ -130,7 +130,7 @@ The tested and frozen local toolchain is recorded in:
 
 Bootstrap uses `npm ci`, so the local and CI frontend install must match the committed lockfile instead of resolving a new dependency tree.
 
-GitHub Actions also performs a clean-checkout Windows acceptance run in addition to the Linux backend/frontend jobs.
+GitHub Actions also performs a clean-checkout Windows acceptance run in addition to the Linux backend/frontend jobs. See [`docs/REPRODUCIBLE_STARTUP_MILESTONE.md`](docs/REPRODUCIBLE_STARTUP_MILESTONE.md) for the verified acceptance proof.
 
 ## Safety boundaries
 
