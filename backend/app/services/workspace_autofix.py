@@ -17,6 +17,7 @@ from app.schemas.workspace import (
     WorkspaceScanResult,
     WorkspaceTarget,
 )
+from app.services.workspace_ai import propose_workspace_patch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -34,6 +35,7 @@ BLOCKED_PARTS = {
     "baseline",
 }
 ALLOWED_SUFFIXES = {".py", ".json", ".md", ".txt", ".toml", ".yaml", ".yml", ".js", ".ts", ".tsx"}
+MODEL_SOURCE_SUFFIXES = {".py", ".js", ".ts", ".tsx", ".json"}
 MAX_FILE_BYTES = 256_000
 MAX_OUTPUT_CHARS = 12_000
 
@@ -224,7 +226,7 @@ def scan_target(target_id: str) -> WorkspaceScanResult:
     )
 
 
-def _proposal_from_scan(scan: WorkspaceScanResult) -> WorkspaceFixProposal:
+def _deterministic_proposal_from_scan(scan: WorkspaceScanResult, fallback_reason: str | None = None) -> WorkspaceFixProposal:
     diagnosis = scan.diagnosis
     target_root = Path(scan.workspace_path)
     if diagnosis.status != "BUG_CONFIRMED" or not diagnosis.file_path:
@@ -237,6 +239,8 @@ def _proposal_from_scan(scan: WorkspaceScanResult) -> WorkspaceFixProposal:
             diff="",
             confidence=diagnosis.confidence,
             writes_files=False,
+            strategy="NONE",
+            fallback_reason=fallback_reason,
         )
 
     source_path = _safe_file(target_root, diagnosis.file_path)
@@ -265,22 +269,71 @@ def _proposal_from_scan(scan: WorkspaceScanResult) -> WorkspaceFixProposal:
         diff=diff,
         confidence=diagnosis.confidence,
         writes_files=False,
+        strategy="DETERMINISTIC_SAFE_RULE",
+        reasoning_provider="deterministic",
+        reasoning_model="source-test-contract-v1",
+        fallback_reason=fallback_reason,
     )
 
 
+def _model_file_contents(scan: WorkspaceScanResult) -> dict[str, str]:
+    target_root = Path(scan.workspace_path)
+    contents: dict[str, str] = {}
+    for item in scan.files:
+        if Path(item.path).suffix.lower() not in MODEL_SOURCE_SUFFIXES:
+            continue
+        path = _safe_file(target_root, item.path)
+        contents[item.path] = path.read_text(encoding="utf-8", errors="replace")
+        if len(contents) >= 8:
+            break
+    return contents
+
+
+def _choose_proposal(scan: WorkspaceScanResult) -> WorkspaceFixProposal:
+    if scan.verification.passed or scan.diagnosis.status != "BUG_CONFIRMED":
+        return _deterministic_proposal_from_scan(scan)
+
+    enabled = os.getenv("AUTOFIX_AI_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+    if not enabled:
+        return _deterministic_proposal_from_scan(scan, "AI patch planning disabled; deterministic safe rule used.")
+
+    attempt = propose_workspace_patch(scan, _model_file_contents(scan))
+    if attempt.proposal is not None:
+        return attempt.proposal
+    return _deterministic_proposal_from_scan(scan, attempt.fallback_reason)
+
+
 def propose_fix(target_id: str) -> WorkspaceFixProposal:
-    return _proposal_from_scan(scan_target(target_id))
+    return _choose_proposal(scan_target(target_id))
+
+
+def _apply_candidate(target_root: Path, proposal: WorkspaceFixProposal) -> tuple[CommandEvidence, bool]:
+    source_path = _safe_file(target_root, proposal.file_path)
+    original = source_path.read_text(encoding="utf-8")
+    if original != proposal.before:
+        raise ValueError("Workspace changed after diagnosis; refusing stale repair")
+
+    source_path.write_text(proposal.after, encoding="utf-8")
+    verification = _run_validator(target_root)
+    if verification.passed:
+        return verification, False
+
+    source_path.write_text(original, encoding="utf-8")
+    return _run_validator(target_root), True
 
 
 def autofix_target(target_id: str) -> WorkspaceFixResult:
     target = get_target(target_id)
     before_scan = scan_target(target_id)
-    proposal = _proposal_from_scan(before_scan)
+    proposal = _choose_proposal(before_scan)
     audit = [
         "Workspace path containment verified.",
         f"Pre-fix validator exited with {before_scan.verification.exit_code}.",
         f"Diagnosis status: {before_scan.diagnosis.status}.",
+        f"Repair planner: {proposal.strategy} via {proposal.reasoning_provider}/{proposal.reasoning_model}.",
     ]
+    if proposal.fallback_reason:
+        audit.append(proposal.fallback_reason)
 
     if before_scan.verification.passed:
         return WorkspaceFixResult(
@@ -309,42 +362,58 @@ def autofix_target(target_id: str) -> WorkspaceFixResult:
         )
 
     target_root = Path(before_scan.workspace_path)
-    source_path = _safe_file(target_root, proposal.file_path)
-    original = source_path.read_text(encoding="utf-8")
-    if original != proposal.before:
-        raise ValueError("Workspace changed after diagnosis; refusing stale repair")
-
-    source_path.write_text(proposal.after, encoding="utf-8")
     audit.append(f"Applied exact bounded edit to {proposal.file_path}.")
-    after_verification = _run_validator(target_root)
+    after_verification, rolled_back = _apply_candidate(target_root, proposal)
     audit.append(f"Post-fix validator exited with {after_verification.exit_code}.")
 
-    if not after_verification.passed:
-        source_path.write_text(original, encoding="utf-8")
-        audit.append("Verification failed; original file restored automatically.")
-        rollback_verification = _run_validator(target_root)
+    if after_verification.passed:
+        audit.append("The same real validator now passes; repair is proven for the tested regression.")
         return WorkspaceFixResult(
             target=target,
             before_verification=before_scan.verification,
             diagnosis=before_scan.diagnosis,
             proposal=proposal.model_copy(update={"writes_files": True}),
             applied=True,
-            rolled_back=True,
-            after_verification=rollback_verification,
-            final_status="ROLLED_BACK",
+            rolled_back=False,
+            after_verification=after_verification,
+            final_status="FIXED",
             audit=audit,
         )
 
-    audit.append("The same real validator now passes; repair is proven for the tested regression.")
+    if proposal.strategy == "AI_GROUNDED" and rolled_back:
+        audit.append("AI candidate did not pass verification and was rolled back; trying deterministic safe repair.")
+        fallback = _deterministic_proposal_from_scan(before_scan, "AI candidate failed real validation and was rolled back.")
+        if fallback.file_path and fallback.after:
+            audit.append(f"Applied deterministic fallback edit to {fallback.file_path}.")
+            fallback_verification, fallback_rolled_back = _apply_candidate(target_root, fallback)
+            audit.append(f"Deterministic fallback validator exited with {fallback_verification.exit_code}.")
+            if fallback_verification.passed:
+                audit.append("Deterministic fallback passed the same validator; repair is proven.")
+                return WorkspaceFixResult(
+                    target=target,
+                    before_verification=before_scan.verification,
+                    diagnosis=before_scan.diagnosis,
+                    proposal=fallback.model_copy(update={"writes_files": True}),
+                    applied=True,
+                    rolled_back=False,
+                    after_verification=fallback_verification,
+                    final_status="FIXED",
+                    audit=audit,
+                )
+            rolled_back = fallback_rolled_back
+            after_verification = fallback_verification
+            proposal = fallback
+
+    audit.append("Verification did not pass; the original broken source state was restored.")
     return WorkspaceFixResult(
         target=target,
         before_verification=before_scan.verification,
         diagnosis=before_scan.diagnosis,
         proposal=proposal.model_copy(update={"writes_files": True}),
         applied=True,
-        rolled_back=False,
+        rolled_back=rolled_back,
         after_verification=after_verification,
-        final_status="FIXED",
+        final_status="ROLLED_BACK",
         audit=audit,
     )
 
