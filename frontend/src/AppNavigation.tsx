@@ -22,7 +22,8 @@ type Readiness = {
 }
 
 const items = [
-  { href: '/', label: 'Incident Command', icon: Activity },
+  { href: '/', label: 'AI Workspace', icon: Bot },
+  { href: '/incidents', label: 'Incident Command', icon: Activity },
   { href: '/prototype', label: 'Real AutoFix', icon: ScanSearch },
   { href: '/intake', label: 'Judge Intake', icon: FileUp },
   { href: '/demo', label: 'Judge Demo', icon: Sparkles },
@@ -74,14 +75,16 @@ export default function AppNavigation() {
           <span className="global-nav-logo"><Sparkles size={17} /></span>
           <span>
             <strong>Bug Router</strong>
-            <small>KURUKSHETRA 2.0</small>
+            <small>Agentic engineering workspace</small>
           </span>
         </a>
 
         <div className="global-nav-section-label">Workspace</div>
         <nav className="global-nav-links" aria-label="Application navigation">
           {items.map(({ href, label, icon: Icon }) => {
-            const active = href === '/' ? path === '/' : path === href || (href === '/prototype' && path === '/autofix')
+            const active = href === '/'
+              ? path === '/' || path === '/workspace'
+              : path === href || (href === '/prototype' && path === '/autofix')
             return (
               <a
                 key={href}
@@ -99,8 +102,8 @@ export default function AppNavigation() {
 
         <div className="global-nav-spacer" />
         <div className="global-nav-trust">
-          <div className="global-nav-trust-title"><ShieldCheck size={15} /> Workspace-controlled</div>
-          <p>Real local edits stay inside an allowlisted project or isolated judge-intake copy. No auto-merge. No production deploy. Verified repair or rollback.</p>
+          <div className="global-nav-trust-title"><ShieldCheck size={15} /> Human authority</div>
+          <p>Live evidence first. Exact reviewed writes only. Draft PRs stay unmerged until a human decides on GitHub.</p>
         </div>
         <div className="global-nav-runtime">
           <span className={`runtime-dot ${readiness?.status === 'READY' ? 'ready' : ''}`} />
