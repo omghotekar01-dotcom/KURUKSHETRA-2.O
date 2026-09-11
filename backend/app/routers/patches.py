@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from app.repositories.incidents import IncidentStore
+from app.routers.evaluation import router as evaluation_router
 from app.schemas.incident import ApprovalDecision, IncidentStatus, PatchProposalRequest
 from app.schemas.patch import PatchDecisionRequest, PatchExecutionResult, PatchVerificationResult
 from app.services.github_context import GitHubContextUnavailable, collect_repository_context
@@ -11,6 +12,7 @@ from app.services.patch_proposal import PatchProposalUnavailable, build_patch_pr
 from app.services.patch_verification import PatchVerificationUnavailable, verify_patch_ci
 
 router = APIRouter(prefix="/api/v1", tags=["patch-remediation"])
+router.include_router(evaluation_router)
 store = IncidentStore.from_env()
 
 
