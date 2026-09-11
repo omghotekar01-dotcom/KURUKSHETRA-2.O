@@ -50,6 +50,14 @@ class IncidentIn(BaseModel):
     logs: List[str] = Field(default_factory=list)
 
 
+class DemoScenario(BaseModel):
+    id: str = Field(min_length=3, max_length=80)
+    name: str = Field(min_length=3, max_length=160)
+    description: str = Field(min_length=5, max_length=1000)
+    expected_component: str = Field(min_length=2, max_length=120)
+    incident: IncidentIn
+
+
 class TriageResult(BaseModel):
     component: str
     owner_team: str
