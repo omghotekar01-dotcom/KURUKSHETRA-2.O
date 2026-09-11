@@ -155,3 +155,5 @@ Those are potential future engineering directions, not missing promises from thi
 ## Freeze rule
 
 From this point until submission, prefer **bug fixes, local rehearsal, screenshots and documentation corrections only**. Do not add speculative features that can destabilize the validated golden path.
+
+**Feature freeze status: ACTIVE. No planned hackathon MVP feature work remains.**
