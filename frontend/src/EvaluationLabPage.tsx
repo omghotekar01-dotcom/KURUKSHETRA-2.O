@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, Loader2, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
+import LoadingShimmer from './LoadingShimmer'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -43,10 +44,10 @@ export default function EvaluationLabPage() {
     setError('')
     try {
       const response = await fetch(`${API_BASE}/api/v1/evaluation/run`)
-      if (!response.ok) throw new Error(`Evaluation failed with ${response.status}`)
+      if (!response.ok) throw new Error('The benchmark could not be completed. Check the backend and try again.')
       setReport(await response.json())
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Evaluation failed.')
+      setError(requestError instanceof Error ? requestError.message : 'The benchmark is temporarily unavailable.')
     } finally {
       setLoading(false)
     }
@@ -70,7 +71,7 @@ export default function EvaluationLabPage() {
   return (
     <main className="evaluation-page">
       <header className="evaluation-topbar">
-        <a href="/" className="back-link"><ArrowLeft size={16} /> Incident Command</a>
+        <a href="/" className="back-link"><ArrowLeft size={16} /> AI Workspace</a>
         <div className="measured-badge"><span /> MEASURED · NOT HARDCODED</div>
       </header>
 
@@ -81,15 +82,23 @@ export default function EvaluationLabPage() {
           <p>Repeatable benchmark incidents exercise routing, evidence retrieval, RCA grounding and action safety. Every score is computed by the backend when this page loads.</p>
         </div>
         <button type="button" onClick={() => void runBenchmark()} disabled={loading}>
-          {loading ? <><Loader2 className="spin" size={16} /> Running benchmark…</> : <><RefreshCw size={16} /> Run benchmark again</>}
+          {loading ? <><Loader2 className="spin" size={16} /> Running measured checks…</> : <><RefreshCw size={16} /> Run benchmark again</>}
         </button>
       </section>
 
       {error && <div className="evaluation-error">{error}</div>}
 
+      {loading && !report && (
+        <section className="evaluation-loading-grid" aria-label="Running measured benchmark checks">
+          <LoadingShimmer lines={4} label="Calculating measured benchmark score" />
+          <LoadingShimmer lines={5} label="Checking routing and retrieval behavior" />
+          <LoadingShimmer lines={5} label="Checking RCA and action safety" />
+        </section>
+      )}
+
       {report && (
         <>
-          <section className="score-hero-card">
+          <section className={`score-hero-card ${loading ? 'is-refreshing' : ''}`}>
             <div>
               <small>Measured benchmark score</small>
               <strong>{Math.round(report.overall_score * 100)}%</strong>
@@ -101,6 +110,12 @@ export default function EvaluationLabPage() {
               <span><b>{new Date(report.generated_at).toLocaleString()}</b> generated</span>
             </div>
           </section>
+
+          {loading && (
+            <section className="evaluation-refresh-strip">
+              <Loader2 className="spin" size={15} /> Re-running the same benchmark contract. Existing results remain visible until the new measured report is ready.
+            </section>
+          )}
 
           <section className="metric-grid">
             {report.metrics.map((metric) => (
