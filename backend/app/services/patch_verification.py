@@ -51,13 +51,22 @@ def _derive_status(checks: list[CIVerificationCheck], combined_state: str) -> tu
     if normalized_state == "pending":
         return "PENDING", "GitHub commit status is still pending for the isolated remediation commit."
 
-    if checks and conclusions and conclusions.issubset(_PASS_CONCLUSIONS):
-        return "PASS", "All observed GitHub checks completed without a failing conclusion. Human review is still required before merge."
+    if checks:
+        # A green combined status must not mask an incomplete/ambiguous check-run. GitHub normally
+        # supplies a conclusion for completed checks, but fail closed if a provider returns a
+        # completed check without one or an unfamiliar non-terminal status.
+        if any(check.status.lower() != "completed" for check in checks):
+            return "PENDING", "At least one GitHub check has not reached a recognized terminal state yet."
+        if any(not check.conclusion for check in checks):
+            return "PENDING", "At least one completed GitHub check has no terminal conclusion yet."
+        if conclusions.issubset(_PASS_CONCLUSIONS):
+            return "PASS", "All observed GitHub checks completed without a failing conclusion. Human review is still required before merge."
+        return "PENDING", "At least one GitHub check returned an unrecognized conclusion; verification fails closed until it is understood."
 
     if normalized_state == "success":
         return "PASS", "GitHub commit status reports success. Human review is still required before merge."
 
-    if not checks and normalized_state in {"", "pending"}:
+    if normalized_state in {"", "pending"}:
         return "NO_CHECKS", "No completed GitHub CI/check results are available yet for this remediation commit."
 
     return "PENDING", "GitHub verification state is not final yet."
