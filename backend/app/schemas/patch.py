@@ -36,3 +36,24 @@ class PatchExecutionResult(BaseModel):
     draft_pr_url: Optional[str] = None
     validation: list[ValidationCheck] = Field(default_factory=list)
     incident_status: IncidentStatus
+
+
+class CIVerificationCheck(BaseModel):
+    name: str
+    status: str
+    conclusion: Optional[str] = None
+    details_url: Optional[str] = None
+
+
+class PatchVerificationResult(BaseModel):
+    incident_id: str
+    repository: str
+    commit_sha: str
+    draft_pr_number: int
+    draft_pr_url: Optional[str] = None
+    pr_state: str
+    pr_draft: bool
+    status: str
+    message: str
+    checks: list[CIVerificationCheck] = Field(default_factory=list)
+    incident_status: IncidentStatus
