@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import os
-
 from app.schemas.incident import (
     AnalysisBundle,
     EvidenceBundle,
     IncidentRecord,
     ProposedAction,
     RemediationPlan,
+    RepositoryContext,
     ResolutionMemory,
     RootCauseHypothesis,
 )
+from app.services.github_client import configured_repository
 from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
 
@@ -32,9 +32,31 @@ VERIFICATION = {
 }
 
 
+def _best_repository_commit(repository_context: RepositoryContext | None):
+    if repository_context is None or not repository_context.commits:
+        return None
+    candidate = repository_context.commits[0]
+    return candidate if candidate.correlation_score >= 0.12 else None
+
+
+def _github_issue_action(record: IncidentRecord, confidence: float) -> ProposedAction:
+    target = record.incident.repo or configured_repository()
+    return ProposedAction(
+        action_type="create github issue",
+        target=target,
+        description=(
+            "Create a GitHub incident issue containing the evidence-backed RCA, approved remediation, "
+            "repository evidence, and verification plan for human tracking."
+        ),
+        confidence=confidence,
+        destructive=False,
+    )
+
+
 def analyze_incident(
     record: IncidentRecord,
     memories: list[ResolutionMemory] | None = None,
+    repository_context: RepositoryContext | None = None,
 ) -> AnalysisBundle:
     matches = retrieve_knowledge(record, memories=memories)
     evidence = EvidenceBundle(
@@ -42,54 +64,98 @@ def analyze_incident(
         matches=matches,
         no_strong_match=len(matches) == 0,
     )
+    repository_candidate = _best_repository_commit(repository_context)
 
-    if not matches:
+    if not matches and repository_candidate is None:
         return AnalysisBundle(
             incident_id=record.id,
             evidence=evidence,
+            repository_context=repository_context,
             hypotheses=[],
             remediation=None,
             needs_human_investigation=True,
         )
 
-    top = matches[0]
-    supporting = matches[:2]
-    confidence = min(0.92, round(0.48 + (top.score * 0.5), 2))
-    hypothesis = RootCauseHypothesis(
-        id="HYP-001",
-        title=top.issue,
-        confidence=confidence,
-        evidence_ids=[match.id for match in supporting],
-        rationale=(
+    if matches:
+        top = matches[0]
+        supporting = matches[:2]
+        confidence = min(0.92, round(0.48 + (top.score * 0.5), 2))
+        evidence_ids = [match.id for match in supporting]
+        rationale = (
             f"The strongest knowledge match is {top.id} ({top.score:.0%}, source: {top.source}) "
             f"and it aligns with the incident's {record.triage.component} triage signals."
-        ),
-        next_diagnostic=NEXT_DIAGNOSTIC.get(
+        )
+        next_diagnostic = NEXT_DIAGNOSTIC.get(
             record.triage.component,
             "Collect one more direct diagnostic signal before taking a consequential action.",
-        ),
-    )
+        )
 
-    configured_repo = os.getenv("GITHUB_REPOSITORY", "omghotekar01-dotcom/KURUKSHETRA-2.O")
-    action = ProposedAction(
-        action_type="create github issue",
-        target=record.incident.repo or configured_repo,
-        description=(
-            "Create a GitHub incident issue containing the evidence-backed RCA, approved remediation, "
-            "and verification plan for human tracking."
-        ),
-        confidence=confidence,
-        destructive=False,
-    )
-    risk = evaluate_action(action)
-    remediation = RemediationPlan(
-        summary=top.fix,
-        steps=[
+        if repository_candidate is not None:
+            evidence_ids.append(f"GH-COMMIT-{repository_candidate.short_sha}")
+            confidence = min(0.94, round(confidence + repository_candidate.correlation_score * 0.08, 2))
+            changed_files = ", ".join(file.filename for file in repository_candidate.files[:4]) or "no file list returned"
+            rationale += (
+                f" Live GitHub evidence also identifies recent commit {repository_candidate.short_sha} "
+                f"('{repository_candidate.message}') with a {repository_candidate.correlation_score:.0%} "
+                f"incident-correlation signal across changed files: {changed_files}. "
+                "This is supporting evidence, not proof of causation."
+            )
+            next_diagnostic = (
+                f"Inspect commit {repository_candidate.short_sha} and reproduce the failure against its changed files "
+                "before accepting the root-cause hypothesis."
+            )
+
+        hypothesis = RootCauseHypothesis(
+            id="HYP-001",
+            title=top.issue,
+            confidence=confidence,
+            evidence_ids=evidence_ids,
+            rationale=rationale,
+            next_diagnostic=next_diagnostic,
+        )
+        remediation_summary = top.fix
+        remediation_steps = [
             "Confirm the top hypothesis with the next diagnostic check.",
             top.fix,
             "Create a tracked GitHub incident issue after explicit human approval.",
             "Run the defined verification before marking the incident resolved.",
-        ],
+        ]
+    else:
+        assert repository_candidate is not None
+        confidence = round(min(0.72, 0.42 + repository_candidate.correlation_score * 0.3), 2)
+        changed_files = ", ".join(file.filename for file in repository_candidate.files[:5]) or "the files changed by the commit"
+        hypothesis = RootCauseHypothesis(
+            id="HYP-REPO-001",
+            title=f"Recent code change may be related: {repository_candidate.message}",
+            confidence=confidence,
+            evidence_ids=[f"GH-COMMIT-{repository_candidate.short_sha}"],
+            rationale=(
+                f"No sufficiently strong historical runbook match was found, but live GitHub evidence shows commit "
+                f"{repository_candidate.short_sha} with a {repository_candidate.correlation_score:.0%} correlation "
+                f"signal to the incident across {changed_files}. The system treats this as a candidate, not a confirmed cause."
+            ),
+            next_diagnostic=(
+                f"Review the diff for commit {repository_candidate.short_sha}, reproduce the incident on the parent revision, "
+                "and compare behavior before making a code change."
+            ),
+        )
+        remediation_summary = (
+            f"Investigate commit {repository_candidate.short_sha} and isolate the smallest reversible change that restores "
+            "the failing behavior; do not revert or deploy automatically."
+        )
+        remediation_steps = [
+            f"Inspect commit {repository_candidate.short_sha} and the correlated changed files.",
+            "Reproduce the failure on the current revision and compare with the previous revision.",
+            "Prepare the smallest bounded correction only after the hypothesis is confirmed.",
+            "Create a tracked GitHub incident issue after explicit human approval.",
+            "Run the defined verification before marking the incident resolved.",
+        ]
+
+    action = _github_issue_action(record, hypothesis.confidence)
+    risk = evaluate_action(action)
+    remediation = RemediationPlan(
+        summary=remediation_summary,
+        steps=remediation_steps,
         verification=VERIFICATION.get(
             record.triage.component,
             "Repeat the original failing workflow and confirm the expected behavior is restored.",
@@ -101,6 +167,7 @@ def analyze_incident(
     return AnalysisBundle(
         incident_id=record.id,
         evidence=evidence,
+        repository_context=repository_context,
         hypotheses=[hypothesis],
         remediation=remediation,
         needs_human_investigation=False,
