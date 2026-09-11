@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import difflib
 import os
-import re
 import subprocess
 import sys
 import time
@@ -44,14 +43,76 @@ _TARGETS: dict[str, WorkspaceTarget] = {
     "broken-auth-api": WorkspaceTarget(
         id="broken-auth-api",
         name="Broken Bearer Authentication API",
-        description=(
-            "A real FastAPI service whose protected endpoint rejects the standard Bearer scheme after an auth-parser regression."
-        ),
+        description="A real FastAPI service whose protected endpoint rejects the standard Bearer scheme after an auth-parser regression.",
         relative_path="demo_targets/broken_auth_api",
         problem="Users provide a valid Bearer token but /profile returns HTTP 401.",
         proof="A real pytest fails before repair and the exact same pytest passes after the source file is corrected.",
         validator=f"{Path(sys.executable).name} -m pytest -q",
     ),
+    "broken-cart-total": WorkspaceTarget(
+        id="broken-cart-total",
+        name="Broken Cart Total",
+        description="A real business-logic regression subtracts one paise from every cart total, including an empty cart.",
+        relative_path="demo_targets/broken_cart_total",
+        problem="Cart totals are consistently one paise too low and an empty cart returns -1 instead of 0.",
+        proof="Real pytest assertions reproduce the wrong totals and the same tests must pass after repair.",
+        validator=f"{Path(sys.executable).name} -m pytest -q",
+    ),
+    "broken-pagination": WorkspaceTarget(
+        id="broken-pagination",
+        name="Broken Pagination Boundary",
+        description="A real off-by-one slice regression drops the last item from every requested page.",
+        relative_path="demo_targets/broken_pagination",
+        problem="A page configured for three records returns only two because the slice end boundary is wrong.",
+        proof="Real pagination tests fail before repair and the exact same tests must pass afterward.",
+        validator=f"{Path(sys.executable).name} -m pytest -q",
+    ),
+}
+
+
+_RULES: dict[str, dict[str, object]] = {
+    "broken-auth-api": {
+        "source": "app.py",
+        "old": 'scheme.lower() != "token"',
+        "new": 'scheme.lower() != "bearer"',
+        "expected": "bearer",
+        "observed": "token",
+        "summary": "Align the auth parser with the Bearer scheme required by the tested API contract.",
+        "diagnosis": "Authentication contract mismatch: tests/clients send Bearer credentials, but the parser accepts Token.",
+        "evidence": [
+            "The validator reproduces HTTP 401 for a token that the contract marks valid.",
+            "test_app.py sends Authorization: Bearer demo-valid-token.",
+            "app.py explicitly rejects every scheme except Token.",
+        ],
+    },
+    "broken-cart-total": {
+        "source": "pricing.py",
+        "old": "return sum(prices) - 1",
+        "new": "return sum(prices)",
+        "expected": "exact cart sum",
+        "observed": "sum minus one",
+        "summary": "Remove the unintended one-paise subtraction so the implementation matches the tested cart-total contract.",
+        "diagnosis": "Business-logic contract mismatch: the implementation subtracts one from every cart total.",
+        "evidence": [
+            "The validator shows a cart expected to total 2000 is returned one unit low.",
+            "The empty-cart acceptance test requires 0.",
+            "pricing.py subtracts 1 unconditionally after summing the cart.",
+        ],
+    },
+    "broken-pagination": {
+        "source": "pagination.py",
+        "old": "return items[start:end - 1]",
+        "new": "return items[start:end]",
+        "expected": "full end-exclusive slice",
+        "observed": "end minus one",
+        "summary": "Use the already computed end-exclusive boundary so every page returns its full requested size.",
+        "diagnosis": "Pagination boundary mismatch: the code subtracts one from an already end-exclusive Python slice boundary.",
+        "evidence": [
+            "The validator shows a requested three-item page contains only two records.",
+            "Both first-page and second-page acceptance tests reproduce the truncation.",
+            "pagination.py computes end = start + page_size and then subtracts one again in the slice.",
+        ],
+    },
 }
 
 
@@ -94,7 +155,8 @@ def _safe_file(target_root: Path, relative_path: str) -> Path:
     candidate = (target_root / relative_path).resolve()
     if not _is_relative_to(candidate, target_root.resolve()):
         raise ValueError("File resolves outside the selected workspace")
-    if any(part.lower() in BLOCKED_PARTS for part in candidate.parts):
+    relative_parts = candidate.relative_to(target_root.resolve()).parts
+    if any(part.lower() in BLOCKED_PARTS for part in relative_parts):
         raise ValueError("Access to secret/system/build directories is blocked")
     return candidate
 
@@ -157,14 +219,11 @@ def _line_number(text: str, needle: str) -> int | None:
     return None
 
 
-def _diagnose_auth_target(target: WorkspaceTarget, target_root: Path, verification: CommandEvidence) -> WorkspaceDiagnosis:
-    source_path = _safe_file(target_root, "app.py")
-    test_path = _safe_file(target_root, "test_app.py")
+def _diagnose_target(target: WorkspaceTarget, target_root: Path, verification: CommandEvidence) -> WorkspaceDiagnosis:
+    rule = _RULES[target.id]
+    source_name = str(rule["source"])
+    source_path = _safe_file(target_root, source_name)
     source = source_path.read_text(encoding="utf-8")
-    tests = test_path.read_text(encoding="utf-8")
-
-    test_scheme_match = re.search(r'Authorization["\']\s*:\s*["\']([A-Za-z]+)\s+', tests)
-    code_scheme_match = re.search(r'scheme\.lower\(\)\s*!=\s*["\']([A-Za-z]+)["\']', source)
 
     if verification.passed:
         return WorkspaceDiagnosis(
@@ -175,36 +234,26 @@ def _diagnose_auth_target(target: WorkspaceTarget, target_root: Path, verificati
             evidence=["pytest exit code = 0"],
         )
 
-    if test_scheme_match and code_scheme_match:
-        expected = test_scheme_match.group(1).lower()
-        observed = code_scheme_match.group(1).lower()
-        if expected != observed:
-            needle = f'scheme.lower() != "{observed}"'
-            return WorkspaceDiagnosis(
-                target_id=target.id,
-                status="BUG_CONFIRMED",
-                summary=(
-                    f"Authentication contract mismatch: tests/clients send {expected.title()} credentials, "
-                    f"but the parser accepts {observed.title()}."
-                ),
-                file_path="app.py",
-                line_number=_line_number(source, needle),
-                evidence=[
-                    "The validator reproduces an HTTP 401 for a token that the contract marks valid.",
-                    f"test_app.py sends Authorization: {expected.title()} demo-valid-token.",
-                    f"app.py explicitly rejects every scheme except {observed.title()}.",
-                ],
-                expected_value=expected,
-                observed_value=observed,
-                confidence=0.99,
-            )
+    old = str(rule["old"])
+    if source.count(old) == 1:
+        return WorkspaceDiagnosis(
+            target_id=target.id,
+            status="BUG_CONFIRMED",
+            summary=str(rule["diagnosis"]),
+            file_path=source_name,
+            line_number=_line_number(source, old),
+            evidence=[str(item) for item in rule["evidence"]],
+            expected_value=str(rule["expected"]),
+            observed_value=str(rule["observed"]),
+            confidence=0.99 if target.id == "broken-auth-api" else 0.97,
+        )
 
     return WorkspaceDiagnosis(
         target_id=target.id,
         status="UNRESOLVED",
-        summary="The validator fails, but the bounded deterministic analyzer could not prove a safe exact edit.",
+        summary="The validator fails, but the bounded deterministic analyzer could not prove a safe exact edit for this target state.",
         confidence=0.0,
-        evidence=["pytest exit code != 0", "No allowlisted exact repair rule matched the observed source/test contract."],
+        evidence=["pytest exit code != 0", "The expected allowlisted regression signature is absent or ambiguous."],
     )
 
 
@@ -212,7 +261,7 @@ def scan_target(target_id: str) -> WorkspaceScanResult:
     target = get_target(target_id)
     target_root = _target_path(target)
     verification = _run_validator(target_root)
-    diagnosis = _diagnose_auth_target(target, target_root, verification)
+    diagnosis = _diagnose_target(target, target_root, verification)
     return WorkspaceScanResult(
         target=target,
         workspace_path=str(target_root),
@@ -228,7 +277,6 @@ def scan_target(target_id: str) -> WorkspaceScanResult:
 
 def _deterministic_proposal_from_scan(scan: WorkspaceScanResult, fallback_reason: str | None = None) -> WorkspaceFixProposal:
     diagnosis = scan.diagnosis
-    target_root = Path(scan.workspace_path)
     if diagnosis.status != "BUG_CONFIRMED" or not diagnosis.file_path:
         return WorkspaceFixProposal(
             target_id=scan.target.id,
@@ -243,12 +291,12 @@ def _deterministic_proposal_from_scan(scan: WorkspaceScanResult, fallback_reason
             fallback_reason=fallback_reason,
         )
 
+    target_root = Path(scan.workspace_path)
+    rule = _RULES[scan.target.id]
     source_path = _safe_file(target_root, diagnosis.file_path)
     before = source_path.read_text(encoding="utf-8")
-    observed = diagnosis.observed_value or ""
-    expected = diagnosis.expected_value or ""
-    old = f'scheme.lower() != "{observed}"'
-    new = f'scheme.lower() != "{expected}"'
+    old = str(rule["old"])
+    new = str(rule["new"])
     if before.count(old) != 1:
         raise ValueError("Expected repair location is stale or ambiguous")
     after = before.replace(old, new, 1)
@@ -263,7 +311,7 @@ def _deterministic_proposal_from_scan(scan: WorkspaceScanResult, fallback_reason
     return WorkspaceFixProposal(
         target_id=scan.target.id,
         file_path=diagnosis.file_path,
-        summary=f"Align the auth parser with the {expected.title()} scheme required by the tested API contract.",
+        summary=str(rule["summary"]),
         before=before,
         after=after,
         diff=diff,
@@ -271,7 +319,7 @@ def _deterministic_proposal_from_scan(scan: WorkspaceScanResult, fallback_reason
         writes_files=False,
         strategy="DETERMINISTIC_SAFE_RULE",
         reasoning_provider="deterministic",
-        reasoning_model="source-test-contract-v1",
+        reasoning_model="source-test-contract-v2",
         fallback_reason=fallback_reason,
     )
 
@@ -421,9 +469,13 @@ def autofix_target(target_id: str) -> WorkspaceFixResult:
 def reset_target(target_id: str) -> WorkspaceScanResult:
     target = get_target(target_id)
     target_root = _target_path(target)
-    baseline_path = (target_root / "baseline" / "app.py.txt").resolve()
+    rule = _RULES[target_id]
+    source_name = str(rule["source"])
+    baseline_path = (target_root / "baseline" / f"{source_name}.txt").resolve()
     if not _is_relative_to(baseline_path, target_root):
         raise ValueError("Baseline resolves outside workspace")
-    source_path = _safe_file(target_root, "app.py")
+    if not baseline_path.exists():
+        raise FileNotFoundError(f"Reset baseline does not exist: {baseline_path}")
+    source_path = _safe_file(target_root, source_name)
     source_path.write_text(baseline_path.read_text(encoding="utf-8"), encoding="utf-8")
     return scan_target(target_id)
