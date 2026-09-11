@@ -55,7 +55,28 @@ def test_preview_then_apply_uses_reviewed_proposal(monkeypatch) -> None:
     assert result["proposal"]["diff"] == reviewed["diff"]
     assert any("exact previously previewed proposal" in item for item in result["audit"])
 
+    second_apply = client.post(f"/api/v1/autofix/{TARGET_ID}/apply")
+    assert second_apply.status_code == 409
+    assert "No reviewed proposal" in second_apply.json()["detail"]
+
     reset_target(TARGET_ID)
+
+
+def test_scan_invalidates_reviewed_proposal(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOFIX_AI_ENABLED", "false")
+    reset = client.post(f"/api/v1/autofix/{TARGET_ID}/reset")
+    assert reset.status_code == 200
+
+    preview = client.post(f"/api/v1/autofix/{TARGET_ID}/proposal")
+    assert preview.status_code == 200
+
+    rescanned = client.post(f"/api/v1/autofix/{TARGET_ID}/scan")
+    assert rescanned.status_code == 200
+    assert rescanned.json()["diagnosis"]["status"] == "BUG_CONFIRMED"
+
+    applied = client.post(f"/api/v1/autofix/{TARGET_ID}/apply")
+    assert applied.status_code == 409
+    assert "No reviewed proposal" in applied.json()["detail"]
 
 
 def test_reset_invalidates_reviewed_proposal(monkeypatch) -> None:
