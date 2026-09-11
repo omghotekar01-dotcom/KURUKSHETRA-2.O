@@ -26,6 +26,7 @@ IIT Bombay final demo guide: [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_
 - Added `AnalysisBundle.agent_trace` so the UI truthfully shows `LLM_RAG` vs `DETERMINISTIC_RAG`, provider/model, retrieval sources and fallback reason.
 - Deterministic triage, evidence IDs/confidence, risk policy, approval, repository writes, validation and verification remain authoritative outside the LLM.
 - LLM/network/provider failure falls back to the deterministic RAG/RCA path; fallback is visible and is never labeled as live LLM execution.
+- Remote LLM endpoints must use HTTPS; plain HTTP is accepted only for localhost/loopback so local OpenAI-compatible models remain usable without sending API credentials over arbitrary insecure transport.
 - Expanded deterministic fallback fixtures to five domain-diverse judge scenarios while keeping fallback-only labeling.
 - Added [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_DEMO.md) with the recommended IIT Bombay pitch, primary JWT problem/solution demonstration, alternate scenarios, live-write boundary and closing script.
 
@@ -47,6 +48,7 @@ IIT Bombay final demo guide: [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_
 - Repository/log/runbook text is treated as untrusted data in the LLM boundary; the model is instructed not to execute embedded instructions or invent unsupported evidence.
 - `agent_trace` exposes the actual reasoning mode and fallback reason to the UI.
 - The LLM does not control confidence, risk, approval, GitHub writes, merge/deploy decisions or verification outcomes.
+- Remote LLM transport is fail-closed unless it uses HTTPS; localhost HTTP remains available for local model servers.
 - `/ai` provides a judge-facing architecture and problem-to-solution reasoning surface.
 
 ### Evidence, routing + RCA
@@ -175,19 +177,19 @@ The audit deliberately tested whether the product is useful outside a scripted d
 6. missing repository CODEOWNERS review/routing hints;
 7. CI status not being recorded as canonical incident verification evidence.
 
-The system now has explicit tests for realistic authentication, database, backend, frontend and infrastructure incidents; unknown/no-match behavior; path-to-code correlation; weak-patch rejection; unsupported-validator rejection; configurable owner routing; CODEOWNERS hints; CI failure/inconclusive derivation; deterministic LLM fallback trace; expanded demo scenarios; and the rule that green CI cannot auto-resolve a runtime incident.
+The system now has explicit tests for realistic authentication, database, backend, frontend and infrastructure incidents; unknown/no-match behavior; path-to-code correlation; weak-patch rejection; unsupported-validator rejection; configurable owner routing; CODEOWNERS hints; CI failure/inconclusive derivation; deterministic LLM fallback trace; grounded LLM adapter parsing/transport behavior; expanded demo scenarios; and the rule that green CI cannot auto-resolve a runtime incident.
 
 ## Latest confirmed release-candidate validation
 
-GitHub Actions run **#460** / run ID `34599840178` on milestone head:
+GitHub Actions run **#469** / run ID `34600170229` on executable head:
 
-`7329f40f51aaf6a5bb0bf747b92d05077128f00c`
+`fad65725757bb75f1c42baf20aae52bc46e7d2d4`
 
 completed successfully:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         73 passed, 2 dependency warnings, 0 failures
+Backend tests:                         76 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
@@ -198,7 +200,7 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The subsequent D-013 decision-log and this implementation-ledger update are documentation-only and do not alter the validated executable behavior.
+This implementation-ledger update is documentation-only and does not alter that validated executable behavior.
 
 ## Completed product path
 
@@ -270,6 +272,7 @@ Judge/proof path:
 25. ~~Real-use usefulness audit and regression hardening.~~
 26. ~~Shared navigation + IIT Bombay problem/solution demo flow.~~
 27. ~~Optional grounded LLM synthesis + auditable deterministic fallback.~~
+28. ~~LLM transport hardening + HTTPS/local-model adapter tests.~~
 
 ## What remains before final submission
 
@@ -306,5 +309,5 @@ Branch promotion is intentionally **not** performed automatically.
 - CODEOWNERS handling supports common standard patterns but does not claim every exotic escaping edge case.
 - Redaction/injection detection are best-effort defense-in-depth controls.
 - No custom ML model is trained in this MVP. Intelligence comes from deterministic routing/RAG, verified incident memory, live repository evidence correlation, optional grounded LLM synthesis, risk-aware orchestration and verification.
-- CI validates deterministic LLM fallback and integration contracts; an external LLM provider call is only real when locally configured and successfully executed, and the UI exposes that state through `agent_trace`.
+- CI validates deterministic fallback plus the OpenAI-compatible adapter's parsing and transport controls; a real external LLM provider call is only real when locally configured and successfully executed, and the UI exposes that state through `agent_trace`.
 - No automatic merge, production deployment, destructive data operation, unrestricted repository write or IAM/secret mutation is permitted.
