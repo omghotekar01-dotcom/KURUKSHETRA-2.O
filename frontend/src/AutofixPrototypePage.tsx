@@ -195,11 +195,22 @@ export default function AutofixPrototypePage() {
     })
   }
 
+  function selectTarget(targetId: string) {
+    setSelectedId(targetId)
+    setScan(null)
+    setProposal(null)
+    setResult(null)
+    setError('')
+  }
+
   const providerLabel = runtime?.mode === 'LOCAL_OLLAMA'
     ? 'Local Ollama'
     : runtime?.mode === 'GEMINI_FREE'
       ? 'Gemini free tier'
       : 'Deterministic verifier'
+
+  const canPreview = !!scan && !scan.verification.passed && scan.diagnosis.status === 'BUG_CONFIRMED' && !result
+  const canApply = !!proposal && proposal.strategy !== 'NONE' && !!proposal.diff && !result
 
   return (
     <main className="autofix-page">
@@ -245,7 +256,7 @@ export default function AutofixPrototypePage() {
             <FolderLock size={22} />
           </div>
           {targets.length > 1 && (
-            <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+            <select value={selectedId} onChange={(event) => selectTarget(event.target.value)}>
               {targets.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}
             </select>
           )}
@@ -273,8 +284,8 @@ export default function AutofixPrototypePage() {
       <section className="autofix-actionbar">
         <button onClick={reset} disabled={!selected || !!busy} className="secondary"><RefreshCw size={16} /> Reset broken target</button>
         <button onClick={scanWorkspace} disabled={!selected || !!busy}><ScanSearch size={16} /> {busy === 'scan' ? 'Scanning…' : '1. Scan + reproduce'}</button>
-        <button onClick={previewFix} disabled={!scan || !!busy} className="secondary"><Wrench size={16} /> {busy === 'proposal' ? 'Reasoning…' : '2. Preview exact fix'}</button>
-        <button onClick={autoFix} disabled={!scan || !!busy} className="primary"><Play size={16} /> {busy === 'apply' ? 'Repairing + verifying…' : '3. Auto Fix + Verify'}</button>
+        <button onClick={previewFix} disabled={!canPreview || !!busy} className="secondary"><Wrench size={16} /> {busy === 'proposal' ? 'Reasoning…' : '2. Preview exact fix'}</button>
+        <button onClick={autoFix} disabled={!canApply || !!busy} className="primary"><Play size={16} /> {busy === 'apply' ? 'Repairing + verifying…' : '3. Auto Fix + Verify'}</button>
       </section>
 
       {error && <div className="autofix-error"><XCircle size={17} /> {error}</div>}
