@@ -70,7 +70,7 @@ def _stop_project_node_processes() -> None:
     script = (
         f"$root = '{escaped_root}'; "
         "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue | "
-        "Where-Object { $_.CommandLine -and $_.CommandLine.Contains($root, [System.StringComparison]::OrdinalIgnoreCase) } | "
+        "Where-Object { $_.CommandLine -and $_.CommandLine -like ('*' + $root + '*') } | "
         "ForEach-Object { "
         "Write-Host ('Stopping project Node process PID ' + $_.ProcessId); "
         "Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue "
