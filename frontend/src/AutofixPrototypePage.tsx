@@ -65,6 +65,10 @@ type Proposal = {
   diff: string
   confidence: number
   writes_files: boolean
+  strategy: 'AI_GROUNDED' | 'DETERMINISTIC_SAFE_RULE' | 'NONE'
+  reasoning_provider: string
+  reasoning_model: string
+  fallback_reason?: string | null
 }
 
 type FixResult = {
@@ -109,6 +113,17 @@ function PassFail({ passed }: { passed: boolean }) {
       {passed ? <CheckCircle2 size={15} /> : <XCircle size={15} />}
       {passed ? 'PASS' : 'FAIL'}
     </span>
+  )
+}
+
+function StrategyBadge({ proposal }: { proposal: Proposal }) {
+  const ai = proposal.strategy === 'AI_GROUNDED'
+  const label = ai ? 'AI GROUNDED PATCH' : proposal.strategy === 'DETERMINISTIC_SAFE_RULE' ? 'SAFE FALLBACK PATCH' : 'NO PATCH'
+  return (
+    <div className="proposal-strategy">
+      <span className={ai ? 'strategy-chip ai' : 'strategy-chip safe'}>{ai ? <Bot size={13} /> : <ShieldCheck size={13} />}{label}</span>
+      <small>{proposal.reasoning_provider} · {proposal.reasoning_model}</small>
+    </div>
   )
 }
 
@@ -293,10 +308,15 @@ export default function AutofixPrototypePage() {
       {proposal && proposal.diff && (
         <section className="autofix-card diff-card">
           <div className="autofix-card-heading">
-            <div><span className="eyebrow">EXACT PATCH</span><h2>{proposal.file_path}</h2></div>
+            <div>
+              <span className="eyebrow">EXACT PATCH</span>
+              <h2>{proposal.file_path}</h2>
+              <StrategyBadge proposal={proposal} />
+            </div>
             <span className="confidence">{Math.round(proposal.confidence * 100)}%</span>
           </div>
           <p>{proposal.summary}</p>
+          {proposal.fallback_reason && <div className="proposal-fallback"><ShieldCheck size={14} /> {proposal.fallback_reason}</div>}
           <pre className="diff-output">{proposal.diff}</pre>
         </section>
       )}
