@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from hashlib import sha256
 
 from app.schemas.incident import (
@@ -37,6 +38,14 @@ def _find_selected_hunk(
     return commit, hunk
 
 
+def _minimum_correlation() -> float:
+    try:
+        raw = float(os.getenv("PATCH_PROPOSAL_MIN_CORRELATION", "0.18"))
+    except ValueError:
+        raw = 0.18
+    return max(0.0, min(1.0, raw))
+
+
 def _sequence_start(source_lines: list[str], target_lines: list[str]) -> int | None:
     if not target_lines or len(target_lines) > len(source_lines):
         return None
@@ -50,7 +59,7 @@ def _verification_commands(filename: str) -> list[str]:
     lowered = filename.lower()
     if lowered.startswith("frontend/") or lowered.endswith((".ts", ".tsx", ".js", ".jsx")):
         return [
-            "cd frontend && npm run build",
+            "cd frontend && npm ci --no-audit --no-fund && npm run build",
         ]
     if lowered.startswith("backend/") or lowered.endswith(".py"):
         return [
@@ -80,6 +89,13 @@ def build_patch_proposal(
     request: PatchProposalRequest,
 ) -> PatchProposal:
     commit, hunk = _find_selected_hunk(context, request)
+
+    minimum_correlation = _minimum_correlation()
+    if hunk.correlation_score < minimum_correlation:
+        raise PatchProposalUnavailable(
+            f"The selected hunk is only {hunk.correlation_score:.0%} correlated with the incident; "
+            f"the safety threshold is {minimum_correlation:.0%}. Investigate manually or collect stronger evidence."
+        )
 
     # This stage is intentionally conservative. It proposes only a mechanical
     # reversal of a suspicious hunk that GitHub says is currently present at the
@@ -118,6 +134,7 @@ def build_patch_proposal(
 
     warnings = [
         "No branch or repository file has been modified by generating this proposal.",
+        f"The hunk passed the configured minimum incident-correlation gate ({minimum_correlation:.0%}).",
         "The proposal mechanically reverts one suspicious hunk; it may not represent the best final fix.",
         "A human must review the exact before/after lines before any write is allowed.",
         "The next stage must apply the proposal on an isolated branch and pass deterministic checks before a draft PR can be created.",
