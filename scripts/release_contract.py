@@ -24,6 +24,7 @@ def main() -> int:
         "frontend/src/bug-workspace.css",
         "frontend/src/workspace-depth.css",
         "frontend/src/apple-polish.css",
+        "frontend/src/dark-polish.css",
         "frontend/src/busy-polish.css",
         "frontend/src/JudgeDemoPage.tsx",
         "frontend/src/judge-demo.css",
@@ -38,6 +39,8 @@ def main() -> int:
         "backend/tests/test_workspace_intake.py",
         "backend/tests/test_model_runtime_probe.py",
         "backend/tests/test_github_write_readiness.py",
+        "backend/tests/test_readiness_integrations.py",
+        "docs/AI_WORKSPACE_UX.md",
         "docs/JUDGE_DEMO_RUNBOOK.md",
         "docs/JUDGE_SUPPLIED_INTAKE.md",
         "docs/SECURITY_READINESS_MILESTONE.md",
@@ -67,12 +70,22 @@ def main() -> int:
     for label, marker in route_contracts.items():
         passed &= check(marker in main_tsx, label)
 
+    style_contracts = {
+        "AI Workspace depth layer is wired": "./workspace-depth.css" in main_tsx,
+        "light Apple-style polish is wired": "./apple-polish.css" in main_tsx,
+        "premium dark polish is wired": "./dark-polish.css" in main_tsx,
+        "global operation shimmer is wired": "./busy-polish.css" in main_tsx,
+    }
+    for label, condition in style_contracts.items():
+        passed &= check(condition, label)
+
     workspace_page = (ROOT / "frontend" / "src" / "BugWorkspacePage.tsx").read_text(encoding="utf-8")
     workspace_contracts = {
         "AI Workspace accepts drag/drop file evidence": "onDrop" in workspace_page and "Attach files" in workspace_page,
         "AI Workspace accepts a GitHub repository": "GitHub repository" in workspace_page and "owner/repository" in workspace_page,
         "AI Workspace exposes trusted-test opt-in": "Trusted tests" in workspace_page,
         "AI Workspace exposes live integration proof": "Test live integrations" in workspace_page and "probe_integrations=true" in workspace_page,
+        "AI Workspace live model label is probe-backed": "readiness?.model?.connected" in workspace_page and "installed · test live" in workspace_page,
         "AI Workspace preserves explicit reviewed apply": "Apply reviewed patch + verify" in workspace_page,
         "AI Workspace links live evidence to remediation": 'href="/evidence"' in workspace_page and 'href="/remediate"' in workspace_page,
     }
@@ -100,6 +113,16 @@ def main() -> int:
     for label, condition in intake_contracts.items():
         passed &= check(condition, label)
 
+    readiness_page = (ROOT / "frontend" / "src" / "ReadinessPage.tsx").read_text(encoding="utf-8")
+    readiness_contracts = {
+        "Readiness performs active no-write integration probes": "probe_integrations=true" in readiness_page,
+        "Readiness surfaces live Qwen inference": "Live inference" in readiness_page,
+        "Readiness surfaces GitHub push permission": "Push permission" in readiness_page,
+        "Readiness provides safe GitHub CLI recovery": "gh auth status" in readiness_page and "gh auth login" in readiness_page,
+    }
+    for label, condition in readiness_contracts.items():
+        passed &= check(condition, label)
+
     workspace_router = (ROOT / "backend" / "app" / "routers" / "workspace.py").read_text(encoding="utf-8")
     backend_intake_contracts = {
         "Backend exposes model inference probe": '/model-runtime/probe' in workspace_router,
@@ -116,6 +139,9 @@ def main() -> int:
     evaluation_router = (ROOT / "backend" / "app" / "routers" / "evaluation.py").read_text(encoding="utf-8")
     passed &= check("probe_integrations" in evaluation_router and "github_write_readiness" in evaluation_router, "readiness exposes active no-write integration probes")
 
+    github_client = (ROOT / "backend" / "app" / "services" / "github_client.py").read_text(encoding="utf-8")
+    passed &= check("permissions" in github_client and '"push"' in github_client and "write_access" in github_client, "GitHub write readiness verifies push permission before remediation")
+
     lock_path = ROOT / "frontend" / "package-lock.json"
     if lock_path.is_file():
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
@@ -124,16 +150,21 @@ def main() -> int:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     passed &= check("never auto-merges" in readme.lower() or "never auto-merge" in readme.lower(), "README states no automatic merge")
     passed &= check("agent-build-core" in readme, "README identifies active implementation branch")
+    passed &= check("AI Workspace" in readme and "/incidents" in readme, "README documents the final product navigation")
 
     ps_launcher = (ROOT / "scripts" / "start.ps1").read_text(encoding="utf-8")
     sh_launcher = (ROOT / "scripts" / "start.sh").read_text(encoding="utf-8")
     for label, marker in {
+        "Windows launcher exposes AI Workspace": "AI Workspace",
+        "Windows launcher exposes Incident Command": "/incidents",
         "Windows launcher exposes Real AutoFix": "/prototype",
         "Windows launcher exposes Judge Intake": "/intake",
         "Windows launcher exposes Judge Mode": "/demo",
     }.items():
         passed &= check(marker in ps_launcher, label)
     for label, marker in {
+        "Unix launcher exposes AI Workspace": "AI Workspace",
+        "Unix launcher exposes Incident Command": "/incidents",
         "Unix launcher exposes Real AutoFix": "/prototype",
         "Unix launcher exposes Judge Intake": "/intake",
         "Unix launcher exposes Judge Mode": "/demo",
