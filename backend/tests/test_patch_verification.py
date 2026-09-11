@@ -1,6 +1,13 @@
+import pytest
+
 from app.schemas.incident import VerificationOutcome
 from app.schemas.patch import CIVerificationCheck
-from app.services.patch_verification import _derive_incident_verification, _derive_status
+from app.services.patch_verification import (
+    PatchVerificationUnavailable,
+    _derive_incident_verification,
+    _derive_status,
+    _validate_pr_binding,
+)
 
 
 def test_ci_verification_passes_when_all_checks_succeed():
@@ -76,6 +83,41 @@ def test_unrecognized_terminal_conclusion_fails_closed():
     )
     assert status == "PENDING"
     assert "unrecognized conclusion" in message
+
+
+def test_pr_binding_accepts_exact_recorded_remediation_commit():
+    _validate_pr_binding(
+        {"number": 17, "head": {"sha": "ABCDEF1234567890"}},
+        commit_sha="abcdef1234567890",
+        draft_pr_number=17,
+    )
+
+
+def test_pr_binding_rejects_changed_pr_head():
+    with pytest.raises(PatchVerificationUnavailable, match="head changed"):
+        _validate_pr_binding(
+            {"number": 17, "head": {"sha": "bbbbbbbbbbbbbbbb"}},
+            commit_sha="aaaaaaaaaaaaaaaa",
+            draft_pr_number=17,
+        )
+
+
+def test_pr_binding_rejects_missing_head_sha():
+    with pytest.raises(PatchVerificationUnavailable, match="head commit"):
+        _validate_pr_binding(
+            {"number": 17, "head": {}},
+            commit_sha="aaaaaaaaaaaaaaaa",
+            draft_pr_number=17,
+        )
+
+
+def test_pr_binding_rejects_wrong_pr_number():
+    with pytest.raises(PatchVerificationUnavailable, match="expected Draft PR #17"):
+        _validate_pr_binding(
+            {"number": 18, "head": {"sha": "aaaaaaaaaaaaaaaa"}},
+            commit_sha="aaaaaaaaaaaaaaaa",
+            draft_pr_number=17,
+        )
 
 
 def test_failed_ci_derives_failed_incident_verification_without_runtime_confirmation():
