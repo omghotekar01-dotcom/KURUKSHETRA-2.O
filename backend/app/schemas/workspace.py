@@ -58,6 +58,10 @@ class WorkspaceFixProposal(BaseModel):
     diff: str
     confidence: float = Field(ge=0.0, le=1.0)
     writes_files: bool = False
+    strategy: Literal["AI_GROUNDED", "DETERMINISTIC_SAFE_RULE", "NONE"] = "NONE"
+    reasoning_provider: str = "deterministic"
+    reasoning_model: str = "evidence-rules-v1"
+    fallback_reason: str | None = None
 
 
 class WorkspaceFixResult(BaseModel):
