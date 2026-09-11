@@ -288,6 +288,45 @@ button:disabled { cursor: wait; opacity: .7; }
   padding: 10px 14px;
 }
 
+.baseline-tag {
+  color: #90a8ff;
+  background: #16264a;
+  border: 1px solid #2f4a8d;
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.match-list {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+  display: grid;
+  gap: 10px;
+}
+.match-list li {
+  background: #0b1626;
+  border: 1px solid #243a58;
+  border-radius: 12px;
+  padding: 13px;
+}
+.match-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #d7e0ef;
+  font-size: 12px;
+}
+.match-head span { color: #75dfbd; }
+.match-list p {
+  color: #b8c4d5;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+.match-list small { color: #7f93ad; line-height: 1.5; }
+
 @media (max-width: 1050px) {
   .workspace-grid { grid-template-columns: 1fr; }
 }
