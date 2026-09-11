@@ -150,6 +150,7 @@ Write-Host ""
 Write-Host "READY" -ForegroundColor Green
 Write-Host "Dashboard:       $DashboardBase"
 Write-Host "Real AutoFix:    $DashboardBase/prototype"
+Write-Host "Judge Intake:    $DashboardBase/intake"
 Write-Host "AI Reasoning:    $DashboardBase/ai"
 Write-Host "Judge Mode:      $DashboardBase/demo"
 Write-Host "API health:      $ApiBase/health"
