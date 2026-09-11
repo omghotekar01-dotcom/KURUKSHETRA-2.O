@@ -3,11 +3,11 @@
 Project: **AI Agentic Bug Router**  
 Tagline: **From bug report to verified fix.**
 
-This runbook is the frozen presentation sequence for the hackathon release candidate. The primary demo starts in dedicated **Judge Mode** at `/demo`. Judge Mode intentionally keeps repository writes locked while it runs the golden incident through readiness, routing, RCA, live GitHub evidence and exact patch review.
+This runbook keeps the live demo truthful, fast and recoverable. Prefer the **read-only golden path** first. Only perform a real repository write when the exact proposal has already been reviewed and there is enough time to inspect the resulting Draft PR.
 
 ## 0. Before judges arrive
 
-From the repository root on Windows:
+From repository root on Windows:
 
 ```powershell
 git config gc.auto 0
@@ -17,213 +17,237 @@ git pull --ff-only origin agent-build-core
 .\start.bat
 ```
 
-`verify.bat` must end with the release-candidate gates passing. Wait for `start.bat` to print:
+Wait for:
 
 ```text
-Backend health: PASS
-Frontend health: PASS
-READY
+Acceptance summary: 4/4 checks passed
+CLEAN-CLONE ACCEPTANCE: PASS
+RELEASE-CANDIDATE ACCEPTANCE: PASS
 ```
 
-Use the **actual URLs printed by the launcher** because ports are selected dynamically when defaults are occupied.
+Then wait for the launcher to print backend/frontend health and `READY`. Use the **actual URLs printed by the launcher** because ports are selected dynamically when defaults are occupied.
 
 Open these tabs in advance:
 
-1. **Judge Mode `/demo`**
-2. System Readiness `/readiness`
-3. Engineering Evidence Lab `/evidence`
-4. Evaluation Lab `/evaluation`
-5. Remediation Studio `/remediate` as an operator fallback
-6. GitHub repository / Draft PR page only if a live-write demo is planned
+1. Judge Mode `/demo`
+2. Dashboard `/`
+3. System Readiness `/readiness`
+4. Evidence Lab `/evidence`
+5. Remediation Studio `/remediate`
+6. Evaluation Lab `/evaluation`
+7. GitHub repository / Draft PR page
 
 Do not put tokens, `.env` contents or private credentials on screen.
 
 ## 1. 20-second opening
 
-> “AI Agentic Bug Router takes a software bug, routes it to the right technical area, investigates the actual GitHub repository, ranks evidence for the likely root cause, prepares an exact patch, and — only after human approval — validates it on an isolated branch and can create a Draft PR. We never auto-merge or auto-deploy.”
+> “AI Agentic Bug Router takes a software bug, routes it to the right technical area, investigates the actual GitHub repository, ranks real commit/diff evidence — including stack-trace file hints — prepares an exact safety-gated patch, and only after human approval validates it on an isolated branch and can create a Draft PR. We never auto-merge or auto-deploy.”
 
-Open `/demo` and point out the top safety state:
+Then show **System Readiness**.
 
-- current backend/API target
+Point out:
+
 - LIVE_FIRST vs FALLBACK_DEMO
-- repository write = **LOCKED BY DEFAULT**
-- auto merge/deploy = **DISABLED**
+- READY / DEGRADED
+- repository allowlist status
+- credentials are never displayed
+- repository writes require explicit human approval
+- auto merge = disabled
+- auto production deploy = disabled
 
-## 2. Run the controlled golden flow
+## 2. Primary golden path — safe/read-only
 
-Click **Start golden demo**.
+### A. Create the incident
 
-Judge Mode creates the prepared authentication incident and automatically runs the safe read-only stages:
+Use a concise realistic incident with the real repository attached.
+
+Example:
 
 ```text
-readiness
-→ incident intake + routing
-→ historical evidence
-→ RCA
-→ live GitHub investigation
-→ strongest bounded code candidate
-→ exact patch proposal
-→ HUMAN APPROVAL BOUNDARY
+Title:
+401 errors after today's deployment
+
+Description:
+Production users can log in, but protected API requests immediately return unauthorized responses.
+
+Environment:
+production
+
+Repository:
+omghotekar01-dotcom/KURUKSHETRA-2.O
+
+Logs / signals:
+JWT signature verification failed
 ```
 
-The golden incident describes JWT signature failures and 401 responses after an authentication-related change.
+Click **Create & investigate incident**.
 
-While it runs, explain:
+Explain:
 
-> “The page is not replaying a hard-coded success animation. These stages call our actual backend APIs. If GitHub evidence is missing, stale or ambiguous, the flow visibly stops instead of pretending it found a safe patch.”
+> “The router classifies the incident, maps it to the configured technical owner, checks verified historical knowledge and separately investigates live repository evidence.”
 
-Point out the progress rail, routing result, RCA confidence, benchmark proof card and links to the independent Evidence/Readiness/Evaluation surfaces.
+If a repository CODEOWNERS file matches the ranked changed files, point out the owner hint and say:
 
-## 3. Evidence + RCA
+> “That is a repository routing/review suggestion, not authorization to modify or merge code.”
 
-When live repository evidence is available, show:
+### B. Show routing and RCA
+
+Point out:
+
+- component/team
+- severity
+- confidence
+- historical evidence if a strong match exists
+- no-match escalation if the system does not have enough evidence
+
+Say:
+
+> “We prefer an explicit no-match over a confident fake answer.”
+
+### C. Show Engineering Evidence Lab
+
+Open `/evidence`.
+
+Show:
 
 - actual GitHub repository
-- correlated commit SHA/link
-- suspicious exact file/hunk
+- commit SHA and links
+- changed files
+- ranked diff hunks
 - bounded source context
+- stack-trace/file-path ranking note when present
+- CODEOWNERS routing/review hints when present
 - correlation score
-- RCA rationale and next diagnostic
+- evidence/truth-boundary notes
 
 Say:
 
-> “Correlation is investigation guidance, not proof of causation. Repository text is treated as untrusted data, and recognized credential patterns are redacted before UI exposure.”
+> “Correlation helps investigation; we do not call it proof of causation.”
 
-If no strong historical or repository match exists, do not force one. A visible `SAFE STOP` is a correct system outcome.
+If repository text contains a prompt-like instruction or credential-shaped value, point out that it is treated as **untrusted evidence** and recognized credentials are redacted before display.
 
-## 4. Exact patch review — still no write
+## 3. Patch proposal — still no write
 
-If the live evidence supports a candidate, Judge Mode shows:
+Open `/remediate` and select the incident.
+
+Generate the safest available proposal only when a bounded live candidate is available.
+
+Before approving anything, show:
 
 - proposal ID
-- file path
-- exact base state
-- strategy
-- confidence
+- repository and exact base commit
+- file path and hunk
+- before/after lines
 - diff preview
-- rationale
-- `writes now? NO`
+- confidence
+- warnings
+- verification commands
+- patch correlation safety threshold
 
 Say:
 
-> “The exact patch is reviewable before any repository write. The default Judge Mode run stops at this human-control boundary.”
+> “Up to this point, the system has not changed the repository. The exact patch is visible before any write.”
 
-If the system refuses to generate a patch, say:
+If the system says no safe proposal is available, **do not fight it**. Explain:
 
-> “That is fail-closed behavior. The agent will not invent a patch when live evidence cannot support an exact bounded change.”
+> “That is fail-closed behavior. Weak correlation, stale source or unsupported evidence does not become an automatic patch.”
 
-## 5. Optional live remediation
+That is a valid demo outcome.
 
-Only continue when all of these are true:
+## 4. Optional live-write path
 
-- GitHub authentication works locally;
-- you understand the exact displayed patch;
-- the patch is safe to demonstrate;
-- there is time to inspect the resulting Draft PR;
-- you intentionally want to demonstrate a real repository write.
+Only do this if GitHub auth is working, the exact proposal is safe to demonstrate, the file change is understood, and there is enough time to inspect the Draft PR afterward.
 
-The approval button remains disabled until a human explicitly checks:
-
-**Arm live remediation**
-
-Then click **Approve & validate live remediation**.
+Click the explicit approval action.
 
 Expected sequence:
 
 ```text
-explicit HUMAN APPROVE
+Human APPROVE
 → fresh proposal/file revalidation
 → deterministic incident-fix branch
 → exact approved replacement
-→ fresh-clone deterministic validation
+→ trusted deterministic validation
 → Draft PR only if green
 ```
 
-The page then shows decision status, branch, optional Draft PR link and a **Check live CI status** action.
+Frontend remediation validates with locked `npm ci` + build. Backend Python validates with compile + pytest. Unsupported executable/configuration file types fail closed until a trusted validator exists.
+
+Show the branch / Draft PR link.
+
+Then deliberately click the same approval again only if you want to demonstrate idempotency. The expected behavior is reuse of the same exact remediation state — not a second branch/commit/PR.
 
 Never merge the demo PR during judging.
 
-### Demonstrating rejection instead
+## 5. Live CI verification
 
-You can click **Reject proposal** without arming writes. This records the human decision and demonstrates that the agent does not override the reviewer.
+After a Draft PR exists, use **Check live CI status** in Remediation Studio.
 
-## 6. Live CI verification
+Explain the states:
 
-When a Draft PR exists, click **Check live CI status**.
-
-Explain:
-
-- PASS — configured checks passed; human review/runtime verification still required
-- FAIL — checks failed; incident escalates
-- PENDING — checks are still running
+- PASS — configured checks passed; still requires human/runtime verification
+- FAIL — checks failed; incident verification derives FAIL and escalates
+- PENDING — checks are still running; evidence is inconclusive
 - NO_CHECKS — absence of checks is not success
 
 Say:
 
-> “Even PASS does not auto-merge, auto-deploy or claim production recovery.”
+> “CI state becomes auditable incident evidence. Even PASS does not auto-merge or claim that production recovered.”
 
-## 7. Evaluation + Readiness proof
+## 6. Evaluation Lab
 
-Open `/evaluation` to show:
+Open `/evaluation`.
 
-- benchmark version
-- measured numerator/denominator for each metric
-- individual expected-vs-observed cases
-- intentional no-match behavior
-- high-risk actions remaining blocked/recommendation-only
+Show that:
 
-If the displayed deterministic benchmark is 100%, say:
+- benchmark version is visible;
+- every expected vs observed case is visible;
+- score values are calculated by the backend at run time;
+- unknown-service case must remain unmatched;
+- unsafe production/destructive actions must remain blocked/recommendation-only.
+
+If the benchmark is 100%, say:
 
 > “That is 100% on this displayed deterministic benchmark, not a claim of 100% real-world bug-fixing accuracy.”
 
-Open `/readiness` if a judge asks about runtime configuration or safety controls. It reports configuration state without returning credential values.
+## 7. Strong 15-second close
 
-## 8. Strong 15-second close
-
-> “Most tools stop at an alert, an explanation or a code suggestion. Our workflow connects routing, live repository evidence, an exact reviewable patch, human approval, deterministic validation, Draft PR creation and real CI verification — while keeping the final merge and production decision with the engineer.”
+> “The useful part is not just that the system can propose a fix. It connects routing, live repository evidence, exact reviewable changes, human approval, deterministic validation, Draft PR creation and real CI evidence — and it knows when not to act if the evidence or validator is not strong enough.”
 
 ## Recovery playbook
 
-### Judge Mode shows `SAFE STOP`
-
-Read the reason on screen. If it is a transient GitHub/network problem, use **Retry live evidence**. If the evidence is genuinely missing or ambiguous, keep the fail-closed result and explain it; do not force automation.
-
 ### Browser says `Failed to fetch`
-
-Stop and restart only launcher-managed services:
 
 ```powershell
 .\stop.bat
 .\start.bat
 ```
 
-Use the exact new Dashboard/Judge Mode URLs printed by the launcher. Do not manually guess ports.
+Use the exact Dashboard/API URLs printed by the launcher. The launcher automatically chooses free backend/frontend ports and injects the selected API URL into Vite.
 
 ### GitHub network/API unavailable
 
-- keep the local incident lifecycle, Readiness and Evaluation Lab available;
-- if emergency deterministic fixtures are enabled, keep them visibly labeled **SIMULATED/DEMO**;
-- never describe fallback data as live GitHub evidence.
+- Keep the incident lifecycle and local Evaluation Lab available.
+- If emergency deterministic fixtures are used, keep the UI/voice explanation explicitly labeled **SIMULATED/DEMO**.
+- Never describe fallback data as live GitHub evidence.
 
 ### GitHub authentication unavailable
 
-Public read-only evidence may still work. Live remediation writes must fail visibly with `AUTH_REQUIRED` rather than pretend success.
+Read-only evidence may still work for public repositories. Live remediation writes must return `AUTH_REQUIRED` / fail visibly rather than pretending success.
 
-Check local authentication with:
+Do not paste a token into chat, source files or screenshots. Authenticate locally with GitHub CLI if needed:
 
 ```powershell
 gh auth status
 ```
 
-Never paste a token into chat, source code, issues or screenshots.
+### No safe patch candidate
+
+Treat it as an intentional fail-closed result. Show Evidence Lab + RCA and explain that weak correlation, stale source, ambiguity or unavailable validation prevents unsafe automation.
 
 ### CI remains pending
 
-Show PENDING honestly. The workflow is asynchronous. Do not claim PASS until GitHub reports PASS.
-
-### Ports are occupied
-
-Run `start.bat` normally. The Windows launcher automatically selects fallback backend/frontend ports. Use the URLs it prints.
+Show PENDING honestly. Do not claim PASS until GitHub reports PASS.
 
 ## Demo rules
 
@@ -233,34 +257,23 @@ Run `start.bat` normally. The Windows launcher automatically selects fallback ba
 - Never claim correlation proves causation.
 - Never claim deterministic benchmark score is universal accuracy.
 - Never claim a fallback fixture is live data.
-- Never bypass the **Arm live remediation** control to make the demo flashier.
-- Prefer fail-closed behavior over forcing a false result.
+- Prefer fail-closed behavior over forcing a flashy but false result.
 
 ## Final pre-demo checklist
 
 ```text
 [ ] git pull completed on agent-build-core
-[ ] verify.bat → 4/4 release-candidate acceptance PASS
+[ ] verify.bat: 4/4 PASS
 [ ] start.bat says READY
-[ ] Judge Mode /demo opens
-[ ] /readiness opens and any DEGRADED reason is understood
-[ ] /evaluation opens
-[ ] /evidence opens
-[ ] golden demo reaches the truthful furthest safe stage
-[ ] GitHub authenticated only if optional live write is planned
+[ ] /readiness is READY or DEGRADED reason is understood
+[ ] /demo opens
+[ ] Dashboard opens
+[ ] Evidence Lab opens
+[ ] Remediation Studio opens
+[ ] Evaluation Lab opens
+[ ] one realistic incident was rehearsed
+[ ] GitHub logged in only if live-write demo is planned
 [ ] no tokens / .env contents visible
 [ ] team knows who speaks during each stage
 [ ] optional demo Draft PR will NOT be merged
 ```
-
-## Frozen validation reference
-
-Release-candidate executable snapshot:
-
-`b6e4959971b08adcf53fa83b9f98fd8c6aca0f6a`
-
-GitHub Actions run:
-
-`#358` / `34595268159`
-
-Confirmed on that snapshot: backend compile PASS, **59 backend tests / 0 failures**, frontend production build PASS, Windows clean bootstrap PASS, release-candidate contract PASS, and clean-clone acceptance **4/4 PASS**.
