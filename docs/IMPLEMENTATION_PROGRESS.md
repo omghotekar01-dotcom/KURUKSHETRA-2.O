@@ -93,6 +93,22 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - Dedicated `/evaluation` judge-facing Light-theme scorecard exposes metric numerators/denominators, every PASS/FAIL case, expected vs observed behavior, benchmark version/time, rerun control and truth-boundary notes.
 - The displayed overall score is only the simple mean of the shown deterministic metric ratios; it is explicitly not presented as an industry-wide accuracy claim.
 
+### Reproducible startup and clean-clone acceptance
+- Backend top-level dependencies are pinned to the exact versions proven by green CI.
+- Frontend direct/tooling dependencies are pinned to the exact versions proven by green CI.
+- `frontend/package-lock.json` is committed as lockfile v3 with the complete npm dependency tree and integrity hashes.
+- Bootstrap now requires the committed lockfile and uses `npm ci`; it refuses an unpinned frontend install.
+- `.python-version` records Python 3.11; `.nvmrc` records Node 22.23.2; `package.json` declares supported Node/npm engine ranges.
+- `scripts/preflight.py` checks Python, Node, npm, Git, project files, optional GitHub CLI authentication and local ports.
+- `scripts/bootstrap.py` creates `.env` from `.env.example` when absent, creates `backend/.venv`, and installs the pinned backend + locked frontend dependencies.
+- `scripts/acceptance.py` runs backend compile, full backend tests and the production frontend build as a repeatable acceptance gate.
+- Windows one-command controls are available as `start.bat`, `verify.bat` and `stop.bat`.
+- Unix/macOS equivalents are available through `bash scripts/start.sh`, `bash scripts/verify.sh` and `bash scripts/stop.sh`.
+- The Windows launcher waits for backend health and frontend availability before reporting `READY`, then exposes Dashboard, API docs, Evidence Lab, Remediation Studio and Evaluation Lab URLs.
+- Local launcher process IDs/log state are kept under ignored `.run/` state.
+- GitHub Actions includes a real `windows-latest` clean-checkout job that performs strict preflight, bootstrap and the full acceptance suite from scratch.
+- CI validates the Windows PowerShell launch scripts syntactically before acceptance.
+
 ### Other bounded GitHub action
 - Medium-risk GitHub issue creation requires human approval.
 - Missing credentials return `AUTH_REQUIRED`; provider failures return `FAILED`; neither is presented as success.
@@ -109,17 +125,22 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 
 ## Latest confirmed validation
 
-GitHub Actions run #240 on implementation head `efe41371178733c0a1867aa243ba8d83e12968ea` completed successfully:
+GitHub Actions run #288 on implementation head `b5bbff64ea09c52e728bbb6d4899234c98eeda5f` completed successfully with the committed npm lockfile and locked install path:
 
 ```text
-Backend compile: PASS
-Backend tests:   51 passed, 2 dependency deprecation warnings, 0 failures
-Frontend install: PASS
-Frontend TypeScript/Vite production build: PASS
-Overall workflow: SUCCESS
+Backend compile:                    PASS
+Backend tests:                      51 passed, 2 dependency deprecation warnings, 0 failures
+Frontend locked npm ci:             PASS
+Frontend TypeScript/Vite build:     PASS
+Windows strict environment preflight: PASS
+Windows clean-checkout bootstrap:   PASS
+Windows clean-clone acceptance:     3/3 PASS
+Overall workflow:                   SUCCESS
 ```
 
-Confirmed coverage includes deterministic remediation identity, completed-execution reuse, deterministic branch naming, fresh branch re-read after creation, interrupted/retry-safe branch recovery, existing branch/PR reuse with zero extra writes, plus the existing triage, risk, persistence, retrieval, RCA, repository evidence, patch proposal, stale-write rejection, CI verification, Evaluation Lab and verified-memory coverage.
+A previous clean-checkout Windows run also proved the bootstrap from an empty workspace and produced `CLEAN-CLONE ACCEPTANCE: PASS`. The newest launcher syntax check is now part of the Windows CI gate as well.
+
+Confirmed coverage includes deterministic remediation identity, completed-execution reuse, deterministic branch naming, interrupted/retry-safe branch recovery, existing branch/PR reuse with zero extra writes, locked dependency setup and real Windows clean-clone rebuild, plus the existing triage, risk, persistence, retrieval, RCA, repository evidence, patch proposal, stale-write rejection, CI verification, Evaluation Lab and verified-memory coverage.
 
 ## Current live MVP path
 
@@ -146,6 +167,9 @@ Incident + repository
 
 Parallel proof surface:
 Versioned benchmark → measured routing/retrieval/RCA/safety metrics → judge-facing Evaluation Lab
+
+Reproducible operator path:
+Fresh clone → preflight → locked bootstrap → acceptance → one-command start → health wait → READY
 ```
 
 ## P0 sequence
@@ -169,25 +193,23 @@ Versioned benchmark → measured routing/retrieval/RCA/safety metrics → judge-
 17. ~~Derive remediation verification from real GitHub CI/check state.~~
 18. ~~Repeatable Evaluation Lab + judge-facing measured scorecard.~~
 19. ~~Remediation idempotency and retry-safe branch/PR reuse.~~
-20. Lock dependencies and add clean-clone / one-command acceptance workflow.
-21. Final responsive Light-theme polish, documentation, demo recovery and security pass.
+20. ~~Locked dependencies + preflight + one-command startup + Windows clean-clone acceptance.~~
+21. Final responsive Light-theme polish, demo recovery and security/prompt-injection hardening.
+22. Final submission freeze: fresh-clone rehearsal, docs/screenshots, integration review and release candidate.
 
 ## Next highest-value milestone
 
-Reproducible startup and clean-clone acceptance before demo freeze:
+Final judge-facing hardening without weakening the trusted golden path:
 
 ```text
-dependency pinning / lock strategy
-→ environment preflight
-→ one-command Windows startup
-→ one-command Unix startup
-→ backend health wait
-→ frontend startup
-→ clean-clone smoke test
-→ clear failure diagnostics
+Light-theme presentation polish
+→ clear LIVE / FALLBACK / APPROVAL labels
+→ demo readiness + recovery status surface
+→ prompt-injection / untrusted-evidence hardening
+→ secret/redaction checks
+→ final end-to-end rehearsal
+→ release-candidate freeze
 ```
-
-After that, finish judge-facing UX/recovery/security polish without changing the trusted golden path.
 
 ## Known implementation risks
 
@@ -199,6 +221,7 @@ After that, finish judge-facing UX/recovery/security polish without changing the
 - GitHub may omit patch/content data for binary or large files; unavailable evidence remains unavailable.
 - In-process approval serialization protects the current single-API-process MVP; a future horizontally scaled deployment should use a shared/distributed idempotency store or database constraint.
 - Passing CI proves configured checks passed; it does not prove production recovery or justify automatic merge.
+- Backend top-level requirements are exactly pinned, but their transitive Python dependency graph is still resolved by pip at install time; a production release should add a fully hashed transitive lock strategy.
 - Real integrations must never silently degrade to fake success.
 - No automatic merge, production deployment, destructive database operation or unrestricted repository write is permitted.
 - The public repository must never contain tokens, credentials or private operational data.
