@@ -25,6 +25,7 @@ import './judge-demo.css'
 import './app-navigation.css'
 import './agent-intelligence.css'
 import './autofix-prototype.css'
+import './autofix-strategy.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const screen = path === '/demo'
