@@ -31,6 +31,7 @@ import './autofix-strategy.css'
 import './judge-intake.css'
 import './bug-workspace.css'
 import './apple-polish.css'
+import './busy-polish.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const screen = path === '/' || path === '/workspace'
