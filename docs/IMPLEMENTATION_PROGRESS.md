@@ -52,7 +52,7 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - Human can explicitly APPROVE or REJECT the exact reviewed patch proposal.
 - Approval re-fetches live evidence and requires the proposal ID, commit, file, hunk, before-lines and after-lines to still match exactly.
 - Before a write, the current default-branch file is re-read; missing or ambiguous target sequences fail closed.
-- Approved changes are isolated on `incident-fix/...` branches.
+- Approved changes are isolated on deterministic `incident-fix/...` branches.
 - Only the exact approved sequence is replaced.
 - Branch content is re-read after the write to verify patch integrity.
 - Frontend changes run dependency install + production build in a fresh clone.
@@ -61,6 +61,19 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - Unknown executable code types fail closed until a trusted deterministic validator exists.
 - A **Draft PR** is created only after configured validation passes.
 - No automatic merge or deployment exists.
+
+### Retry-safe remediation and idempotency
+- Exact incident + patch proposal receives a deterministic `REM-...` idempotency key.
+- Same-proposal approval requests are serialized with a per-key lock in the current API process.
+- Completed successful remediation is returned from the audit timeline instead of creating a second GitHub write.
+- Deterministic fix branches replace timestamp-suffixed duplicate branches.
+- A retry can safely resume a branch that was created but not yet patched when its base/content still match exactly.
+- A retry reuses an already-patched exact branch without rewriting it.
+- Any existing deterministic branch with conflicting content fails closed.
+- Existing open PR for the deterministic remediation branch is reused instead of duplicated.
+- A matching closed PR blocks automatic recreation and requires review.
+- Audit metadata stores idempotency key, branch, branch URL, commit, PR, validation and reuse state.
+- Duplicate successful approvals record `PATCH_EXECUTION_REUSED`.
 
 ### Live GitHub CI verification
 - Build workflow also runs on `incident-fix/**` pushes and PRs targeting `main` or `develop`.
@@ -96,17 +109,17 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 
 ## Latest confirmed validation
 
-GitHub Actions run #226 on implementation head `df4ee7d6e41e232dc857151ebd7105a5c448976f` completed successfully:
+GitHub Actions run #240 on implementation head `efe41371178733c0a1867aa243ba8d83e12968ea` completed successfully:
 
 ```text
 Backend compile: PASS
-Backend tests:   45 passed, 2 dependency deprecation warnings, 0 failures
+Backend tests:   51 passed, 2 dependency deprecation warnings, 0 failures
 Frontend install: PASS
 Frontend TypeScript/Vite production build: PASS
 Overall workflow: SUCCESS
 ```
 
-Confirmed coverage now includes the measured Evaluation Lab service and API contract, report structure, high-risk benchmark blocking and intentional no-match escalation in addition to triage, risk policy, persistence, retrieval, RCA/remediation, live repository evidence, diff/hunk/source-context analysis, exact patch proposal, stale/ambiguous-write rejection, approval-gated branch mutation, validator selection, Draft PR gating, missing-auth fail-closed behavior, verification memory and GitHub CI-state derivation.
+Confirmed coverage includes deterministic remediation identity, completed-execution reuse, deterministic branch naming, fresh branch re-read after creation, interrupted/retry-safe branch recovery, existing branch/PR reuse with zero extra writes, plus the existing triage, risk, persistence, retrieval, RCA, repository evidence, patch proposal, stale-write rejection, CI verification, Evaluation Lab and verified-memory coverage.
 
 ## Current live MVP path
 
@@ -120,11 +133,12 @@ Incident + repository
 → Evidence-backed RCA
 → Exact patch proposal (NO WRITE)
 → Human APPROVE / REJECT
+→ Stable remediation idempotency key
 → Fresh proposal + file revalidation
-→ Isolated incident-fix branch
-→ Apply only approved replacement
+→ Deterministic isolated incident-fix branch
+→ Apply only approved replacement OR safely reuse exact retry state
 → Local deterministic validation
-→ Draft PR only if green
+→ Draft PR only if green OR reuse existing exact open PR
 → Live GitHub CI verification
 → Human review / runtime verification
 → Resolved or escalated
@@ -154,23 +168,23 @@ Versioned benchmark → measured routing/retrieval/RCA/safety metrics → judge-
 16. ~~Draft PR only after validation; never auto-merge.~~
 17. ~~Derive remediation verification from real GitHub CI/check state.~~
 18. ~~Repeatable Evaluation Lab + judge-facing measured scorecard.~~
-19. Add remediation idempotency/retry/history hardening and lock dependencies.
-20. Add clean-clone / one-command acceptance workflow.
+19. ~~Remediation idempotency and retry-safe branch/PR reuse.~~
+20. Lock dependencies and add clean-clone / one-command acceptance workflow.
 21. Final responsive Light-theme polish, documentation, demo recovery and security pass.
 
 ## Next highest-value milestone
 
-Operational hardening before final demo freeze:
+Reproducible startup and clean-clone acceptance before demo freeze:
 
 ```text
-Repeated approve / retry
-→ idempotency key by incident + proposal
-→ do not duplicate branch or Draft PR
-→ reusable execution result / clear conflict state
-→ CI status history
-→ dependency lockfiles
-→ clean-clone acceptance
-→ one-command startup
+dependency pinning / lock strategy
+→ environment preflight
+→ one-command Windows startup
+→ one-command Unix startup
+→ backend health wait
+→ frontend startup
+→ clean-clone smoke test
+→ clear failure diagnostics
 ```
 
 After that, finish judge-facing UX/recovery/security polish without changing the trusted golden path.
@@ -183,6 +197,7 @@ After that, finish judge-facing UX/recovery/security polish without changing the
 - The current benchmark is intentionally small and deterministic; a perfect score on it is not a claim of general real-world accuracy.
 - GitHub API rate limits/network availability may affect live evidence or check polling.
 - GitHub may omit patch/content data for binary or large files; unavailable evidence remains unavailable.
+- In-process approval serialization protects the current single-API-process MVP; a future horizontally scaled deployment should use a shared/distributed idempotency store or database constraint.
 - Passing CI proves configured checks passed; it does not prove production recovery or justify automatic merge.
 - Real integrations must never silently degrade to fake success.
 - No automatic merge, production deployment, destructive database operation or unrestricted repository write is permitted.
