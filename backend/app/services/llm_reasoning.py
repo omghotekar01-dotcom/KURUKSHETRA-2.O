@@ -19,6 +19,14 @@ class LLMSynthesisResult:
     fallback_reason: str | None
 
 
+@dataclass(frozen=True)
+class _ProviderConfig:
+    provider: str
+    base_url: str
+    model: str
+    api_key: str
+
+
 def _setting(name: str) -> str:
     return os.getenv(name, "").strip()
 
@@ -35,6 +43,48 @@ def _llm_endpoint_allowed(base_url: str) -> bool:
     if parsed.scheme == "https" and parsed.netloc:
         return True
     return parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+
+
+def _provider_candidates() -> list[_ProviderConfig]:
+    """Return only zero-cost/local-first providers.
+
+    Default behavior tries local Ollama first. Gemini is attempted only when a Gemini API key
+    is explicitly configured. No paid provider is required by the application.
+    """
+
+    requested = (_setting("LLM_PROVIDER") or "auto").lower()
+    candidates: list[_ProviderConfig] = []
+
+    if requested in {"auto", "ollama", "local", "local_ollama"}:
+        candidates.append(
+            _ProviderConfig(
+                provider="ollama-local",
+                base_url=_setting("OLLAMA_BASE_URL") or _setting("LLM_BASE_URL") or "http://localhost:11434/v1",
+                model=_setting("OLLAMA_MODEL") or _setting("LLM_MODEL") or "qwen3:4b",
+                api_key="ollama",
+            )
+        )
+
+    if requested in {"auto", "gemini", "gemini_free"}:
+        gemini_key = _setting("GEMINI_API_KEY") or (_setting("LLM_API_KEY") if requested != "auto" else "")
+        if gemini_key:
+            candidates.append(
+                _ProviderConfig(
+                    provider="gemini-free-tier",
+                    base_url=_setting("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
+                    model=_setting("GEMINI_MODEL") or (_setting("LLM_MODEL") if requested != "auto" else "") or "gemini-3.8-flash",
+                    api_key=gemini_key,
+                )
+            )
+
+    if requested not in {"auto", "ollama", "local", "local_ollama", "gemini", "gemini_free"}:
+        base_url = _setting("LLM_BASE_URL")
+        model = _setting("LLM_MODEL")
+        api_key = _setting("LLM_API_KEY")
+        if base_url and model and api_key:
+            candidates.append(_ProviderConfig(provider=requested, base_url=base_url, model=model, api_key=api_key))
+
+    return candidates
 
 
 def _evidence_payload(
@@ -127,37 +177,45 @@ def _validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _call_provider(config: _ProviderConfig, request_payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
+    if not _llm_endpoint_allowed(config.base_url):
+        raise ValueError("remote LLM endpoints must use HTTPS; plain HTTP is allowed only for localhost")
+
+    endpoint = config.base_url.rstrip("/") + "/chat/completions"
+    request = Request(
+        endpoint,
+        data=json.dumps(request_payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {config.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - endpoint is validated above
+        raw = json.loads(response.read().decode("utf-8"))
+    content = raw["choices"][0]["message"]["content"]
+    return _validate_payload(_extract_json(content))
+
+
 def synthesize_grounded_reasoning(
     record: IncidentRecord,
     matches: list[KnowledgeMatch],
     repository_context: RepositoryContext | None,
 ) -> LLMSynthesisResult:
-    """Optionally synthesize RCA wording from bounded evidence using an OpenAI-compatible endpoint.
+    """Synthesize RCA wording from bounded evidence using free/local-first providers.
 
-    The LLM is deliberately downstream of deterministic retrieval and repository evidence. It never
-    chooses risk, confidence, approval, verification outcome, or repository actions.
+    Local Ollama is attempted by default. Gemini is attempted only when a Gemini key is configured.
+    The LLM is downstream of deterministic evidence and never controls risk, approval, writes or verification.
     """
 
-    api_key = _setting("LLM_API_KEY")
-    base_url = _setting("LLM_BASE_URL")
-    model = _setting("LLM_MODEL")
-    provider = _setting("LLM_PROVIDER") or "openai-compatible"
-
-    if not api_key or not base_url or not model:
-        missing = [name for name, value in (("LLM_API_KEY", api_key), ("LLM_BASE_URL", base_url), ("LLM_MODEL", model)) if not value]
+    candidates = _provider_candidates()
+    if not candidates:
         return LLMSynthesisResult(
             payload=None,
             provider="deterministic",
             model="evidence-rules-v1",
-            fallback_reason=f"LLM disabled: missing {', '.join(missing)}.",
-        )
-
-    if not _llm_endpoint_allowed(base_url):
-        return LLMSynthesisResult(
-            payload=None,
-            provider="deterministic",
-            model="evidence-rules-v1",
-            fallback_reason="LLM disabled: remote endpoints must use HTTPS; plain HTTP is allowed only for localhost.",
+            fallback_reason="No free/local LLM provider is configured; deterministic evidence reasoning used.",
         )
 
     evidence = _evidence_payload(record, matches, repository_context)
@@ -169,44 +227,35 @@ def synthesize_grounded_reasoning(
         "Return JSON only with keys: title, rationale, next_diagnostic, remediation_summary, remediation_steps. "
         "remediation_steps must be a JSON array of concise reviewable steps. Do not propose auto-merge or production deploy."
     )
-    user_prompt = "Grounded evidence:\n" + json.dumps(evidence, ensure_ascii=False)
     request_payload = {
-        "model": model,
         "temperature": 0.1,
         "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": "Grounded evidence:\n" + json.dumps(evidence, ensure_ascii=False)},
         ],
     }
-
-    endpoint = base_url.rstrip("/") + "/chat/completions"
-    request = Request(
-        endpoint,
-        data=json.dumps(request_payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        method="POST",
-    )
 
     try:
         timeout_seconds = max(2.0, min(float(os.getenv("LLM_TIMEOUT_SECONDS", "8")), 20.0))
     except ValueError:
         timeout_seconds = 8.0
 
-    try:
-        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - endpoint is validated above
-            raw = json.loads(response.read().decode("utf-8"))
-        content = raw["choices"][0]["message"]["content"]
-        payload = _validate_payload(_extract_json(content))
-        return LLMSynthesisResult(payload=payload, provider=provider, model=model, fallback_reason=None)
-    except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        return LLMSynthesisResult(
-            payload=None,
-            provider="deterministic",
-            model="evidence-rules-v1",
-            fallback_reason=f"LLM synthesis unavailable; deterministic evidence reasoning used ({type(exc).__name__}).",
-        )
+    failures: list[str] = []
+    for config in candidates:
+        try:
+            provider_request = {**request_payload, "model": config.model}
+            payload = _call_provider(config, provider_request, timeout_seconds)
+            return LLMSynthesisResult(payload=payload, provider=config.provider, model=config.model, fallback_reason=None)
+        except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            failures.append(f"{config.provider}:{type(exc).__name__}")
+
+    return LLMSynthesisResult(
+        payload=None,
+        provider="deterministic",
+        model="evidence-rules-v1",
+        fallback_reason=(
+            "Free/local LLM synthesis unavailable; deterministic evidence reasoning used"
+            + (f" ({', '.join(failures)})." if failures else ".")
+        ),
+    )
