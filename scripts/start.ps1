@@ -149,6 +149,7 @@ Write-Host "Frontend health: PASS" -ForegroundColor Green
 Write-Host ""
 Write-Host "READY" -ForegroundColor Green
 Write-Host "Dashboard:       $DashboardBase"
+Write-Host "Judge Mode:      $DashboardBase/demo"
 Write-Host "API health:      $ApiBase/health"
 Write-Host "API docs:        $ApiBase/docs"
 Write-Host "Evidence Lab:    $DashboardBase/evidence"
