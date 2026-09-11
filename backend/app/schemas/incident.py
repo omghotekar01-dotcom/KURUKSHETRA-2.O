@@ -104,3 +104,28 @@ class RiskDecision(BaseModel):
     policy: str
     reason: str
     requires_human_approval: bool
+
+
+class RootCauseHypothesis(BaseModel):
+    id: str
+    title: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence_ids: List[str] = Field(default_factory=list)
+    rationale: str
+    next_diagnostic: str
+
+
+class RemediationPlan(BaseModel):
+    summary: str
+    steps: List[str] = Field(default_factory=list)
+    verification: str
+    proposed_action: Optional[ProposedAction] = None
+    risk: Optional[RiskDecision] = None
+
+
+class AnalysisBundle(BaseModel):
+    incident_id: str
+    evidence: EvidenceBundle
+    hypotheses: List[RootCauseHypothesis] = Field(default_factory=list)
+    remediation: Optional[RemediationPlan] = None
+    needs_human_investigation: bool = False
