@@ -61,9 +61,18 @@ def _cleanup_old_sessions() -> None:
 
 
 def _validate_relative_path(value: str) -> str:
-    normalized = value.replace("\\", "/").strip().lstrip("./")
+    normalized = value.replace("\\", "/").strip()
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
     path = PurePosixPath(normalized)
-    if not normalized or path.is_absolute() or ".." in path.parts:
+    if (
+        not normalized
+        or normalized.startswith("/")
+        or normalized.startswith("//")
+        or re.match(r"^[A-Za-z]:/", normalized)
+        or path.is_absolute()
+        or ".." in path.parts
+    ):
         raise ValueError(f"Unsafe file path: {value}")
     if any(part.lower() in BLOCKED_PARTS for part in path.parts):
         raise ValueError(f"Blocked file path: {value}")
