@@ -16,7 +16,7 @@ Implementation branch:
 
 `agent-build-core`
 
-Validated code head:
+Validated executable code head:
 
 `b6e4959971b08adcf53fa83b9f98fd8c6aca0f6a`
 
@@ -40,7 +40,7 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The Windows run rebuilt the project from a clean Git checkout before executing the acceptance suite.
+The Windows run rebuilt the project from a clean Git checkout before executing the acceptance suite. Commits after `b6e495...` in this closure pass update README/runbook/status documentation only; they do not change the frozen executable product behavior.
 
 ## Release-candidate contract
 
