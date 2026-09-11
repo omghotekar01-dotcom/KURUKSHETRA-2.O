@@ -13,6 +13,7 @@ from app.schemas.incident import (
     IncidentRecord,
     IncidentStatus,
     IncidentSummary,
+    ResolutionMemory,
     TimelineEvent,
     TriageResult,
 )
@@ -23,7 +24,7 @@ def _utc_now() -> datetime:
 
 
 class IncidentStore:
-    """Small SQLite repository used by the hackathon build and demo mode."""
+    """SQLite repository for incident state, audit history and verified memory."""
 
     def __init__(self, database_path: str | Path) -> None:
         self.database_path = Path(database_path)
@@ -63,11 +64,28 @@ class IncidentStore:
                     FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS resolution_memory (
+                    memory_id TEXT PRIMARY KEY,
+                    incident_id TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    component TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    symptoms TEXT NOT NULL,
+                    working_hypothesis TEXT NOT NULL,
+                    remediation TEXT NOT NULL,
+                    verification_evidence TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'verified-resolution',
+                    FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_incidents_created_at
                 ON incidents(created_at DESC);
 
                 CREATE INDEX IF NOT EXISTS idx_timeline_incident_id
                 ON timeline_events(incident_id, id);
+
+                CREATE INDEX IF NOT EXISTS idx_resolution_component
+                ON resolution_memory(component, created_at DESC);
                 """
             )
 
@@ -113,7 +131,7 @@ class IncidentStore:
             )
 
         record = self.get(incident_id)
-        if record is None:  # pragma: no cover - defensive consistency check
+        if record is None:  # pragma: no cover
             raise RuntimeError("Incident was written but could not be read back.")
         return record
 
@@ -210,6 +228,82 @@ class IncidentStore:
                 (now.isoformat(), incident_id),
             )
         return self.get(incident_id)
+
+    def save_resolution_memory(
+        self,
+        incident: IncidentRecord,
+        working_hypothesis: str,
+        remediation: str,
+        verification_evidence: str,
+    ) -> ResolutionMemory:
+        now = _utc_now()
+        existing = self.get_resolution_memory(incident.id)
+        memory_id = existing.memory_id if existing else f"MEM-{uuid4().hex[:10].upper()}"
+        symptoms = f"{incident.incident.title}. {incident.incident.description}".strip()
+
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO resolution_memory(
+                    memory_id, incident_id, created_at, component, severity, symptoms,
+                    working_hypothesis, remediation, verification_evidence, source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(incident_id) DO UPDATE SET
+                    created_at = excluded.created_at,
+                    component = excluded.component,
+                    severity = excluded.severity,
+                    symptoms = excluded.symptoms,
+                    working_hypothesis = excluded.working_hypothesis,
+                    remediation = excluded.remediation,
+                    verification_evidence = excluded.verification_evidence,
+                    source = excluded.source
+                """,
+                (
+                    memory_id,
+                    incident.id,
+                    now.isoformat(),
+                    incident.triage.component,
+                    incident.triage.severity.value,
+                    symptoms,
+                    working_hypothesis,
+                    remediation,
+                    verification_evidence,
+                    "verified-resolution",
+                ),
+            )
+
+        memory = self.get_resolution_memory(incident.id)
+        if memory is None:  # pragma: no cover
+            raise RuntimeError("Resolution memory was written but could not be read back.")
+        return memory
+
+    def get_resolution_memory(self, incident_id: str) -> ResolutionMemory | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM resolution_memory WHERE incident_id = ?", (incident_id,)
+            ).fetchone()
+        return self._memory_from_row(row) if row else None
+
+    def list_resolution_memory(self, limit: int = 50) -> list[ResolutionMemory]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM resolution_memory ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [self._memory_from_row(row) for row in rows]
+
+    def _memory_from_row(self, row: sqlite3.Row) -> ResolutionMemory:
+        return ResolutionMemory(
+            memory_id=row["memory_id"],
+            incident_id=row["incident_id"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            component=row["component"],
+            severity=row["severity"],
+            symptoms=row["symptoms"],
+            working_hypothesis=row["working_hypothesis"],
+            remediation=row["remediation"],
+            verification_evidence=row["verification_evidence"],
+            source=row["source"],
+        )
 
     def _insert_event(
         self,
