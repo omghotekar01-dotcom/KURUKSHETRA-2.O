@@ -13,6 +13,7 @@ from app.schemas.incident import (
     IncidentStatus,
     IncidentSummary,
     ProposedAction,
+    ResolutionMemory,
     RiskDecision,
     RiskLevel,
     TriageResult,
@@ -22,13 +23,13 @@ from app.schemas.incident import (
 )
 from app.services.analysis import analyze_incident
 from app.services.execution import execute_bounded_action
-from app.services.retrieval import retrieve_runbooks
+from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
 from app.services.triage import triage_incident
 
 app = FastAPI(
     title="Kurukshetra Incident Command API",
-    version="0.5.0",
+    version="0.6.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
@@ -64,6 +65,11 @@ def list_incidents(limit: int = Query(default=50, ge=1, le=100)) -> list[Inciden
     return incident_store.list(limit=limit)
 
 
+@app.get("/api/v1/memory", response_model=list[ResolutionMemory])
+def list_resolution_memory(limit: int = Query(default=50, ge=1, le=100)) -> list[ResolutionMemory]:
+    return incident_store.list_resolution_memory(limit=limit)
+
+
 @app.get("/api/v1/incidents/{incident_id}", response_model=IncidentRecord)
 def get_incident(incident_id: str) -> IncidentRecord:
     incident = incident_store.get(incident_id)
@@ -78,12 +84,18 @@ def investigate_incident(incident_id: str) -> EvidenceBundle:
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
 
-    matches = retrieve_runbooks(incident)
+    matches = retrieve_knowledge(
+        incident,
+        memories=incident_store.list_resolution_memory(limit=100),
+    )
     incident_store.append_event(
         incident_id,
         "EVIDENCE",
-        f"Retrieved {len(matches)} relevant historical runbook match(es).",
-        {"match_ids": [match.id for match in matches]},
+        f"Retrieved {len(matches)} relevant knowledge match(es).",
+        {
+            "match_ids": [match.id for match in matches],
+            "sources": [match.source for match in matches],
+        },
     )
     return EvidenceBundle(
         incident_id=incident_id,
@@ -98,7 +110,10 @@ def analyze_incident_endpoint(incident_id: str) -> AnalysisBundle:
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
 
-    analysis = analyze_incident(incident)
+    analysis = analyze_incident(
+        incident,
+        memories=incident_store.list_resolution_memory(limit=100),
+    )
     if analysis.needs_human_investigation:
         incident_store.set_status(incident_id, IncidentStatus.escalated)
         incident_store.append_event(
@@ -114,14 +129,23 @@ def analyze_incident_endpoint(incident_id: str) -> AnalysisBundle:
         incident_id,
         "RCA",
         f"Top root-cause hypothesis prepared at {hypothesis.confidence:.0%} confidence.",
-        {"hypothesis_id": hypothesis.id, "evidence_ids": hypothesis.evidence_ids},
+        {
+            "hypothesis_id": hypothesis.id,
+            "title": hypothesis.title,
+            "confidence": hypothesis.confidence,
+            "evidence_ids": hypothesis.evidence_ids,
+        },
     )
     incident_store.set_status(incident_id, IncidentStatus.remediation_ready)
     incident_store.append_event(
         incident_id,
         "REMEDIATION",
         "Remediation and verification plan prepared for review.",
-        {"risk": analysis.remediation.risk.risk.value if analysis.remediation and analysis.remediation.risk else None},
+        {
+            "summary": analysis.remediation.summary if analysis.remediation else "",
+            "verification": analysis.remediation.verification if analysis.remediation else "",
+            "risk": analysis.remediation.risk.risk.value if analysis.remediation and analysis.remediation.risk else None,
+        },
     )
     return analysis
 
@@ -143,6 +167,7 @@ def decide_action(incident_id: str, payload: ApprovalRequest) -> ApprovalResult:
             "reviewer": payload.reviewer,
             "note": payload.note,
             "action_type": payload.action.action_type,
+            "action_description": payload.action.description,
             "target": payload.action.target,
             "risk": risk.risk.value,
             "policy": risk.policy,
@@ -199,6 +224,13 @@ def decide_action(incident_id: str, payload: ApprovalRequest) -> ApprovalResult:
     )
 
 
+def _latest_metadata(incident: IncidentRecord, stage: str) -> dict:
+    for event in reversed(incident.timeline):
+        if event.stage == stage:
+            return event.metadata
+    return {}
+
+
 @app.post("/api/v1/incidents/{incident_id}/verify", response_model=VerificationResult)
 def verify_incident(incident_id: str, payload: VerificationRequest) -> VerificationResult:
     incident = incident_store.get(incident_id)
@@ -228,6 +260,27 @@ def verify_incident(incident_id: str, payload: VerificationRequest) -> Verificat
         },
     )
     incident_store.set_status(incident_id, final_status)
+
+    if payload.outcome is VerificationOutcome.passed:
+        refreshed = incident_store.get(incident_id)
+        if refreshed is None:  # pragma: no cover
+            raise HTTPException(status_code=500, detail="Incident state disappeared during verification")
+        rca = _latest_metadata(refreshed, "RCA")
+        remediation = _latest_metadata(refreshed, "REMEDIATION")
+        approval = _latest_metadata(refreshed, "APPROVAL")
+        memory = incident_store.save_resolution_memory(
+            refreshed,
+            working_hypothesis=rca.get("title", "Verified remediation outcome; root cause not independently confirmed."),
+            remediation=approval.get("action_description") or remediation.get("summary", "Verified remediation"),
+            verification_evidence=payload.evidence,
+        )
+        incident_store.append_event(
+            incident_id,
+            "MEMORY",
+            "Verified resolution stored as reusable incident memory.",
+            {"memory_id": memory.memory_id, "source": memory.source},
+        )
+
     return VerificationResult(
         incident_id=incident_id,
         outcome=payload.outcome,
