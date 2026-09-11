@@ -50,6 +50,7 @@ def test_collect_repository_context_uses_live_github_payloads(monkeypatch) -> No
     record = _record()
     monkeypatch.setattr(github_context_module, "github_token", lambda: None)
     monkeypatch.setattr(github_context_module, "repository_allowed", lambda repo: True)
+    monkeypatch.setattr(github_context_module, "_fetch_codeowners", lambda client, repository, ref: None)
     monkeypatch.setattr(
         github_context_module,
         "_fetch_source_context",
@@ -127,6 +128,79 @@ def test_collect_repository_context_uses_live_github_payloads(monkeypatch) -> No
     assert context.open_issues[0].number == 12
 
 
+def test_codeowners_uses_last_match_and_returns_real_repository_owners() -> None:
+    rules = github_context_module._parse_codeowners(
+        """
+# broad fallback
+* @engineering
+/backend/ @backend-team
+/backend/auth/* @identity-platform @security-reviewers
+"""
+    )
+    owners = github_context_module._owners_for_files(
+        rules,
+        ["backend/auth/jwt.py", "backend/payments/charge.py", "README.md"],
+    )
+
+    assert owners == ["@identity-platform", "@security-reviewers", "@backend-team", "@engineering"]
+
+
+def test_collect_repository_context_exposes_codeowner_hints(monkeypatch) -> None:
+    record = _record()
+    monkeypatch.setattr(github_context_module, "github_token", lambda: None)
+    monkeypatch.setattr(github_context_module, "repository_allowed", lambda repo: True)
+    monkeypatch.setattr(
+        github_context_module,
+        "_fetch_codeowners",
+        lambda client, repository, ref: (
+            ".github/CODEOWNERS",
+            github_context_module._parse_codeowners("/backend/auth/* @identity-platform @security-reviewers"),
+        ),
+    )
+    monkeypatch.setattr(
+        github_context_module,
+        "_fetch_source_context",
+        lambda client, repository, commit_sha, hunk: [
+            RepositorySourceLine(line_number=41, content="verify_signature(token, jwt_signing_key)", in_hunk=True),
+        ],
+    )
+
+    def fake_request(client, path, *, params=None):
+        if path == "/repos/omghotekar01-dotcom/KURUKSHETRA-2.O":
+            return {"default_branch": "main"}
+        if path.endswith("/commits"):
+            return [{"sha": "abcdef1234567890"}]
+        if path.endswith("/commits/abcdef1234567890"):
+            return {
+                "sha": "abcdef1234567890",
+                "html_url": "https://github.com/example/repo/commit/abcdef1",
+                "commit": {
+                    "message": "fix jwt signature handling",
+                    "author": {"name": "Engineer", "date": "2026-09-11T08:00:00Z"},
+                },
+                "files": [
+                    {
+                        "filename": "backend/auth/jwt.py",
+                        "status": "modified",
+                        "additions": 1,
+                        "deletions": 1,
+                        "changes": 2,
+                        "patch": "@@ -41,1 +41,1 @@\n-verify_signature(token, old_key)\n+verify_signature(token, jwt_signing_key)\n",
+                    }
+                ],
+            }
+        if path.endswith("/issues"):
+            return []
+        raise AssertionError(path)
+
+    monkeypatch.setattr(github_context_module, "_request_json", fake_request)
+    context = collect_repository_context(record)
+
+    assert context.suggested_owners == ["@identity-platform", "@security-reviewers"]
+    assert context.ownership_source == ".github/CODEOWNERS"
+    assert any("routing/review suggestions" in note for note in context.notes)
+
+
 def test_repository_context_rejects_unapproved_repository(monkeypatch) -> None:
     record = _record().model_copy(
         update={"incident": _record().incident.model_copy(update={"repo": "outside/repository"})}
@@ -183,6 +257,8 @@ def test_analyze_includes_repository_evidence_in_api_response(tmp_path: Path, mo
             )
         ],
         open_issues=[],
+        suggested_owners=["@identity-platform"],
+        ownership_source=".github/CODEOWNERS",
         notes=[],
     )
     monkeypatch.setattr(main_module, "collect_repository_context", lambda incident: context)
@@ -202,6 +278,7 @@ def test_analyze_includes_repository_evidence_in_api_response(tmp_path: Path, mo
     assert response.status_code == 200
     payload = response.json()
     assert payload["repository_context"]["source"] == "github-live"
+    assert payload["repository_context"]["suggested_owners"] == ["@identity-platform"]
     assert payload["repository_context"]["commits"][0]["suspicious_hunks"][0]["source_context"][0]["line_number"] == 41
     assert "GH-COMMIT-abcdef1" in payload["hypotheses"][0]["evidence_ids"]
     assert any(item.startswith("GH-HUNK-abcdef1") for item in payload["hypotheses"][0]["evidence_ids"])
