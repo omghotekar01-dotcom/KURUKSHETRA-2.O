@@ -20,6 +20,8 @@ def main() -> int:
         ".github/workflows/build.yml",
         "frontend/package-lock.json",
         "frontend/src/BugWorkspacePage.tsx",
+        "frontend/src/TestLabPage.tsx",
+        "frontend/src/test-lab.css",
         "frontend/src/AppNavigation.tsx",
         "frontend/src/LoadingShimmer.tsx",
         "frontend/src/bug-workspace.css",
@@ -60,6 +62,7 @@ def main() -> int:
     main_tsx = (ROOT / "frontend" / "src" / "main.tsx").read_text(encoding="utf-8")
     route_contracts = {
         "AI Workspace is the root product surface": "path === '/' || path === '/workspace'",
+        "Test Lab route /test": "path === '/test'",
         "Incident Command remains available at /incidents": "path === '/incidents'",
         "Judge Mode route /demo": "path === '/demo'",
         "Real AutoFix route /prototype": "path === '/prototype'",
@@ -75,6 +78,7 @@ def main() -> int:
 
     style_contracts = {
         "AI Workspace depth layer is wired": "./workspace-depth.css" in main_tsx,
+        "Test Lab styling is wired": "./test-lab.css" in main_tsx,
         "light Apple-style polish is wired": "./apple-polish.css" in main_tsx,
         "premium dark polish is wired": "./dark-polish.css" in main_tsx,
         "global operation shimmer is wired": "./busy-polish.css" in main_tsx,
@@ -88,9 +92,20 @@ def main() -> int:
     navigation_contracts = {
         "desktop navigation can collapse": "global-nav-collapse" in navigation_page and "navCollapsed" in navigation_page,
         "collapsed navigation persists locally": "bug-router-nav-collapsed" in navigation_page,
+        "Test Lab is reachable from primary navigation": "Test Lab" in navigation_page and "'/test'" in navigation_page,
         "navigation keeps human authority visible": "Human authority" in navigation_page,
     }
     for label, condition in navigation_contracts.items():
+        passed &= check(condition, label)
+
+    test_lab = (ROOT / "frontend" / "src" / "TestLabPage.tsx").read_text(encoding="utf-8")
+    test_lab_contracts = {
+        "Test Lab exposes repository incident path": "Investigate a live GitHub bug" in test_lab,
+        "Test Lab exposes file and trusted-test path": "Drop source files and a failing test" in test_lab,
+        "Test Lab exposes broken project/compilation path": "Run a controlled broken project" in test_lab,
+        "Test Lab exposes governed Draft PR path": "Exercise approval, Draft PR and CI" in test_lab,
+    }
+    for label, condition in test_lab_contracts.items():
         passed &= check(condition, label)
 
     workspace_page = (ROOT / "frontend" / "src" / "BugWorkspacePage.tsx").read_text(encoding="utf-8")
