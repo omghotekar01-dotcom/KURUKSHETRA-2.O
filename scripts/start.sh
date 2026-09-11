@@ -94,7 +94,8 @@ fi
 cat <<EOF
 
 READY
-Dashboard:       http://localhost:5173
+AI Workspace:    http://localhost:5173
+Incident Command:http://localhost:5173/incidents
 Real AutoFix:    http://localhost:5173/prototype
 Judge Intake:    http://localhost:5173/intake
 AI Reasoning:    http://localhost:5173/ai
