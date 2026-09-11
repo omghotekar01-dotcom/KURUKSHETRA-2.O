@@ -5,6 +5,7 @@ import binascii
 import os
 import re
 from datetime import datetime, timezone
+from pathlib import PurePosixPath
 from typing import Any
 from urllib.parse import quote
 
@@ -65,6 +66,29 @@ STOPWORDS = {
     "with",
 }
 
+# Real incidents commonly include stack traces or compiler locations. Treat those
+# path hints as stronger evidence than generic word overlap, while still keeping
+# the signal deterministic and explainable.
+CODE_PATH_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?P<path>(?:[A-Za-z0-9_.-]+[/\\])*[A-Za-z0-9_.-]+\."
+    r"(?:py|ts|tsx|js|jsx|java|go|rs|kt|cpp|c|cc|cs|sql|yml|yaml|json|toml|sh|ps1))"
+    r"(?::(?P<line>\d+))?",
+    re.IGNORECASE,
+)
+
+
+def _incident_text(record: IncidentRecord) -> str:
+    return " ".join(
+        [
+            record.incident.title,
+            record.incident.description,
+            " ".join(record.incident.logs),
+            record.triage.component,
+            record.triage.summary,
+            " ".join(record.triage.signals),
+        ]
+    )
+
 
 def _tokens(text: str) -> set[str]:
     # Split code/path punctuation and snake_case so log terms such as "jwt"
@@ -77,18 +101,46 @@ def _tokens(text: str) -> set[str]:
 
 
 def _incident_tokens(record: IncidentRecord) -> set[str]:
-    return _tokens(
-        " ".join(
-            [
-                record.incident.title,
-                record.incident.description,
-                " ".join(record.incident.logs),
-                record.triage.component,
-                record.triage.summary,
-                " ".join(record.triage.signals),
-            ]
-        )
-    )
+    return _tokens(_incident_text(record))
+
+
+def _incident_path_hints(record: IncidentRecord) -> set[str]:
+    hints: set[str] = set()
+    for match in CODE_PATH_RE.finditer(_incident_text(record)):
+        raw = match.group("path").replace("\\", "/").strip("./")
+        if raw:
+            hints.add(raw.lower())
+    return hints
+
+
+def _path_match_score(path_hints: set[str], filename: str) -> float:
+    if not path_hints or not filename:
+        return 0.0
+    candidate = filename.replace("\\", "/").strip("./").lower()
+    candidate_parts = PurePosixPath(candidate).parts
+    candidate_name = PurePosixPath(candidate).name
+    best = 0.0
+
+    for hint in path_hints:
+        normalized_hint = hint.replace("\\", "/").strip("./").lower()
+        hint_parts = PurePosixPath(normalized_hint).parts
+        hint_name = PurePosixPath(normalized_hint).name
+
+        if normalized_hint == candidate or normalized_hint.endswith(f"/{candidate}") or candidate.endswith(f"/{normalized_hint}"):
+            best = max(best, 1.0)
+            continue
+        if hint_name and hint_name == candidate_name:
+            best = max(best, 0.72)
+
+        shared_suffix = 0
+        for left, right in zip(reversed(hint_parts), reversed(candidate_parts)):
+            if left != right:
+                break
+            shared_suffix += 1
+        if shared_suffix >= 2:
+            best = max(best, min(0.95, 0.58 + (shared_suffix * 0.1)))
+
+    return round(best, 3)
 
 
 def _token_score(incident_tokens: set[str], candidate_tokens: set[str], *, multiplier: float = 2.5) -> tuple[float, list[str]]:
@@ -107,6 +159,8 @@ def _parse_patch_hunks(record: IncidentRecord, filename: str, patch: str) -> lis
         return []
 
     incident_tokens = _incident_tokens(record)
+    path_hints = _incident_path_hints(record)
+    path_score = _path_match_score(path_hints, filename)
     hunks: list[RepositoryDiffHunkEvidence] = []
     header = ""
     added: list[str] = []
@@ -117,7 +171,14 @@ def _parse_patch_hunks(record: IncidentRecord, filename: str, patch: str) -> lis
         if not header:
             return
         candidate_tokens = _tokens(" ".join([filename, header, *added, *removed]))
-        score, matched_terms = _token_score(incident_tokens, candidate_tokens, multiplier=3.2)
+        lexical_score, matched_terms = _token_score(incident_tokens, candidate_tokens, multiplier=3.2)
+        score = lexical_score
+        if path_score:
+            # Exact/basename stack-trace matches are highly actionable, but do
+            # not automatically become causal proof. Blend rather than force 1.0.
+            score = min(1.0, max(score, path_score * 0.86, score + (path_score * 0.28)))
+            if path_score >= 0.72 and filename not in matched_terms:
+                matched_terms = [*matched_terms, filename][:10]
         hunks.append(
             RepositoryDiffHunkEvidence(
                 filename=filename,
@@ -125,7 +186,7 @@ def _parse_patch_hunks(record: IncidentRecord, filename: str, patch: str) -> lis
                 added_lines=added[:10],
                 removed_lines=removed[:10],
                 matched_terms=matched_terms,
-                correlation_score=score,
+                correlation_score=round(score, 3),
             )
         )
         added = []
@@ -215,11 +276,14 @@ def _correlation_score(
     incident_tokens = _incident_tokens(record)
     candidate_tokens = _tokens(" ".join([message, *filenames]))
     base_score, _ = _token_score(incident_tokens, candidate_tokens)
+    path_hints = _incident_path_hints(record)
+    path_score = max((_path_match_score(path_hints, filename) for filename in filenames), default=0.0)
 
+    score = max(base_score, path_score * 0.88)
     if suspicious_hunks:
         top_hunk = suspicious_hunks[0].correlation_score
-        return round(max(base_score, min(1.0, top_hunk * 0.95)), 3)
-    return base_score
+        score = max(score, min(1.0, top_hunk * 0.95))
+    return round(min(1.0, score), 3)
 
 
 def _request_json(client: httpx.Client, path: str, *, params: dict[str, Any] | None = None) -> Any:
@@ -247,6 +311,7 @@ def collect_repository_context(
     issue_limit = max(1, min(max_issues or int(os.getenv("GITHUB_CONTEXT_MAX_ISSUES", "5")), 10))
     token = github_token()
     untrusted_instruction_signal_seen = False
+    path_hints = _incident_path_hints(record)
 
     with httpx.Client(
         base_url=GITHUB_API,
@@ -361,6 +426,10 @@ def collect_repository_context(
         "Source context is bounded to the highest-ranked hunks to control latency and API usage.",
         "GitHub may omit patch/content data for binary or very large files; unavailable evidence is never invented.",
     ]
+    if path_hints:
+        notes.append(
+            "Stack-trace/code-path hints were detected in the incident and used as an explainable ranking boost for matching changed files."
+        )
     if untrusted_instruction_signal_seen:
         notes.append("Prompt-like instruction text was detected in repository evidence and treated only as untrusted data.")
     if not commits:
