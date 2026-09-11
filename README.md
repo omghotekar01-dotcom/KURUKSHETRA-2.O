@@ -4,7 +4,7 @@
 
 AI Agentic Bug Router is a live-first engineering incident-response MVP. It can reproduce a real local regression, retrieve relevant engineering knowledge, ground reasoning in source/tests and live repository evidence, prepare an exact bounded patch, require review before writes, rerun trusted validation, roll back failed repairs, and carry verified remediation evidence into an auditable Draft-PR workflow.
 
-The product never merges pull requests or deploys production code. Merge remains an external human repository action after review.
+The product never auto-merges and does not expose an in-product merge or production deployment action. Merge remains an external human repository action after review.
 
 > **Hackathon development note:** the active implementation is on `agent-build-core`. `main` remains intentionally untouched until final submission promotion is explicitly approved.
 
