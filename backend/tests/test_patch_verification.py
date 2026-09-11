@@ -48,6 +48,36 @@ def test_ci_verification_accepts_neutral_and_skipped_checks_without_failure():
     assert status == "PASS"
 
 
+def test_green_combined_status_cannot_mask_completed_check_without_conclusion():
+    status, message = _derive_status(
+        [
+            CIVerificationCheck(name="backend", status="completed", conclusion="success"),
+            CIVerificationCheck(name="security", status="completed", conclusion=None),
+        ],
+        "success",
+    )
+    assert status == "PENDING"
+    assert "no terminal conclusion" in message
+
+
+def test_unknown_check_state_fails_closed_even_when_combined_status_is_green():
+    status, message = _derive_status(
+        [CIVerificationCheck(name="external-gate", status="unknown", conclusion=None)],
+        "success",
+    )
+    assert status == "PENDING"
+    assert "recognized terminal state" in message
+
+
+def test_unrecognized_terminal_conclusion_fails_closed():
+    status, message = _derive_status(
+        [CIVerificationCheck(name="vendor-gate", status="completed", conclusion="vendor_specific")],
+        "success",
+    )
+    assert status == "PENDING"
+    assert "unrecognized conclusion" in message
+
+
 def test_failed_ci_derives_failed_incident_verification_without_runtime_confirmation():
     outcome, evidence, runtime_required = _derive_incident_verification(
         status="FAIL",
