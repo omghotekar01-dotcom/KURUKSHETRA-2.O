@@ -7,14 +7,27 @@ Project name: **AI Agentic Bug Router**
 
 ## Status
 
-**Planned hackathon MVP implementation scope: COMPLETE and real-use audited.**
+**Planned hackathon MVP implementation scope: COMPLETE, real-use audited, and IIT Bombay demo-hardened.**
 
 The project is in release-candidate hardening. Prefer regression fixes, evidence-quality improvements, rehearsal and documentation over broad new scope. `main` remains untouched until the team explicitly approves final submission promotion.
 
 This completion statement is scoped to the agreed hackathon MVP; it is not a claim of universal bug-free or enterprise-production completeness.
 
 Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FREEZE.md).  
-Real-use audit: [`docs/REAL_USE_AUDIT.md`](REAL_USE_AUDIT.md).
+Real-use audit: [`docs/REAL_USE_AUDIT.md`](REAL_USE_AUDIT.md).  
+IIT Bombay final demo guide: [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_DEMO.md).
+
+## IIT Bombay judge/demo hardening — 2026-09-11
+
+- Added one shared responsive left navigation shell across Incident Command, Judge Demo, AI Reasoning Lab, Evidence Lab, Remediation, Evaluation Lab and Readiness, with active-route state and mobile drawer behavior.
+- Added `/ai` **AI Reasoning Lab** to make the agent architecture visible instead of presenting the product as a static dashboard.
+- Added judge-ready problem → evidence → RCA → solution walkthroughs for Authentication, Database, Frontend, Infrastructure and an Unknown/no-match safe-stop case.
+- Added an optional OpenAI-compatible grounded LLM synthesis adapter. It receives bounded retrieved evidence only and can synthesize RCA/diagnostic/remediation wording when `LLM_API_KEY`, `LLM_BASE_URL` and `LLM_MODEL` are configured.
+- Added `AnalysisBundle.agent_trace` so the UI truthfully shows `LLM_RAG` vs `DETERMINISTIC_RAG`, provider/model, retrieval sources and fallback reason.
+- Deterministic triage, evidence IDs/confidence, risk policy, approval, repository writes, validation and verification remain authoritative outside the LLM.
+- LLM/network/provider failure falls back to the deterministic RAG/RCA path; fallback is visible and is never labeled as live LLM execution.
+- Expanded deterministic fallback fixtures to five domain-diverse judge scenarios while keeping fallback-only labeling.
+- Added [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_DEMO.md) with the recommended IIT Bombay pitch, primary JWT problem/solution demonstration, alternate scenarios, live-write boundary and closing script.
 
 ## Completed live MVP
 
@@ -24,6 +37,17 @@ Real-use audit: [`docs/REAL_USE_AUDIT.md`](REAL_USE_AUDIT.md).
 - Deterministic triage for Authentication, Database, Backend, Frontend, Infrastructure and Unclassified incidents.
 - Deterministic LOW/MEDIUM/HIGH action-risk policy.
 - Responsive Light-theme-first UI with persistent Light/Dark switcher.
+- Shared application navigation works across all judge/operator routes and collapses into a mobile drawer on smaller displays.
+
+### Agent intelligence + RAG
+- Deterministic RAG baseline retrieves curated runbooks plus previously verified resolution memory.
+- Explicit no-strong-match behavior prevents forced historical answers.
+- Live GitHub commit/diff/source context is a separate evidence source rather than being mislabeled as historical RAG.
+- Optional OpenAI-compatible LLM synthesis operates downstream of retrieval and repository evidence.
+- Repository/log/runbook text is treated as untrusted data in the LLM boundary; the model is instructed not to execute embedded instructions or invent unsupported evidence.
+- `agent_trace` exposes the actual reasoning mode and fallback reason to the UI.
+- The LLM does not control confidence, risk, approval, GitHub writes, merge/deploy decisions or verification outcomes.
+- `/ai` provides a judge-facing architecture and problem-to-solution reasoning surface.
 
 ### Evidence, routing + RCA
 - Curated local runbook/knowledge retrieval baseline.
@@ -121,6 +145,7 @@ Real-use audit: [`docs/REAL_USE_AUDIT.md`](REAL_USE_AUDIT.md).
 - Exact proposal diff, file, confidence and candidate commit are reviewable before approval.
 - Optional approved flow surfaces isolated branch, Draft PR and real GitHub CI state.
 - Reset clears presentation state only; incident audit history remains.
+- `/ai` complements Judge Mode by explicitly showing the RAG/LLM/repository-evidence reasoning path and alternate problem scenarios.
 
 ### Release-candidate contract
 - `scripts/release_contract.py` is included in `scripts/acceptance.py`.
@@ -134,6 +159,7 @@ Real-use audit: [`docs/REAL_USE_AUDIT.md`](REAL_USE_AUDIT.md).
 
 ### Emergency fallback
 - Deterministic fixtures exist only for internet/provider failure.
+- Fixture catalog covers Authentication, Database, Frontend, Infrastructure and Unknown/no-match demonstrations.
 - `DEMO_MODE` defaults `false`.
 - Fallback remains visibly `SIMULATED/DEMO` and cannot be confused with live success.
 
@@ -149,13 +175,13 @@ The audit deliberately tested whether the product is useful outside a scripted d
 6. missing repository CODEOWNERS review/routing hints;
 7. CI status not being recorded as canonical incident verification evidence.
 
-The system now has explicit tests for realistic authentication, database, backend, frontend and infrastructure incidents; unknown/no-match behavior; path-to-code correlation; weak-patch rejection; unsupported-validator rejection; configurable owner routing; CODEOWNERS hints; CI failure/inconclusive derivation; and the rule that green CI cannot auto-resolve a runtime incident.
+The system now has explicit tests for realistic authentication, database, backend, frontend and infrastructure incidents; unknown/no-match behavior; path-to-code correlation; weak-patch rejection; unsupported-validator rejection; configurable owner routing; CODEOWNERS hints; CI failure/inconclusive derivation; deterministic LLM fallback trace; expanded demo scenarios; and the rule that green CI cannot auto-resolve a runtime incident.
 
 ## Latest confirmed release-candidate validation
 
-GitHub Actions run **#409** / run ID `34597412643` on executable code head:
+GitHub Actions run **#460** / run ID `34599840178` on milestone head:
 
-`18112b436803f747a23d60bf5ce73c952f9523a7`
+`7329f40f51aaf6a5bb0bf747b92d05077128f00c`
 
 completed successfully:
 
@@ -172,20 +198,22 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-Subsequent commits in this pass are documentation-only and do not alter that validated executable behavior.
+The subsequent D-013 decision-log and this implementation-ledger update are documentation-only and do not alter the validated executable behavior.
 
 ## Completed product path
 
 ```text
 Incident + repository
-→ persist + triage / real-team route
-→ historical retrieval
+→ persist + deterministic triage / real-team route
+→ RAG: runbooks + verified resolution memory
 → live GitHub evidence
 → real commits + files + diff hunks
 → stack-trace/path correlation
 → CODEOWNERS routing/review hint
 → bounded source context
-→ evidence-backed RCA
+→ optional grounded LLM synthesis OR deterministic RAG/RCA fallback
+→ evidence-backed RCA + next diagnostic
+→ deterministic risk policy
 → safety-thresholded exact patch proposal (NO WRITE)
 → HUMAN APPROVE / REJECT
 → stable remediation identity
@@ -205,8 +233,9 @@ Incident + repository
 Judge/proof path:
 
 ```text
-/demo       → controlled golden demonstration
 /readiness  → runtime + safety status
+/ai         → visible RAG/LLM/evidence reasoning + selectable problems
+/demo       → controlled golden demonstration
 /evidence   → live engineering evidence
 /remediate  → operator remediation studio
 /evaluation → measured deterministic benchmark
@@ -239,6 +268,8 @@ Judge/proof path:
 23. ~~Judge Mode + recovery/presentation flow.~~
 24. ~~Release-candidate contract + automated freeze acceptance.~~
 25. ~~Real-use usefulness audit and regression hardening.~~
+26. ~~Shared navigation + IIT Bombay problem/solution demo flow.~~
+27. ~~Optional grounded LLM synthesis + auditable deterministic fallback.~~
 
 ## What remains before final submission
 
@@ -248,8 +279,11 @@ No broad feature development is required for the hackathon MVP. Continue only wi
 pull latest agent-build-core
 → run verify.bat locally
 → run start.bat locally
+→ open /readiness and confirm the reported mode
+→ rehearse /ai with JWT regression, then one no-match case
 → rehearse /demo on the actual hackathon laptop/network
 → test one realistic incident through /evidence
+→ optionally configure/test the chosen LLM provider locally without exposing credentials
 → capture desired screenshots
 → proofread submission documentation
 → explicitly approve branch promotion
@@ -271,5 +305,6 @@ Branch promotion is intentionally **not** performed automatically.
 - Python direct requirements are pinned; transitive Python dependencies are not yet fully hash-locked.
 - CODEOWNERS handling supports common standard patterns but does not claim every exotic escaping edge case.
 - Redaction/injection detection are best-effort defense-in-depth controls.
-- No custom ML model is trained in this MVP; intelligence comes from deterministic triage/retrieval, repository evidence correlation, RCA rules and approval-gated orchestration.
+- No custom ML model is trained in this MVP. Intelligence comes from deterministic routing/RAG, verified incident memory, live repository evidence correlation, optional grounded LLM synthesis, risk-aware orchestration and verification.
+- CI validates deterministic LLM fallback and integration contracts; an external LLM provider call is only real when locally configured and successfully executed, and the UI exposes that state through `agent_trace`.
 - No automatic merge, production deployment, destructive data operation, unrestricted repository write or IAM/secret mutation is permitted.
