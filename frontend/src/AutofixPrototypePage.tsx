@@ -185,6 +185,8 @@ export default function AutofixPrototypePage() {
   }
 
   async function previewFix() {
+    setProposal(null)
+    setResult(null)
     await runAction<Proposal>('proposal', `/api/v1/autofix/${selected.id}/proposal`, setProposal)
   }
 
