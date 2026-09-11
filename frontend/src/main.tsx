@@ -8,13 +8,16 @@ import './workflow.css'
 import './theme.css'
 import './repository-theme.css'
 import './evidence-page.css'
+import './source-context.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
-const screen = path === '/evidence' ? <RepositoryEvidencePage /> : <App />
+const evidenceMode = path === '/evidence'
+const screen = evidenceMode ? <RepositoryEvidencePage /> : <App />
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     {screen}
+    {!evidenceMode && <a className="evidence-lab-shortcut" href="/evidence">Live Evidence Lab</a>}
     <ThemeToggle />
   </React.StrictMode>,
 )
