@@ -17,7 +17,7 @@ Requirements:
 - npm **10–11**
 - Git
 - Optional but strongly recommended for the live AI demo: **Ollama + `qwen3:4b`**
-- GitHub CLI (`gh`) only for authenticated live remediation write/validation workflows
+- GitHub CLI (`gh`) for authenticated live remediation write/validation workflows
 
 From the repository root:
 
@@ -27,9 +27,9 @@ setup-local-ai.bat
 start.bat
 ```
 
-`setup-local-ai.bat` starts/reaches Ollama, pulls `qwen3:4b`, verifies that the model is installed, and prepares the zero-cost local model path. If Ollama is unavailable, the built-in deterministic proof targets still work; arbitrary judge-supplied repair fails closed rather than pretending a model ran.
+`setup-local-ai.bat` now does more than check configuration: it starts/reaches Ollama, pulls `qwen3:4b`, confirms the model is installed and performs a real local inference warm-up before it reports success. If Ollama is unavailable, the built-in deterministic proof targets still work; arbitrary judge-supplied repair fails closed rather than pretending a model ran.
 
-The launcher checks the toolchain, bootstraps dependencies, selects free local ports, injects the real backend URL into Vite, waits for backend/frontend health, prints the detected AI runtime, prints exact live URLs and opens the dashboard. Use the URLs printed by `start.bat`; do not assume default ports are free.
+The launcher checks the toolchain, bootstraps dependencies, selects free local ports, injects the real backend URL into Vite, waits for backend/frontend health, prints the detected AI runtime, prints exact live URLs and opens the AI Workspace. Use the URLs printed by `start.bat`; do not assume default ports are free.
 
 Stop launcher-managed services with:
 
@@ -48,9 +48,10 @@ Run a local Ollama service with `qwen3:4b` separately if you want the generic ju
 
 ## Product surfaces
 
-- Incident Command Dashboard — `/`
+- **AI Workspace** — `/` or `/workspace` — conversational engineering entry point for a bug description, GitHub repository, drag/drop source/test files, RAG context and truthful integration status
+- Incident Command — `/incidents` — persisted incident lifecycle, routing, evidence, RCA, approval and audit timeline
 - **Real AutoFix** — `/prototype` — guaranteed real broken-project FAIL → reviewed repair → same-validator PASS proof
-- **Judge Intake** — `/intake` — judge types a bug report and attaches source/test files for isolated RAG + grounded model repair
+- **Judge Intake** — `/intake` — dedicated judge-supplied bug/source/test workflow with isolated RAG + grounded model repair
 - AI Reasoning Lab — `/ai`
 - Judge Mode — `/demo`
 - Engineering Evidence Lab — `/evidence`
@@ -59,6 +60,27 @@ Run a local Ollama service with `qwen3:4b` separately if you want the generic ju
 - System Readiness — `/readiness`
 - FastAPI health — backend `/health`
 - FastAPI docs — backend `/docs`
+
+The specialist pages are intentionally preserved. The AI Workspace is the simple product entry point; the other pages expose the engineering evidence and control boundaries a technical judge may want to inspect directly.
+
+## AI Workspace
+
+The home page is an engineering-specific conversational composer rather than a generic dashboard.
+
+Users can:
+
+- describe the observed bug and expected behavior in natural language;
+- attach up to 12 bounded source/test files through the picker or drag/drop;
+- enter the allowlisted GitHub `owner/repository` to investigate live repository evidence;
+- choose production, staging or development context;
+- explicitly enable trusted uploaded Python tests only when those files are safe to execute;
+- test live Qwen and GitHub integration readiness;
+- inspect triage, RCA, RAG and live GitHub evidence;
+- review a grounded isolated-file patch and run the existing validator path.
+
+The interface uses a light-first, high-legibility product hierarchy with restrained liquid-glass navigation/control surfaces, subtle parallax/depth in the workspace background, responsive dark mode, reduced-motion/reduced-transparency support, and real loading skeletons rather than fabricated placeholder metrics.
+
+See [`docs/AI_WORKSPACE_UX.md`](docs/AI_WORKSPACE_UX.md) for the UX and truth-boundary rationale.
 
 ## Strongest hackathon proof
 
@@ -79,7 +101,7 @@ real broken target
 
 The repository includes multiple repeatable broken targets, including authentication, cart-total arithmetic and pagination regressions.
 
-### 2. Judge-supplied evidence — `/intake`
+### 2. Judge-supplied evidence — `/intake` or AI Workspace file mode
 
 A judge/operator can type a bug report and attach up to 12 allowlisted text/code files. The backend creates an ephemeral isolated copy and never grants the model arbitrary laptop filesystem access.
 
@@ -96,7 +118,7 @@ judge bug report + files
 → verified fix / static-only result / rollback
 ```
 
-Use **Test Qwen now** on `/intake` to perform a real chat-completions inference probe. The page shows the actual provider, model, latency and result. Configuration alone is not presented as proof that Qwen ran.
+Use **Test Qwen now** on `/intake`, **Test live integrations** in the AI Workspace, or **Test live integrations** on `/readiness` to perform a real inference probe. A model being installed/configured is not presented as proof that inference actually succeeded.
 
 ### Trusted test execution
 
@@ -145,13 +167,33 @@ OLLAMA_BASE_URL=http://localhost:11434/v1
 OLLAMA_MODEL=qwen3:4b
 ```
 
-For authenticated live write actions, authenticate locally with GitHub CLI (`gh auth login`) or provide a suitable token through the local environment. Never paste tokens into issues, prompts, screenshots, repository files or chat messages.
+For authenticated live write actions, authenticate locally with GitHub CLI:
+
+```powershell
+gh auth status
+gh auth login
+```
+
+A local environment token remains an optional alternative. Never paste tokens into issues, prompts, screenshots, repository files or chat messages.
+
+`/readiness` performs a read-only GitHub permission probe and reports whether the configured credential actually has push permission for the allowlisted repository. The probe does **not** create a branch, commit or PR and never returns the credential value.
+
+The product deliberately does not expose an automatic merge action. A successful remediation stops at a **Draft PR**; final review/merge remains a deliberate human GitHub action.
 
 ## RAG and model boundary
 
 RAG is not the authority layer. Curated runbooks and previously verified resolution memory provide retrieval context; live GitHub evidence is treated separately. Local Qwen/Gemini may synthesize a bounded candidate, but the model cannot decide whether tests passed, bypass approval, choose arbitrary shell commands, access unrestricted OS paths, merge, deploy or declare production recovery.
 
 **The model can reason and propose; evidence and validators hold authority.**
+
+### Ollama/Qwen compatibility
+
+The local runtime supports both common Ollama interfaces:
+
+- OpenAI-compatible `/v1/models` + `/v1/chat/completions`;
+- native `/api/tags` + `/api/chat` fallback.
+
+This prevents a working local Qwen installation from being reported unavailable merely because one compatibility route differs across Ollama versions.
 
 ## Reproducibility
 
@@ -162,7 +204,7 @@ RAG is not the authority layer. Curated runbooks and previously verified resolut
 - bootstrap/remediation frontend validation uses `npm ci`
 - Windows dependency-lock recovery handles project-owned Vite/Rolldown file locks
 - GitHub Actions includes Linux backend/frontend jobs and a real Windows clean-checkout bootstrap/acceptance job
-- release contract asserts the judge-intake, model-probe, AutoFix and safety surfaces remain present
+- release contract asserts the AI Workspace, judge-intake, model-probe, AutoFix and safety surfaces remain present
 
 ## Security and truth boundaries
 
@@ -182,6 +224,8 @@ RAG is not the authority layer. Curated runbooks and previously verified resolut
 - Recognized credential patterns are redacted from incident and repository evidence surfaces.
 - Repository/uploaded text is treated as untrusted evidence, not executable instructions.
 - Correlation is investigation guidance, not causal proof.
+- `STATIC_CHECK_PASSED` is never described as functional recovery.
+- A `live` model label is backed by an actual inference probe rather than installation/configuration alone.
 
 ## Verification record
 
@@ -190,6 +234,7 @@ See [`docs/IMPLEMENTATION_PROGRESS.md`](docs/IMPLEMENTATION_PROGRESS.md) for the
 ## Project documentation
 
 - [`docs/IMPLEMENTATION_PROGRESS.md`](docs/IMPLEMENTATION_PROGRESS.md) — current capability/status ledger
+- [`docs/AI_WORKSPACE_UX.md`](docs/AI_WORKSPACE_UX.md) — final product UX, loading, live-state and connector direction
 - [`docs/JUDGE_SUPPLIED_INTAKE.md`](docs/JUDGE_SUPPLIED_INTAKE.md) — arbitrary judge bug/file workflow and safety model
 - [`docs/REAL_AUTOFIX_PROTOTYPE.md`](docs/REAL_AUTOFIX_PROTOTYPE.md) — repeatable real local repair proof
 - [`docs/IIT_BOMBAY_FINAL_DEMO.md`](docs/IIT_BOMBAY_FINAL_DEMO.md) — final judge-facing demo sequence
