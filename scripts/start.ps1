@@ -30,9 +30,10 @@ function Invoke-ProjectPython {
 }
 
 function Test-BackendHealth {
+    param([int]$Port)
     try {
-        $result = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 2
-        return ($null -ne $result)
+        $result = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 2
+        return ($null -ne $result -and $result.status -eq "ok")
     }
     catch { return $false }
 }
@@ -47,6 +48,14 @@ function Test-LocalPort {
     }
     catch { return $false }
     finally { $client.Dispose() }
+}
+
+function Find-FreePort {
+    param([int]$StartPort, [int]$EndPort)
+    for ($Port = $StartPort; $Port -le $EndPort; $Port++) {
+        if (-not (Test-LocalPort $Port)) { return $Port }
+    }
+    throw "No free local port found in range $StartPort-$EndPort."
 }
 
 Write-Host ""
@@ -69,36 +78,37 @@ if ($Verify) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-if (-not (Test-BackendHealth)) {
-    if (Test-LocalPort 8000) {
-        throw "Port 8000 is occupied by another service and /health is not responding. Stop that process before launching."
-    }
-    $backendCommand = "Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --env-file '$EnvFile'"
-    $backendProcess = Start-Process powershell -PassThru -ArgumentList @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $backendCommand)
-    Set-Content -Path (Join-Path $RunDir "backend.pid") -Value $backendProcess.Id
-    Write-Host "Started backend shell PID $($backendProcess.Id)" -ForegroundColor Green
+# The frontend must remain on localhost:5173 because that is the default trusted
+# development origin configured by the API. The backend port can move safely.
+if (Test-LocalPort 5173) {
+    throw "Frontend port 5173 is already occupied. Stop that process (or run stop.bat if it is a previous project launch) before starting this build."
 }
-else {
-    Write-Host "Backend already healthy on port 8000; reusing it." -ForegroundColor Yellow
+
+$BackendPort = Find-FreePort 8000 8099
+if ($BackendPort -ne 8000) {
+    Write-Host "Port 8000 is occupied; using backend port $BackendPort instead." -ForegroundColor Yellow
 }
+
+$backendCommand = "Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --reload --host 127.0.0.1 --port $BackendPort --env-file '$EnvFile'"
+$backendProcess = Start-Process powershell -PassThru -ArgumentList @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $backendCommand)
+Set-Content -Path (Join-Path $RunDir "backend.pid") -Value $backendProcess.Id
+Set-Content -Path (Join-Path $RunDir "backend.port") -Value $BackendPort
+Write-Host "Started backend shell PID $($backendProcess.Id) on port $BackendPort" -ForegroundColor Green
 
 $backendReady = $false
 for ($i = 0; $i -lt 60; $i++) {
-    if (Test-BackendHealth) { $backendReady = $true; break }
+    if (Test-BackendHealth $BackendPort) { $backendReady = $true; break }
     Start-Sleep -Seconds 1
 }
 if (-not $backendReady) { throw "Backend did not become healthy within 60 seconds. Check the backend terminal." }
 Write-Host "Backend health: PASS" -ForegroundColor Green
 
-if (-not (Test-LocalPort 5173)) {
-    $frontendCommand = "Set-Location '$FrontendDir'; npm run dev -- --host 127.0.0.1"
-    $frontendProcess = Start-Process powershell -PassThru -ArgumentList @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $frontendCommand)
-    Set-Content -Path (Join-Path $RunDir "frontend.pid") -Value $frontendProcess.Id
-    Write-Host "Started frontend shell PID $($frontendProcess.Id)" -ForegroundColor Green
-}
-else {
-    Write-Host "Frontend port 5173 is already active; reusing it." -ForegroundColor Yellow
-}
+$ApiBase = "http://127.0.0.1:$BackendPort"
+$frontendCommand = "Set-Location '$FrontendDir'; `$env:VITE_API_BASE_URL='$ApiBase'; npm run dev -- --host localhost --port 5173 --strictPort"
+$frontendProcess = Start-Process powershell -PassThru -ArgumentList @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $frontendCommand)
+Set-Content -Path (Join-Path $RunDir "frontend.pid") -Value $frontendProcess.Id
+Set-Content -Path (Join-Path $RunDir "frontend.port") -Value 5173
+Write-Host "Started frontend shell PID $($frontendProcess.Id)" -ForegroundColor Green
 
 $frontendReady = $false
 for ($i = 0; $i -lt 60; $i++) {
@@ -109,15 +119,15 @@ if (-not $frontendReady) { throw "Frontend did not become available within 60 se
 
 Write-Host ""
 Write-Host "READY" -ForegroundColor Green
-Write-Host "Dashboard:       http://127.0.0.1:5173"
-Write-Host "API health:      http://127.0.0.1:8000/health"
-Write-Host "API docs:        http://127.0.0.1:8000/docs"
-Write-Host "Evidence Lab:    http://127.0.0.1:5173/evidence"
-Write-Host "Remediation:     http://127.0.0.1:5173/remediate"
-Write-Host "Evaluation Lab:  http://127.0.0.1:5173/evaluation"
+Write-Host "Dashboard:       http://localhost:5173"
+Write-Host "API health:      $ApiBase/health"
+Write-Host "API docs:        $ApiBase/docs"
+Write-Host "Evidence Lab:    http://localhost:5173/evidence"
+Write-Host "Remediation:     http://localhost:5173/remediate"
+Write-Host "Evaluation Lab:  http://localhost:5173/evaluation"
 Write-Host "Stop services:   stop.bat"
 Write-Host ""
 
 if (-not $NoBrowser) {
-    Start-Process "http://127.0.0.1:5173"
+    Start-Process "http://localhost:5173"
 }
