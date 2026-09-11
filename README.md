@@ -27,7 +27,7 @@ On the first run the launcher:
 1. checks the local toolchain,
 2. creates `.env` from `.env.example` if needed,
 3. creates `backend/.venv`,
-4. installs the pinned backend/frontend direct dependencies,
+4. installs the pinned Python dependencies and the locked npm dependency tree,
 5. starts FastAPI on port `8000`,
 6. starts Vite on port `5173`,
 7. waits for the backend health endpoint,
@@ -120,14 +120,17 @@ or provide a suitable token through the local environment. Never paste or commit
 
 ## Reproducibility
 
-The project records the tested runtime in:
+The tested and frozen local toolchain is recorded in:
 
 - `.python-version` → Python 3.11
 - `.nvmrc` → Node 22.23.2
-- `backend/requirements.txt` → exact top-level backend versions from a green CI run
-- `frontend/package.json` → exact direct frontend/tooling versions from a green CI run
+- `backend/requirements.txt` → exact top-level backend versions from a green CI build
+- `frontend/package.json` → exact direct frontend/tooling versions
+- `frontend/package-lock.json` → lockfile v3 with the complete npm dependency tree and integrity hashes
 
-GitHub Actions also runs a clean-checkout Windows acceptance job in addition to the normal Linux backend/frontend jobs.
+Bootstrap uses `npm ci`, so the local and CI frontend install must match the committed lockfile instead of resolving a new dependency tree.
+
+GitHub Actions also performs a clean-checkout Windows acceptance run in addition to the Linux backend/frontend jobs.
 
 ## Safety boundaries
 
