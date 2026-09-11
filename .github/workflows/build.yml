@@ -61,6 +61,11 @@ jobs:
           node-version: '22.23.2'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Validate Windows launcher syntax
+        shell: pwsh
+        run: |
+          [scriptblock]::Create((Get-Content scripts/start.ps1 -Raw)) | Out-Null
+          [scriptblock]::Create((Get-Content scripts/stop.ps1 -Raw)) | Out-Null
       - name: Environment preflight
         run: python scripts/preflight.py --strict --ci
       - name: Bootstrap clean checkout
