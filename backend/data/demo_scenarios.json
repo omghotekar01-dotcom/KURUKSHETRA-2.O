@@ -1,0 +1,49 @@
+[
+  {
+    "id": "DEMO-AUTH-001",
+    "name": "JWT mismatch after deployment",
+    "description": "Golden-path authentication incident with a known historical match and safe bounded remediation.",
+    "expected_component": "Authentication",
+    "incident": {
+      "title": "401 errors after today's deployment",
+      "description": "Production users can authenticate, but API requests immediately return unauthorized responses after the latest deployment.",
+      "environment": "production",
+      "repo": "demo/payments-api",
+      "logs": [
+        "JWT signature verification failed",
+        "auth middleware rejected token: invalid signature"
+      ]
+    }
+  },
+  {
+    "id": "DEMO-DB-001",
+    "name": "Database connection pool exhaustion",
+    "description": "Database incident used to prove routing, evidence retrieval and verification behavior.",
+    "expected_component": "Database",
+    "incident": {
+      "title": "Profile updates fail with HTTP 500",
+      "description": "Profile writes fail during peak traffic and recover intermittently after requests time out.",
+      "environment": "production",
+      "repo": "demo/profile-service",
+      "logs": [
+        "sqlalchemy.exc.TimeoutError: QueuePool limit reached",
+        "PostgreSQL connection pool exhausted"
+      ]
+    }
+  },
+  {
+    "id": "DEMO-NOVEL-001",
+    "name": "Unknown incident requiring escalation",
+    "description": "No-match case that demonstrates uncertainty instead of hallucinating a historical fix.",
+    "expected_component": "Unclassified",
+    "incident": {
+      "title": "Orion service returns inconsistent payloads",
+      "description": "A newly introduced Orion service changes response fields intermittently with no previous incident, useful logs or matching runbook.",
+      "environment": "staging",
+      "repo": "demo/orion-service",
+      "logs": [
+        "response schema changed unexpectedly"
+      ]
+    }
+  }
+]
