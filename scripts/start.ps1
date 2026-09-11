@@ -167,7 +167,8 @@ Write-Host "Frontend health: PASS" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "READY" -ForegroundColor Green
-Write-Host "Dashboard:       $DashboardBase"
+Write-Host "AI Workspace:    $DashboardBase"
+Write-Host "Incident Command:$DashboardBase/incidents"
 Write-Host "Real AutoFix:    $DashboardBase/prototype"
 Write-Host "Judge Intake:    $DashboardBase/intake"
 Write-Host "AI Reasoning:    $DashboardBase/ai"
