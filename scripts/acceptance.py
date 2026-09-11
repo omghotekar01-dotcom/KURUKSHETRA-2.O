@@ -63,6 +63,7 @@ def main() -> int:
         Check("backend compile", [str(python), "-m", "compileall", "-q", "app", "tests"], BACKEND),
         Check("backend test suite", [str(python), "-m", "pytest", "-q"], BACKEND),
         Check("frontend production build", _npm_command("run", "build"), FRONTEND),
+        Check("release candidate contract", [str(python), str(ROOT / "scripts" / "release_contract.py")], ROOT),
     ]
 
     passed = 0
@@ -77,6 +78,7 @@ def main() -> int:
         return 1
 
     print("CLEAN-CLONE ACCEPTANCE: PASS")
+    print("RELEASE-CANDIDATE ACCEPTANCE: PASS")
     return 0
 
 
