@@ -36,6 +36,8 @@ class PatchExecutionResult(BaseModel):
     draft_pr_url: Optional[str] = None
     validation: list[ValidationCheck] = Field(default_factory=list)
     incident_status: IncidentStatus
+    reused: bool = False
+    idempotency_key: Optional[str] = None
 
 
 class CIVerificationCheck(BaseModel):
