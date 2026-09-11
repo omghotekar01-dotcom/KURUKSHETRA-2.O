@@ -64,6 +64,7 @@ def scan(target_id: str) -> WorkspaceScanResult:
 
 @router.post("/{target_id}/proposal", response_model=WorkspaceFixProposal)
 def proposal(target_id: str) -> WorkspaceFixProposal:
+    _clear_reviewed(target_id)
     try:
         reviewed = propose_fix(target_id)
         _store_reviewed(target_id, reviewed)
