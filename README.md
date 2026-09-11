@@ -1,98 +1,149 @@
-# KURUKSHETRA 2.0 HACKFEST 2026 — TEAM DEVELOPMENT BRANCH
+# AI Agentic Bug Router
 
-This is the shared `develop`-branch workspace for our 4-person Kurukshetra 2.0 Hackfest project.
+**From bug report to evidence-backed, human-approved, verified fix.**
 
-> The default `main` branch must remain stable and submission-safe. Do not develop directly on `main`.
+AI Agentic Bug Router is a live-first engineering incident-response MVP. It accepts a software incident, routes it to the likely technical owner, searches previous verified knowledge, investigates the attached GitHub repository, ranks relevant commits and diff hunks, prepares an exact patch proposal, requires human approval before any write, validates the approved change on an isolated branch, and creates a Draft Pull Request only after the configured checks pass.
 
-## Current Phase
+The system never auto-merges or deploys production code.
 
-**Setup / pre-problem-statement**
+## Fastest Windows start
 
-The exact problem statement, architecture, stack and individual work ownership will be finalized after the hackathon problem statements are released.
+Requirements:
 
-## Start Here
+- Python **3.11.x**
+- Node.js **22–24**
+- npm **10–11**
+- Git
+- GitHub CLI (`gh`) only for live remediation write/validation workflows
 
-Before doing substantial work, read:
+From the repository root:
 
-1. [`docs/TEAM_README.md`](docs/TEAM_README.md) — collaboration rules, Git workflow and repository safety
-2. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — live source of truth for completed, in-progress and remaining work
-3. [`docs/COLLABORATION_TEST.md`](docs/COLLABORATION_TEST.md) — safe teammate push/PR access test
-
-## Branching Model
-
-```text
-main
-  ↑
-develop
-  ↑
-feature/*  fix/*  docs/*  test/*
+```bat
+start.bat
 ```
 
-### Rules
+On the first run the launcher:
 
-- `main` = stable/demo/submission branch
-- `develop` = shared integration branch
-- all real development happens in dedicated feature/fix/docs/test branches
-- completed work is merged by Pull Request into `develop`
-- only tested integrated builds move from `develop` to `main`
+1. checks the local toolchain,
+2. creates `.env` from `.env.example` if needed,
+3. creates `backend/.venv`,
+4. installs the pinned backend/frontend direct dependencies,
+5. starts FastAPI on port `8000`,
+6. starts Vite on port `5173`,
+7. waits for the backend health endpoint,
+8. opens the dashboard.
 
-## Before Starting Any Task
+Stop the local services with:
+
+```bat
+stop.bat
+```
+
+Run the full local acceptance suite with:
+
+```bat
+verify.bat
+```
+
+## Unix/macOS
 
 ```bash
-git checkout develop
-git pull origin develop
-git checkout -b feature/<clear-task-name>
+bash scripts/start.sh
 ```
 
-Do not overwrite or restructure existing project files without first understanding the shared architecture and contracts.
+Acceptance:
 
-## Commit Standard
+```bash
+bash scripts/verify.sh
+```
 
-Examples:
+Stop:
+
+```bash
+bash scripts/stop.sh
+```
+
+## Product surfaces
+
+- Dashboard — `http://127.0.0.1:5173`
+- FastAPI health — `http://127.0.0.1:8000/health`
+- FastAPI docs — `http://127.0.0.1:8000/docs`
+- Engineering Evidence Lab — `http://127.0.0.1:5173/evidence`
+- Remediation Studio — `http://127.0.0.1:5173/remediate`
+- Evaluation Lab — `http://127.0.0.1:5173/evaluation`
+
+## Current live workflow
 
 ```text
-feat(api): add analysis endpoint
-feat(ui): add result dashboard
-feat(db): add history model
-fix(api): validate empty input
-test(api): add endpoint tests
-docs(readme): update setup instructions
+Incident + logs + repository
+→ triage / route
+→ historical evidence
+→ live GitHub investigation
+→ recent commits + changed files + real diff hunks
+→ bounded source context
+→ evidence-backed RCA
+→ exact patch proposal (no write)
+→ human approve / reject
+→ stale-proposal and exact-file revalidation
+→ deterministic incident-fix branch
+→ apply only approved replacement
+→ deterministic validation gate
+→ Draft PR only if green
+→ live GitHub CI/check verification
+→ human runtime verification
+→ resolved / escalated
+→ verified-resolution memory
 ```
 
-Avoid meaningless commits such as `final`, `changes`, `done`, `final2` or `working`.
+## Live GitHub configuration
 
-## Continuity Across ChatGPT / Codex / Astra
+The normal product path is live-first. `DEMO_MODE=false` by default.
 
-`docs/PROJECT_STATUS.md` is the handoff file.
+Copy/edit `.env` locally only; never commit it. Important fields:
 
-Any AI coding session should first inspect:
+```env
+DEMO_MODE=false
+GITHUB_REPOSITORY=omghotekar01-dotcom/KURUKSHETRA-2.O
+GITHUB_ALLOWED_REPOSITORIES=omghotekar01-dotcom/KURUKSHETRA-2.O
+ALLOW_GH_CLI_AUTH=true
+GITHUB_TOKEN=
+```
 
-- current repository structure
-- current branch
-- latest commits
-- `docs/TEAM_README.md`
-- `docs/PROJECT_STATUS.md`
-- existing API/database/shared contracts
+For live write actions you can either authenticate GitHub CLI:
 
-After a meaningful milestone, update `docs/PROJECT_STATUS.md` so another teammate or coding session can continue without guessing what has already been done.
+```bash
+gh auth login
+gh auth status
+```
 
-## Repository Safety
+or provide a suitable token through the local environment. Never paste or commit tokens into repository files.
 
-Never:
+## Reproducibility
 
-- force-push shared branches
-- commit `.env` or secrets
-- silently change API/database contracts
-- delete another teammate's files
-- rewrite the entire app to add one feature
-- experiment directly on `main`
+The project records the tested runtime in:
 
-If a shared contract must change, document it explicitly as a **BREAKING CHANGE**.
+- `.python-version` → Python 3.11
+- `.nvmrc` → Node 22.23.2
+- `backend/requirements.txt` → exact top-level backend versions from a green CI run
+- `frontend/package.json` → exact direct frontend/tooling versions from a green CI run
 
-## Current Repository Status
+GitHub Actions also runs a clean-checkout Windows acceptance job in addition to the normal Linux backend/frontend jobs.
 
-See [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) for the live checklist and handoff state.
+## Safety boundaries
 
----
+- Repository investigation is read-only until explicit approval.
+- Patch generation performs no repository write.
+- An approved patch is tied to one deterministic remediation identity.
+- Duplicate approvals reuse existing successful remediation state instead of creating duplicate branches or PRs.
+- Stale/ambiguous source state fails closed.
+- High-risk merge/deploy/destructive actions remain recommendation-only.
+- Passing CI never triggers automatic merge or claims production recovery.
+- `main` is not the development branch for this build.
 
-**Important:** This repository is currently public. Files committed to `develop` are not confidential even though the default GitHub page opens `main` first.
+## Development branch
+
+Active implementation branch: `agent-build-core`
+
+Draft integration PR: `agent-build-core` → `develop`
+
+See [`docs/IMPLEMENTATION_PROGRESS.md`](docs/IMPLEMENTATION_PROGRESS.md) for the verified feature/status ledger.
