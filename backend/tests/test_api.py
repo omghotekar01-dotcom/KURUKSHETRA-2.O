@@ -62,3 +62,27 @@ def test_investigate_returns_runbook_evidence(tmp_path: Path, monkeypatch) -> No
 
     updated = client.get(f"/api/v1/incidents/{created['id']}").json()
     assert updated["timeline"][-1]["stage"] == "EVIDENCE"
+
+
+def test_analyze_advances_incident_to_remediation_ready(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(main_module, "incident_store", IncidentStore(tmp_path / "api.db"))
+    client = TestClient(main_module.app)
+    created = client.post(
+        "/api/v1/incidents",
+        json={
+            "title": "401 after deployment",
+            "description": "Protected API calls fail after login.",
+            "logs": ["JWT signature verification failed"],
+        },
+    ).json()
+
+    response = client.post(f"/api/v1/incidents/{created['id']}/analyze")
+
+    assert response.status_code == 200
+    analysis = response.json()
+    assert analysis["hypotheses"][0]["evidence_ids"][0] == "RB-AUTH-001"
+    assert analysis["remediation"]["risk"]["policy"] == "ALLOWED"
+
+    refreshed = client.get(f"/api/v1/incidents/{created['id']}").json()
+    assert refreshed["status"] == "REMEDIATION_READY"
+    assert refreshed["timeline"][-1]["stage"] == "REMEDIATION"
