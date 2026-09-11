@@ -46,6 +46,19 @@ def _best_diff_hunk(repository_candidate):
     return candidate if candidate.correlation_score >= 0.12 else None
 
 
+def _ownership_context(repository_context: RepositoryContext | None) -> tuple[str, str | None]:
+    if repository_context is None or not repository_context.suggested_owners:
+        return "", None
+    owners = ", ".join(repository_context.suggested_owners[:6])
+    source = repository_context.ownership_source or "repository ownership metadata"
+    note = (
+        f" Repository ownership metadata from {source} suggests {owners} as routing/review candidates for the highest-ranked changed files. "
+        "Ownership metadata is advisory and does not grant authorization."
+    )
+    step = f"Route code review/investigation to repository owner candidate(s): {owners}."
+    return note, step
+
+
 def _github_issue_action(record: IncidentRecord, confidence: float) -> ProposedAction:
     target = record.incident.repo or configured_repository()
     return ProposedAction(
@@ -73,6 +86,7 @@ def analyze_incident(
     )
     repository_candidate = _best_repository_commit(repository_context)
     diff_candidate = _best_diff_hunk(repository_candidate)
+    ownership_note, ownership_step = _ownership_context(repository_context)
 
     if not matches and repository_candidate is None:
         return AnalysisBundle(
@@ -127,6 +141,7 @@ def analyze_incident(
                 "and compare behavior with the parent revision before preparing a patch."
             )
 
+        rationale += ownership_note
         hypothesis = RootCauseHypothesis(
             id="HYP-001",
             title=top.issue,
@@ -139,9 +154,15 @@ def analyze_incident(
         remediation_steps = [
             "Confirm the top hypothesis with the next diagnostic check.",
             top.fix,
-            "Create a tracked GitHub incident issue after explicit human approval.",
-            "Run the defined verification before marking the incident resolved.",
         ]
+        if ownership_step:
+            remediation_steps.append(ownership_step)
+        remediation_steps.extend(
+            [
+                "Create a tracked GitHub incident issue after explicit human approval.",
+                "Run the defined verification before marking the incident resolved.",
+            ]
+        )
     else:
         assert repository_candidate is not None
         confidence = round(min(0.72, 0.42 + repository_candidate.correlation_score * 0.3), 2)
@@ -170,6 +191,7 @@ def analyze_incident(
                 "parent revisions, and confirm whether that exact change alters the failing behavior."
             )
 
+        rationale += ownership_note
         hypothesis = RootCauseHypothesis(
             id="HYP-REPO-001",
             title=f"Recent code change may be related: {repository_candidate.message}",
@@ -186,10 +208,16 @@ def analyze_incident(
             f"Inspect commit {repository_candidate.short_sha} and the correlated changed files.",
             "Inspect the highest-ranked diff hunk before touching unrelated files.",
             "Reproduce the failure on the current revision and compare with the previous revision.",
-            "Prepare the smallest bounded correction only after the hypothesis is confirmed.",
-            "Create a tracked GitHub incident issue after explicit human approval.",
-            "Run the defined verification before marking the incident resolved.",
         ]
+        if ownership_step:
+            remediation_steps.append(ownership_step)
+        remediation_steps.extend(
+            [
+                "Prepare the smallest bounded correction only after the hypothesis is confirmed.",
+                "Create a tracked GitHub incident issue after explicit human approval.",
+                "Run the defined verification before marking the incident resolved.",
+            ]
+        )
 
     action = _github_issue_action(record, hypothesis.confidence)
     risk = evaluate_action(action)
