@@ -31,6 +31,17 @@ class IncidentStatus(str, Enum):
     escalated = "ESCALATED"
 
 
+class ApprovalDecision(str, Enum):
+    approve = "APPROVE"
+    reject = "REJECT"
+
+
+class VerificationOutcome(str, Enum):
+    passed = "PASS"
+    failed = "FAIL"
+    inconclusive = "INCONCLUSIVE"
+
+
 class IncidentIn(BaseModel):
     title: str = Field(min_length=3, max_length=160)
     description: str = Field(min_length=5, max_length=10000)
@@ -129,3 +140,42 @@ class AnalysisBundle(BaseModel):
     hypotheses: List[RootCauseHypothesis] = Field(default_factory=list)
     remediation: Optional[RemediationPlan] = None
     needs_human_investigation: bool = False
+
+
+class ApprovalRequest(BaseModel):
+    decision: ApprovalDecision
+    action: ProposedAction
+    reviewer: str = Field(default="human-reviewer", min_length=2, max_length=120)
+    note: str = Field(default="", max_length=1000)
+
+
+class ActionExecutionResult(BaseModel):
+    action_id: str
+    incident_id: str
+    action_type: str
+    target: str
+    status: str
+    mode: str
+    message: str
+    external_url: Optional[str] = None
+
+
+class ApprovalResult(BaseModel):
+    incident_id: str
+    decision: ApprovalDecision
+    risk: RiskDecision
+    execution: Optional[ActionExecutionResult] = None
+    incident_status: IncidentStatus
+
+
+class VerificationRequest(BaseModel):
+    outcome: VerificationOutcome
+    evidence: str = Field(min_length=3, max_length=4000)
+    checked_by: str = Field(default="verification-runner", min_length=2, max_length=120)
+
+
+class VerificationResult(BaseModel):
+    incident_id: str
+    outcome: VerificationOutcome
+    incident_status: IncidentStatus
+    message: str
