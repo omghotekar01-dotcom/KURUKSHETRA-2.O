@@ -49,8 +49,12 @@ def main() -> int:
     print("Installing pinned backend dependencies...")
     _run([str(python), "-m", "pip", "install", "--disable-pip-version-check", "-r", "requirements.txt"], BACKEND)
 
-    print("Installing pinned frontend dependencies...")
-    _run(_npm_command("install", "--no-audit", "--no-fund", "--package-lock=false"), FRONTEND)
+    lockfile = FRONTEND / "package-lock.json"
+    if not lockfile.exists():
+        raise SystemExit("frontend/package-lock.json is missing; refusing an unpinned frontend install.")
+
+    print("Installing locked frontend dependency tree...")
+    _run(_npm_command("ci", "--no-audit", "--no-fund"), FRONTEND)
 
     print("Bootstrap complete.")
     print(f"Backend Python: {python}")
