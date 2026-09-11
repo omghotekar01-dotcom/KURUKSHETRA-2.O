@@ -39,6 +39,13 @@ def _best_repository_commit(repository_context: RepositoryContext | None):
     return candidate if candidate.correlation_score >= 0.12 else None
 
 
+def _best_diff_hunk(repository_candidate):
+    if repository_candidate is None or not repository_candidate.suspicious_hunks:
+        return None
+    candidate = repository_candidate.suspicious_hunks[0]
+    return candidate if candidate.correlation_score >= 0.12 else None
+
+
 def _github_issue_action(record: IncidentRecord, confidence: float) -> ProposedAction:
     target = record.incident.repo or configured_repository()
     return ProposedAction(
@@ -46,7 +53,7 @@ def _github_issue_action(record: IncidentRecord, confidence: float) -> ProposedA
         target=target,
         description=(
             "Create a GitHub incident issue containing the evidence-backed RCA, approved remediation, "
-            "repository evidence, and verification plan for human tracking."
+            "repository and diff evidence, and verification plan for human tracking."
         ),
         confidence=confidence,
         destructive=False,
@@ -65,6 +72,7 @@ def analyze_incident(
         no_strong_match=len(matches) == 0,
     )
     repository_candidate = _best_repository_commit(repository_context)
+    diff_candidate = _best_diff_hunk(repository_candidate)
 
     if not matches and repository_candidate is None:
         return AnalysisBundle(
@@ -105,6 +113,20 @@ def analyze_incident(
                 "before accepting the root-cause hypothesis."
             )
 
+        if diff_candidate is not None:
+            evidence_ids.append(f"GH-HUNK-{repository_candidate.short_sha}-{diff_candidate.filename}")
+            confidence = min(0.95, round(confidence + diff_candidate.correlation_score * 0.05, 2))
+            terms = ", ".join(diff_candidate.matched_terms[:6]) or "incident-related terms"
+            rationale += (
+                f" The most relevant live diff hunk is in {diff_candidate.filename} ({diff_candidate.header}) "
+                f"with a {diff_candidate.correlation_score:.0%} hunk-correlation signal and matched terms: {terms}. "
+                "The hunk is prioritized for inspection; it is not automatically declared faulty."
+            )
+            next_diagnostic = (
+                f"Inspect the ranked diff hunk in {diff_candidate.filename} at {diff_candidate.header}, reproduce the failure, "
+                "and compare behavior with the parent revision before preparing a patch."
+            )
+
         hypothesis = RootCauseHypothesis(
             id="HYP-001",
             title=top.issue,
@@ -124,20 +146,37 @@ def analyze_incident(
         assert repository_candidate is not None
         confidence = round(min(0.72, 0.42 + repository_candidate.correlation_score * 0.3), 2)
         changed_files = ", ".join(file.filename for file in repository_candidate.files[:5]) or "the files changed by the commit"
+        evidence_ids = [f"GH-COMMIT-{repository_candidate.short_sha}"]
+        rationale = (
+            f"No sufficiently strong historical runbook match was found, but live GitHub evidence shows commit "
+            f"{repository_candidate.short_sha} with a {repository_candidate.correlation_score:.0%} correlation "
+            f"signal to the incident across {changed_files}. The system treats this as a candidate, not a confirmed cause."
+        )
+        next_diagnostic = (
+            f"Review the diff for commit {repository_candidate.short_sha}, reproduce the incident on the parent revision, "
+            "and compare behavior before making a code change."
+        )
+
+        if diff_candidate is not None:
+            evidence_ids.append(f"GH-HUNK-{repository_candidate.short_sha}-{diff_candidate.filename}")
+            confidence = round(min(0.78, confidence + diff_candidate.correlation_score * 0.08), 2)
+            terms = ", ".join(diff_candidate.matched_terms[:6]) or "incident-related terms"
+            rationale += (
+                f" Its highest-ranked diff hunk is {diff_candidate.filename} {diff_candidate.header}, "
+                f"scoring {diff_candidate.correlation_score:.0%} against the incident and matching: {terms}."
+            )
+            next_diagnostic = (
+                f"Inspect {diff_candidate.filename} at {diff_candidate.header}, reproduce the failure against the current and "
+                "parent revisions, and confirm whether that exact change alters the failing behavior."
+            )
+
         hypothesis = RootCauseHypothesis(
             id="HYP-REPO-001",
             title=f"Recent code change may be related: {repository_candidate.message}",
             confidence=confidence,
-            evidence_ids=[f"GH-COMMIT-{repository_candidate.short_sha}"],
-            rationale=(
-                f"No sufficiently strong historical runbook match was found, but live GitHub evidence shows commit "
-                f"{repository_candidate.short_sha} with a {repository_candidate.correlation_score:.0%} correlation "
-                f"signal to the incident across {changed_files}. The system treats this as a candidate, not a confirmed cause."
-            ),
-            next_diagnostic=(
-                f"Review the diff for commit {repository_candidate.short_sha}, reproduce the incident on the parent revision, "
-                "and compare behavior before making a code change."
-            ),
+            evidence_ids=evidence_ids,
+            rationale=rationale,
+            next_diagnostic=next_diagnostic,
         )
         remediation_summary = (
             f"Investigate commit {repository_candidate.short_sha} and isolate the smallest reversible change that restores "
@@ -145,6 +184,7 @@ def analyze_incident(
         )
         remediation_steps = [
             f"Inspect commit {repository_candidate.short_sha} and the correlated changed files.",
+            "Inspect the highest-ranked diff hunk before touching unrelated files.",
             "Reproduce the failure on the current revision and compare with the previous revision.",
             "Prepare the smallest bounded correction only after the hypothesis is confirmed.",
             "Create a tracked GitHub incident issue after explicit human approval.",
