@@ -13,6 +13,8 @@ from app.schemas.incident import (
     IncidentRecord,
     IncidentStatus,
     IncidentSummary,
+    PatchProposal,
+    PatchProposalRequest,
     ProposedAction,
     RepositoryContext,
     ResolutionMemory,
@@ -27,13 +29,14 @@ from app.services.analysis import analyze_incident
 from app.services.demo import get_demo_scenario, list_demo_scenarios
 from app.services.execution import execute_bounded_action
 from app.services.github_context import GitHubContextUnavailable, collect_repository_context
+from app.services.patch_proposal import PatchProposalUnavailable, build_patch_proposal
 from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
 from app.services.triage import triage_incident
 
 app = FastAPI(
     title="Kurukshetra Incident Command API",
-    version="0.9.0",
+    version="0.10.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
@@ -153,6 +156,42 @@ def repository_context(incident_id: str) -> RepositoryContext:
         return _repository_context_for(incident, record_event=True)
     except GitHubContextUnavailable as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/incidents/{incident_id}/patch-proposal", response_model=PatchProposal)
+def prepare_patch_proposal(incident_id: str, payload: PatchProposalRequest) -> PatchProposal:
+    incident = incident_store.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if not incident.incident.repo:
+        raise HTTPException(status_code=409, detail="Attach a GitHub repository before preparing a patch proposal.")
+
+    try:
+        context = _repository_context_for(incident, record_event=False)
+    except GitHubContextUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    try:
+        proposal = build_patch_proposal(incident, context, payload)
+    except PatchProposalUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    incident_store.append_event(
+        incident_id,
+        "PATCH_PROPOSAL",
+        f"Prepared bounded patch proposal {proposal.proposal_id} without modifying the repository.",
+        {
+            "proposal_id": proposal.proposal_id,
+            "repository": proposal.repository,
+            "base_commit": proposal.base_commit,
+            "file_path": proposal.file_path,
+            "line_start": proposal.line_start,
+            "strategy": proposal.strategy,
+            "confidence": proposal.confidence,
+            "writes_repository": proposal.writes_repository,
+        },
+    )
+    return proposal
 
 
 @app.post("/api/v1/incidents/{incident_id}/investigate", response_model=EvidenceBundle)
