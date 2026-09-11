@@ -76,6 +76,21 @@ class IncidentSummary(BaseModel):
     updated_at: datetime
 
 
+class KnowledgeMatch(BaseModel):
+    id: str
+    component: str
+    issue: str
+    fix: str
+    source: str
+    score: float = Field(ge=0.0, le=1.0)
+
+
+class EvidenceBundle(BaseModel):
+    incident_id: str
+    matches: List[KnowledgeMatch] = Field(default_factory=list)
+    no_strong_match: bool = False
+
+
 class ProposedAction(BaseModel):
     action_type: str
     target: str
