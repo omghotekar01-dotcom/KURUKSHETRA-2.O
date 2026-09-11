@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CheckCircle2, ExternalLink, FileCode2, GitPullRequest, Loader2, ShieldCheck, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ExternalLink, FileCode2, GitPullRequest, Loader2, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -80,6 +80,25 @@ type ExecutionResult = {
   incident_status: string
 }
 
+type CIVerification = {
+  incident_id: string
+  repository: string
+  commit_sha: string
+  draft_pr_number: number
+  draft_pr_url?: string | null
+  pr_state: string
+  pr_draft: boolean
+  status: string
+  message: string
+  checks: Array<{
+    name: string
+    status: string
+    conclusion?: string | null
+    details_url?: string | null
+  }>
+  incident_status: string
+}
+
 type Candidate = DiffHunk & { commit: CommitEvidence }
 
 async function readError(response: Response) {
@@ -98,6 +117,7 @@ export default function PatchRemediationPage() {
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [proposal, setProposal] = useState<PatchProposal | null>(null)
   const [result, setResult] = useState<ExecutionResult | null>(null)
+  const [ciVerification, setCiVerification] = useState<CIVerification | null>(null)
   const [reviewer, setReviewer] = useState('human-reviewer')
   const [note, setNote] = useState('Reviewed exact before/after replacement and validation gate.')
   const [loading, setLoading] = useState('')
@@ -125,14 +145,19 @@ export default function PatchRemediationPage() {
       .sort((a, b) => b.correlation_score - a.correlation_score)
   }, [context])
 
-  async function inspect() {
-    if (!incidentId) return
-    setLoading('inspect')
-    setError('')
+  function resetDownstream() {
     setContext(null)
     setCandidate(null)
     setProposal(null)
     setResult(null)
+    setCiVerification(null)
+  }
+
+  async function inspect() {
+    if (!incidentId) return
+    setLoading('inspect')
+    setError('')
+    resetDownstream()
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/repository-context`)
       if (!response.ok) throw new Error(await readError(response))
@@ -157,6 +182,7 @@ export default function PatchRemediationPage() {
     setError('')
     setProposal(null)
     setResult(null)
+    setCiVerification(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/patch-proposal`, {
         method: 'POST',
@@ -181,6 +207,7 @@ export default function PatchRemediationPage() {
     setLoading(decision === 'APPROVE' ? 'approve' : 'reject')
     setError('')
     setResult(null)
+    setCiVerification(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/patch-decision`, {
         method: 'POST',
@@ -191,6 +218,21 @@ export default function PatchRemediationPage() {
       setResult(await response.json())
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Patch decision failed.')
+    } finally {
+      setLoading('')
+    }
+  }
+
+  async function verifyCI() {
+    if (!incidentId) return
+    setLoading('ci')
+    setError('')
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}/patch-verification`)
+      if (!response.ok) throw new Error(await readError(response))
+      setCiVerification(await response.json())
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'GitHub CI verification failed.')
     } finally {
       setLoading('')
     }
@@ -212,7 +254,7 @@ export default function PatchRemediationPage() {
       <section className="remediation-card remediation-controls">
         <label>
           <span>Incident</span>
-          <select value={incidentId} onChange={(event) => { setIncidentId(event.target.value); setContext(null); setCandidate(null); setProposal(null); setResult(null) }}>
+          <select value={incidentId} onChange={(event) => { setIncidentId(event.target.value); resetDownstream() }}>
             <option value="">Select incident</option>
             {incidents.map((incident) => <option value={incident.id} key={incident.id}>{incident.id} · {incident.component} · {incident.title}</option>)}
           </select>
@@ -317,6 +359,48 @@ export default function PatchRemediationPage() {
               </article>
             ))}
           </div>}
+
+          {result.status === 'DRAFT_PR_CREATED' && (
+            <div className="ci-verification-panel">
+              <div>
+                <b>GitHub CI verification</b>
+                <span>The isolated remediation commit is now tracked against real GitHub Actions/check results. Passing CI does not merge the PR.</span>
+              </div>
+              <button onClick={() => void verifyCI()} disabled={loading === 'ci'}>
+                {loading === 'ci' ? <><Loader2 className="spin" size={14} /> Reading GitHub CI…</> : <><RefreshCw size={14} /> Check live CI status</>}
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {ciVerification && (
+        <section className={`remediation-card ci-verification-result ci-${ciVerification.status.toLowerCase()}`}>
+          <div className="remediation-heading">
+            <div>{ciVerification.status === 'PASS' ? <CheckCircle2 size={20} /> : ciVerification.status === 'FAIL' ? <XCircle size={20} /> : <RefreshCw size={20} />}<span><b>CI {ciVerification.status}</b><small>{ciVerification.message}</small></span></div>
+            <strong>{ciVerification.pr_draft ? 'DRAFT PR' : ciVerification.pr_state}</strong>
+          </div>
+          <div className="proposal-facts">
+            <span><small>Commit</small><b>{ciVerification.commit_sha.slice(0, 12)}</b></span>
+            <span><small>Pull request</small><b>#{ciVerification.draft_pr_number}</b></span>
+            <span><small>PR state</small><b>{ciVerification.pr_state}</b></span>
+            <span><small>Checks observed</small><b>{ciVerification.checks.length}</b></span>
+          </div>
+          {ciVerification.checks.length > 0 ? (
+            <div className="validation-results">
+              <h3>Live GitHub checks</h3>
+              {ciVerification.checks.map((check, index) => {
+                const passed = ['success', 'neutral', 'skipped'].includes((check.conclusion ?? '').toLowerCase())
+                const failed = ['failure', 'cancelled', 'timed_out', 'action_required'].includes((check.conclusion ?? '').toLowerCase())
+                return (
+                  <article key={`${check.name}-${index}`} className={passed ? 'check-pass' : failed ? 'check-fail' : ''}>
+                    <div>{passed ? <CheckCircle2 size={16} /> : failed ? <XCircle size={16} /> : <RefreshCw size={16} />}<b>{check.name}</b><span>{check.conclusion ?? check.status}</span></div>
+                    {check.details_url && <a href={check.details_url} target="_blank" rel="noreferrer">Open check details <ExternalLink size={12} /></a>}
+                  </article>
+                )
+              })}
+            </div>
+          ) : <div className="long-running-note">No GitHub checks are visible yet. Wait for Actions to start, then refresh this status.</div>}
         </section>
       )}
     </main>
