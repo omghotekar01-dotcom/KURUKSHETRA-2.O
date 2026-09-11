@@ -24,11 +24,11 @@ def apply_reviewed_proposal(target_id: str, reviewed: WorkspaceFixProposal) -> W
 
     before_scan = scan_target(target_id)
     if before_scan.verification.passed:
-        raise ValueError("Reviewed proposal is stale; workspace is already healthy")
+        raise ValueError("Workspace changed after diagnosis; reviewed proposal is stale because the workspace is already healthy")
     if before_scan.diagnosis.status != "BUG_CONFIRMED":
-        raise ValueError("Reviewed proposal is stale; the current bug is no longer safely confirmed")
+        raise ValueError("Workspace changed after diagnosis; reviewed proposal is stale because the current bug is no longer safely confirmed")
     if before_scan.diagnosis.file_path != reviewed.file_path:
-        raise ValueError("Reviewed proposal is stale; the diagnosed file changed")
+        raise ValueError("Workspace changed after diagnosis; reviewed proposal is stale because the diagnosed file changed")
 
     audit = [
         "Workspace path containment verified.",
