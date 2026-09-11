@@ -7,6 +7,7 @@ from app.schemas.incident import (
     ApprovalDecision,
     ApprovalRequest,
     ApprovalResult,
+    DemoScenario,
     EvidenceBundle,
     IncidentIn,
     IncidentRecord,
@@ -22,6 +23,7 @@ from app.schemas.incident import (
     VerificationResult,
 )
 from app.services.analysis import analyze_incident
+from app.services.demo import get_demo_scenario, list_demo_scenarios
 from app.services.execution import execute_bounded_action
 from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
@@ -29,7 +31,7 @@ from app.services.triage import triage_incident
 
 app = FastAPI(
     title="Kurukshetra Incident Command API",
-    version="0.6.0",
+    version="0.7.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
@@ -47,6 +49,32 @@ incident_store = IncidentStore.from_env()
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": app.version}
+
+
+@app.get("/api/v1/demo/scenarios", response_model=list[DemoScenario])
+def demo_scenarios() -> list[DemoScenario]:
+    return list_demo_scenarios()
+
+
+@app.post("/api/v1/demo/scenarios/{scenario_id}/incidents", response_model=IncidentRecord, status_code=201)
+def create_demo_incident(scenario_id: str) -> IncidentRecord:
+    scenario = get_demo_scenario(scenario_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="Demo scenario not found")
+    triage_result = triage_incident(scenario.incident)
+    incident = incident_store.create(scenario.incident, triage_result)
+    incident_store.append_event(
+        incident.id,
+        "DEMO",
+        f"Created from deterministic fixture {scenario.id}.",
+        {
+            "scenario_id": scenario.id,
+            "scenario_name": scenario.name,
+            "expected_component": scenario.expected_component,
+        },
+    )
+    refreshed = incident_store.get(incident.id)
+    return refreshed or incident
 
 
 @app.post("/api/v1/incidents/triage", response_model=TriageResult)
