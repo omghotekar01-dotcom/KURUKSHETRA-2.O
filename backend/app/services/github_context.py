@@ -5,6 +5,7 @@ import binascii
 import os
 import re
 from datetime import datetime, timezone
+from fnmatch import fnmatchcase
 from pathlib import PurePosixPath
 from typing import Any
 from urllib.parse import quote
@@ -65,6 +66,8 @@ STOPWORDS = {
     "users",
     "with",
 }
+
+CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 
 # Real incidents commonly include stack traces or compiler locations. Treat those
 # path hints as stronger evidence than generic word overlap, while still keeping
@@ -152,6 +155,84 @@ def _token_score(incident_tokens: set[str], candidate_tokens: set[str], *, multi
     denominator = max(3, min(10, len(incident_tokens)))
     score = round(min(1.0, (len(overlap) / denominator) * multiplier), 3)
     return score, overlap[:10]
+
+
+def _parse_codeowners(text: str) -> list[tuple[str, list[str]]]:
+    rules: list[tuple[str, list[str]]] = []
+    for raw_line in text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        # CODEOWNERS does not support negation. Skip rather than misroute.
+        if stripped.startswith("!"):
+            continue
+        # Handle normal inline comments while keeping the parser intentionally
+        # conservative; escaped-space edge cases fall back to configured routing.
+        stripped = re.split(r"\s+#", stripped, maxsplit=1)[0].strip()
+        parts = stripped.split()
+        if len(parts) < 2:
+            continue
+        pattern = parts[0].strip()
+        owners = [redact_secrets(owner.strip()) for owner in parts[1:] if owner.strip()]
+        if pattern and owners:
+            rules.append((pattern, owners))
+    return rules
+
+
+def _codeowner_pattern_matches(pattern: str, filename: str) -> bool:
+    path = filename.replace("\\", "/").lstrip("/")
+    normalized = pattern.replace("\\", "/").strip()
+    if not normalized or normalized.startswith("!"):
+        return False
+    normalized = normalized.lstrip("/")
+    if normalized.endswith("/"):
+        return path.startswith(normalized)
+    if "/" not in normalized:
+        return fnmatchcase(PurePosixPath(path).name, normalized)
+    return fnmatchcase(path, normalized)
+
+
+def _owners_for_files(rules: list[tuple[str, list[str]]], filenames: list[str]) -> list[str]:
+    owners: list[str] = []
+    for filename in filenames:
+        matched: list[str] | None = None
+        # GitHub CODEOWNERS uses the last matching pattern for a file.
+        for pattern, rule_owners in rules:
+            if _codeowner_pattern_matches(pattern, filename):
+                matched = rule_owners
+        if matched:
+            for owner in matched:
+                if owner not in owners:
+                    owners.append(owner)
+    return owners[:12]
+
+
+def _fetch_codeowners(
+    client: httpx.Client,
+    repository: str,
+    ref: str,
+) -> tuple[str, list[tuple[str, list[str]]]] | None:
+    for candidate in CODEOWNERS_PATHS:
+        encoded = quote(candidate, safe="/")
+        try:
+            response = client.get(f"/repos/{repository}/contents/{encoded}", params={"ref": ref})
+        except httpx.HTTPError:
+            continue
+        if response.status_code == 404:
+            continue
+        if response.status_code != 200:
+            continue
+        try:
+            payload = response.json()
+            if payload.get("type") != "file" or payload.get("encoding") != "base64":
+                continue
+            text = base64.b64decode(payload.get("content", ""), validate=False).decode("utf-8")
+        except (ValueError, UnicodeDecodeError, binascii.Error):
+            continue
+        rules = _parse_codeowners(text)
+        if rules:
+            return candidate, rules
+    return None
 
 
 def _parse_patch_hunks(record: IncidentRecord, filename: str, patch: str) -> list[RepositoryDiffHunkEvidence]:
@@ -312,6 +393,8 @@ def collect_repository_context(
     token = github_token()
     untrusted_instruction_signal_seen = False
     path_hints = _incident_path_hints(record)
+    suggested_owners: list[str] = []
+    ownership_source: str | None = None
 
     with httpx.Client(
         base_url=GITHUB_API,
@@ -320,6 +403,7 @@ def collect_repository_context(
         follow_redirects=True,
     ) as client:
         repository_payload = _request_json(client, f"/repos/{repository}")
+        default_branch = repository_payload.get("default_branch", "main")
         commits_payload = _request_json(
             client,
             f"/repos/{repository}/commits",
@@ -399,6 +483,13 @@ def collect_repository_context(
                 if detect_untrusted_instruction_signals(source_text):
                     untrusted_instruction_signal_seen = True
 
+            ownership = _fetch_codeowners(client, repository, default_branch)
+            if ownership is not None:
+                ownership_source, rules = ownership
+                ranked_filenames = [hunk.filename for hunk in top_commit.suspicious_hunks]
+                ranked_filenames.extend(file.filename for file in top_commit.files if file.filename not in ranked_filenames)
+                suggested_owners = _owners_for_files(rules, ranked_filenames)
+
     open_issues: list[RepositoryIssueEvidence] = []
     for item in issues_payload:
         if "pull_request" in item:
@@ -430,6 +521,15 @@ def collect_repository_context(
         notes.append(
             "Stack-trace/code-path hints were detected in the incident and used as an explainable ranking boost for matching changed files."
         )
+    if ownership_source:
+        if suggested_owners:
+            notes.append(
+                f"Repository ownership hints were resolved from {ownership_source} for the highest-ranked changed files; they are routing/review suggestions, not authorization."
+            )
+        else:
+            notes.append(
+                f"{ownership_source} was found, but no owner rule matched the highest-ranked changed files. Configured triage ownership remains the fallback."
+            )
     if untrusted_instruction_signal_seen:
         notes.append("Prompt-like instruction text was detected in repository evidence and treated only as untrusted data.")
     if not commits:
@@ -437,11 +537,13 @@ def collect_repository_context(
 
     return RepositoryContext(
         repository=repository,
-        default_branch=repository_payload.get("default_branch", "main"),
+        default_branch=default_branch,
         fetched_at=datetime.now(timezone.utc),
         authenticated=bool(token),
         source="github-live",
         commits=commits,
         open_issues=open_issues,
+        suggested_owners=suggested_owners,
+        ownership_source=ownership_source,
         notes=notes,
     )
