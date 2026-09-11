@@ -1,6 +1,6 @@
 # Patch Remediation Milestone
 
-Date: 2026-09-11
+Date: 2026-09-12
 Branch: `agent-build-core`
 
 ## Status
@@ -83,7 +83,7 @@ Secrets are not exposed through normal evidence or readiness surfaces, and `.env
 
 ## Automatic CI/check-derived verification
 
-The remediation loop now reads real GitHub Actions/check/status state for the remediation commit/PR and converts it into canonical verification evidence.
+The remediation loop reads real GitHub Actions/check/status state for the remediation commit/PR and converts it into canonical verification evidence.
 
 Current policy is intentionally conservative:
 
@@ -119,27 +119,23 @@ It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, 
 
 ## Current verification record
 
-The broader release candidate now includes substantially more regression coverage than the original remediation milestone. The latest fully confirmed executable release-contract head recorded in `docs/IMPLEMENTATION_PROGRESS.md` is:
+The release-candidate documentation and safety-restored executable path are covered by the latest confirmed green push workflow before this documentation refresh:
 
 ```text
-a9221524011c2609e718bc1e3c6505445d5a90d6
+e743e1c22b71525f87ce5fac555ddbe0c40fceb6
 ```
 
-GitHub Actions run #632 / run ID `34619390410` completed successfully with:
+GitHub Actions **Build and test run #791** / run ID `34644314306` completed successfully with all three workflow jobs green:
 
 ```text
-Backend compile:                       PASS
-Backend tests:                         102 passed, 2 dependency warnings, 0 failures
-Frontend locked install/build:         PASS
-Windows launcher syntax:               PASS
-Windows strict preflight:              PASS
-Windows clean-checkout bootstrap:      PASS
-Windows clean-clone acceptance:        PASS
-Release-candidate contract:            PASS
-Overall workflow:                      PASS
+backend:             SUCCESS
+frontend:            SUCCESS
+windows-clean-clone: SUCCESS
 ```
 
-The two backend warnings are dependency deprecations from FastAPI/Starlette test infrastructure, not test failures.
+The prior executable code head `8c7ab3357af3365bff896397955e779db2847e25` was also fully green in run #789 with 109 backend tests passing, frontend locked install/build passing, Windows launcher/PID/preflight/bootstrap checks passing, clean-clone acceptance passing and the release contract passing.
+
+Do not substitute older run #632 / head `a9221524011c2609e718bc1e3c6505445d5a90d6` as the current release evidence; that record is historical only.
 
 ## Release discipline
 
