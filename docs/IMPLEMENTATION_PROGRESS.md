@@ -13,6 +13,8 @@ The project is now in release-candidate freeze. From this point, prefer rehearsa
 
 This completion statement is scoped to the agreed hackathon MVP; it is not a claim of universal bug-free or enterprise-production completeness.
 
+Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FREEZE.md).
+
 ## Completed live MVP
 
 ### Foundation + incident lifecycle
