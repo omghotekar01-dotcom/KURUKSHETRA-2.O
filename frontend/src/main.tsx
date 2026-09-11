@@ -34,6 +34,7 @@ import './workspace-depth.css'
 import './apple-polish.css'
 import './dark-polish.css'
 import './busy-polish.css'
+import './purple-product-system.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const screen = path === '/' || path === '/workspace'
