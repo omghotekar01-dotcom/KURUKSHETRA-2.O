@@ -6,6 +6,22 @@ import app.main as main_module
 from app.repositories.incidents import IncidentStore
 
 
+def test_dynamic_local_cors_allows_loopback_frontend_port() -> None:
+    client = TestClient(main_module.app)
+    origin = "http://127.0.0.1:5181"
+
+    response = client.options(
+        "/health",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+
+
 def test_create_list_and_get_incident(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(main_module, "incident_store", IncidentStore(tmp_path / "api.db"))
     client = TestClient(main_module.app)
