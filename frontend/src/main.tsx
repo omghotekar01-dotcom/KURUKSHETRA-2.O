@@ -9,6 +9,7 @@ import './theme.css'
 import './repository-theme.css'
 import './evidence-page.css'
 import './source-context.css'
+import './patch-proposal.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const evidenceMode = path === '/evidence'
