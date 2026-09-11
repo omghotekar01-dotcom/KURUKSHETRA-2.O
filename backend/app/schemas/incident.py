@@ -118,12 +118,19 @@ class RepositoryFileChange(BaseModel):
     changes: int = 0
 
 
+class RepositorySourceLine(BaseModel):
+    line_number: int = Field(ge=1)
+    content: str
+    in_hunk: bool = False
+
+
 class RepositoryDiffHunkEvidence(BaseModel):
     filename: str
     header: str
     added_lines: List[str] = Field(default_factory=list)
     removed_lines: List[str] = Field(default_factory=list)
     matched_terms: List[str] = Field(default_factory=list)
+    source_context: List[RepositorySourceLine] = Field(default_factory=list)
     correlation_score: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
