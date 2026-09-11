@@ -1,0 +1,57 @@
+.workspace-stage {
+  perspective: 1100px;
+  isolation: isolate;
+}
+
+.workspace-stage::before,
+.workspace-stage::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid rgba(255,255,255,.78);
+  background: linear-gradient(135deg, rgba(255,255,255,.48), rgba(237,240,247,.25));
+  box-shadow: 0 28px 70px rgba(45,49,60,.07);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  transition: transform .22s ease-out;
+}
+
+.workspace-stage::before {
+  width: min(62%, 680px);
+  height: 72%;
+  left: 6%;
+  top: 12%;
+  border-radius: 30px;
+  transform: translate3d(calc(var(--parallax-x) * -.18), calc(var(--parallax-y) * -.16), -80px) rotateZ(-2.2deg);
+}
+
+.workspace-stage::after {
+  width: min(50%, 540px);
+  height: 66%;
+  right: 8%;
+  top: 19%;
+  border-radius: 28px;
+  transform: translate3d(calc(var(--parallax-x) * .14), calc(var(--parallax-y) * .12), -120px) rotateZ(2.5deg);
+}
+
+.workspace-composer,
+.workspace-context {
+  position: relative;
+  z-index: 1;
+  transform-style: preserve-3d;
+}
+
+@media (max-width: 900px) {
+  .workspace-stage::before,
+  .workspace-stage::after { opacity: .48; }
+}
+
+@media (prefers-reduced-motion: reduce), (prefers-reduced-transparency: reduce) {
+  .workspace-stage::before,
+  .workspace-stage::after {
+    transform: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
