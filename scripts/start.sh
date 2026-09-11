@@ -65,6 +65,15 @@ done
 curl -fsS "http://127.0.0.1:$BACKEND_PORT/health" >/dev/null
 
 API_BASE="http://127.0.0.1:$BACKEND_PORT"
+MODEL_RUNTIME="$(curl -fsS "$API_BASE/api/v1/autofix/model-runtime" 2>/dev/null || true)"
+if [[ "$MODEL_RUNTIME" == *'"mode":"LOCAL_OLLAMA"'* && "$MODEL_RUNTIME" == *'"ready":true'* ]]; then
+  echo "AI runtime: LIVE LOCAL OLLAMA/QWEN"
+elif [[ "$MODEL_RUNTIME" == *'"mode":"GEMINI_FREE"'* && "$MODEL_RUNTIME" == *'"ready":true'* ]]; then
+  echo "AI runtime: LIVE GEMINI FREE-TIER"
+else
+  echo "AI runtime: DETERMINISTIC FALLBACK (run setup-local-ai.bat on Windows or start Ollama + pull qwen3:4b)"
+fi
+
 (
   cd "$ROOT/frontend"
   VITE_API_BASE_URL="$API_BASE" nohup npm run dev -- --host localhost --port 5173 --strictPort > "$RUN_DIR/frontend.log" 2>&1 &
@@ -86,6 +95,9 @@ cat <<EOF
 
 READY
 Dashboard:       http://localhost:5173
+Real AutoFix:    http://localhost:5173/prototype
+Judge Intake:    http://localhost:5173/intake
+AI Reasoning:    http://localhost:5173/ai
 Judge Mode:      http://localhost:5173/demo
 API health:      $API_BASE/health
 API docs:        $API_BASE/docs
