@@ -2,7 +2,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.services.safety import sanitize_incident_text
 
 
 class Severity(str, Enum):
@@ -48,6 +50,18 @@ class IncidentIn(BaseModel):
     environment: str = Field(default="production", max_length=80)
     repo: Optional[str] = None
     logs: List[str] = Field(default_factory=list)
+
+    @field_validator("title", "description", "environment", mode="before")
+    @classmethod
+    def redact_text_fields(cls, value: object) -> object:
+        return sanitize_incident_text(value) if isinstance(value, str) else value
+
+    @field_validator("logs", mode="before")
+    @classmethod
+    def redact_log_lines(cls, value: object) -> object:
+        if isinstance(value, list):
+            return [sanitize_incident_text(item) if isinstance(item, str) else item for item in value]
+        return value
 
 
 class DemoScenario(BaseModel):
