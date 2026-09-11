@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.repositories.incidents import IncidentStore
+from app.routers.patches import router as patch_router
 from app.schemas.incident import (
     AnalysisBundle,
     ApprovalDecision,
@@ -36,7 +37,7 @@ from app.services.triage import triage_incident
 
 app = FastAPI(
     title="Kurukshetra Incident Command API",
-    version="0.10.0",
+    version="0.11.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
@@ -47,6 +48,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(patch_router)
 
 incident_store = IncidentStore.from_env()
 
