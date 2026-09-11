@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -55,6 +55,15 @@ def _api(
         raise PatchExecutionError("GitHub returned a non-JSON response.") from exc
 
 
+def _optional_get(client: httpx.Client, path: str, *, params: dict[str, Any] | None = None) -> Any | None:
+    try:
+        return _api(client, "GET", path, params=params)
+    except PatchExecutionError as exc:
+        if "GitHub returned 404" in str(exc):
+            return None
+        raise
+
+
 def _decode_content(payload: dict[str, Any]) -> str:
     if payload.get("type") != "file" or payload.get("encoding") != "base64":
         raise PatchExecutionError("Target path is not a normal UTF-8 GitHub file.")
@@ -88,6 +97,22 @@ def _branch_name(incident_id: str, proposal_id: str) -> str:
     incident = re.sub(r"[^a-z0-9-]+", "-", incident_id.lower()).strip("-")[-32:]
     proposal = re.sub(r"[^a-z0-9-]+", "-", proposal_id.lower()).strip("-")[-18:]
     return f"incident-fix/{incident}-{proposal}"
+
+
+def patch_idempotency_key(incident_id: str, proposal: PatchProposal) -> str:
+    fingerprint = "\n".join(
+        [
+            incident_id,
+            proposal.proposal_id,
+            proposal.repository,
+            proposal.base_commit,
+            proposal.file_path,
+            proposal.hunk_header,
+            "\n".join(proposal.before_lines),
+            "\n".join(proposal.after_lines),
+        ]
+    )
+    return f"REM-{hashlib.sha256(fingerprint.encode('utf-8')).hexdigest()[:20].upper()}"
 
 
 def _validation_plan(file_path: str) -> list[tuple[str, str, list[str], int]] | None:
@@ -227,8 +252,17 @@ This PR is **draft-only**. It was not merged or deployed automatically. Commit/h
 """
 
 
+def _find_existing_pr(prs: list[dict[str, Any]], branch: str) -> dict[str, Any] | None:
+    for pr in prs:
+        head = pr.get("head") or {}
+        if head.get("ref") == branch:
+            return pr
+    return None
+
+
 def execute_approved_patch(incident: IncidentRecord, proposal: PatchProposal) -> PatchExecutionResult:
     repository = normalize_repo(proposal.repository)
+    idempotency_key = patch_idempotency_key(incident.id, proposal)
     if not repository or not repository_allowed(repository):
         return PatchExecutionResult(
             incident_id=incident.id,
@@ -238,6 +272,7 @@ def execute_approved_patch(incident: IncidentRecord, proposal: PatchProposal) ->
             message="Repository is not in the configured GitHub write allowlist.",
             repository=repository or proposal.repository,
             incident_status=IncidentStatus.escalated,
+            idempotency_key=idempotency_key,
         )
 
     token = github_token()
@@ -250,9 +285,14 @@ def execute_approved_patch(incident: IncidentRecord, proposal: PatchProposal) ->
             message="Live GitHub credentials are required before an approved patch can create a branch or draft PR.",
             repository=repository,
             incident_status=IncidentStatus.escalated,
+            idempotency_key=idempotency_key,
         )
 
     encoded_path = quote(proposal.file_path, safe="/")
+    branch = _branch_name(incident.id, proposal.proposal_id)
+    branch_reused = False
+    pr_reused = False
+
     try:
         with httpx.Client(base_url=GITHUB_API, headers=github_headers(token=token), timeout=20.0, follow_redirects=True) as client:
             repo_payload = _api(client, "GET", f"/repos/{repository}")
@@ -264,39 +304,67 @@ def execute_approved_patch(incident: IncidentRecord, proposal: PatchProposal) ->
             current_source = _decode_content(file_payload)
             updated_source = _replace_exact_sequence(current_source, proposal.before_lines, proposal.after_lines)
 
-            branch = _branch_name(incident.id, proposal.proposal_id)
-            try:
-                _api(
-                    client,
-                    "POST",
-                    f"/repos/{repository}/git/refs",
-                    json={"ref": f"refs/heads/{branch}", "sha": base_head},
-                )
-            except PatchExecutionError as exc:
-                if "422" not in str(exc):
-                    raise
-                branch = f"{branch}-{int(time.time()) % 100000}"
-                _api(
-                    client,
-                    "POST",
-                    f"/repos/{repository}/git/refs",
-                    json={"ref": f"refs/heads/{branch}", "sha": base_head},
-                )
-
-            write_payload = _api(
+            branch_ref = _optional_get(
                 client,
-                "PUT",
-                f"/repos/{repository}/contents/{encoded_path}",
-                json={
-                    "message": f"fix: apply approved remediation for {incident.id}",
-                    "content": base64.b64encode(updated_source.encode("utf-8")).decode("ascii"),
-                    "sha": file_payload["sha"],
-                    "branch": branch,
-                },
+                f"/repos/{repository}/git/ref/heads/{quote(branch, safe='')}",
             )
-            commit_sha = (write_payload.get("commit") or {}).get("sha")
+            commit_sha: str | None = None
 
-            written_payload = _api(client, "GET", f"/repos/{repository}/contents/{encoded_path}", params={"ref": branch})
+            if branch_ref is None:
+                try:
+                    _api(
+                        client,
+                        "POST",
+                        f"/repos/{repository}/git/refs",
+                        json={"ref": f"refs/heads/{branch}", "sha": base_head},
+                    )
+                except PatchExecutionError as exc:
+                    if "GitHub returned 422" not in str(exc):
+                        raise
+                    branch_ref = _optional_get(
+                        client,
+                        f"/repos/{repository}/git/ref/heads/{quote(branch, safe='')}",
+                    )
+                    if branch_ref is None:
+                        raise
+                    branch_reused = True
+            else:
+                branch_reused = True
+
+            branch_file = _api(
+                client,
+                "GET",
+                f"/repos/{repository}/contents/{encoded_path}",
+                params={"ref": branch},
+            )
+            branch_source = _decode_content(branch_file)
+
+            if branch_source == updated_source:
+                commit_sha = (branch_ref or {}).get("object", {}).get("sha")
+            elif branch_source == current_source and (branch_ref or {}).get("object", {}).get("sha") == base_head:
+                write_payload = _api(
+                    client,
+                    "PUT",
+                    f"/repos/{repository}/contents/{encoded_path}",
+                    json={
+                        "message": f"fix: apply approved remediation for {incident.id}",
+                        "content": base64.b64encode(updated_source.encode("utf-8")).decode("ascii"),
+                        "sha": branch_file["sha"],
+                        "branch": branch,
+                    },
+                )
+                commit_sha = (write_payload.get("commit") or {}).get("sha")
+            else:
+                raise PatchExecutionError(
+                    "Deterministic remediation branch already exists with different content; refusing a duplicate or ambiguous write."
+                )
+
+            written_payload = _api(
+                client,
+                "GET",
+                f"/repos/{repository}/contents/{encoded_path}",
+                params={"ref": branch},
+            )
             written_source = _decode_content(written_payload)
             if written_source != updated_source:
                 raise PatchExecutionError("GitHub branch content did not match the exact approved replacement after write.")
@@ -316,35 +384,59 @@ def execute_approved_patch(incident: IncidentRecord, proposal: PatchProposal) ->
                 proposal_id=proposal.proposal_id,
                 decision=ApprovalDecision.approve,
                 status="VALIDATION_FAILED",
-                message="Patch was isolated on a fix branch, but validation failed. No pull request was created.",
+                message="Patch is isolated on the deterministic fix branch, but validation failed. No pull request was created.",
                 repository=repository,
                 branch=branch,
                 branch_url=f"https://github.com/{repository}/tree/{branch}",
                 commit_sha=commit_sha,
                 validation=validation,
                 incident_status=IncidentStatus.escalated,
+                reused=branch_reused,
+                idempotency_key=idempotency_key,
             )
 
+        owner = repository.split("/", 1)[0]
         with httpx.Client(base_url=GITHUB_API, headers=github_headers(token=token), timeout=20.0, follow_redirects=True) as client:
-            pr = _api(
+            prs = _api(
                 client,
-                "POST",
+                "GET",
                 f"/repos/{repository}/pulls",
-                json={
-                    "title": f"[Draft][{incident.id}] {incident.incident.title[:80]}",
-                    "head": branch,
-                    "base": default_branch,
-                    "body": _draft_pr_body(incident, proposal, branch, validation),
-                    "draft": True,
-                },
+                params={"state": "all", "head": f"{owner}:{branch}", "base": default_branch, "per_page": 20},
             )
+            existing_pr = _find_existing_pr(prs or [], branch)
+            if existing_pr is not None:
+                if existing_pr.get("state") != "open":
+                    raise PatchExecutionError(
+                        "A remediation pull request for this exact proposal already exists but is closed. Review it before retrying."
+                    )
+                pr = existing_pr
+                pr_reused = True
+            else:
+                pr = _api(
+                    client,
+                    "POST",
+                    f"/repos/{repository}/pulls",
+                    json={
+                        "title": f"[Draft][{incident.id}] {incident.incident.title[:80]}",
+                        "head": branch,
+                        "base": default_branch,
+                        "body": _draft_pr_body(incident, proposal, branch, validation),
+                        "draft": True,
+                    },
+                )
 
+        reused = branch_reused or pr_reused
+        message = (
+            "Existing remediation branch/PR was safely reused for this exact approved proposal; no duplicate GitHub resource was created."
+            if reused
+            else "Approved patch passed the configured validation gate and a draft pull request was created for human review."
+        )
         return PatchExecutionResult(
             incident_id=incident.id,
             proposal_id=proposal.proposal_id,
             decision=ApprovalDecision.approve,
             status="DRAFT_PR_CREATED",
-            message="Approved patch passed the configured validation gate and a draft pull request was created for human review.",
+            message=message,
             repository=repository,
             branch=branch,
             branch_url=f"https://github.com/{repository}/tree/{branch}",
@@ -353,6 +445,8 @@ def execute_approved_patch(incident: IncidentRecord, proposal: PatchProposal) ->
             draft_pr_url=pr.get("html_url"),
             validation=validation,
             incident_status=IncidentStatus.verifying,
+            reused=reused,
+            idempotency_key=idempotency_key,
         )
     except PatchExecutionError as exc:
         return PatchExecutionResult(
@@ -363,4 +457,5 @@ def execute_approved_patch(incident: IncidentRecord, proposal: PatchProposal) ->
             message=str(exc),
             repository=repository,
             incident_status=IncidentStatus.escalated,
+            idempotency_key=idempotency_key,
         )
