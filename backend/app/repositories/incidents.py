@@ -179,6 +179,27 @@ class IncidentStore:
             )
         return summaries
 
+    def append_event(
+        self,
+        incident_id: str,
+        stage: str,
+        message: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> IncidentRecord | None:
+        now = _utc_now()
+        with self._connect() as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM incidents WHERE id = ?", (incident_id,)
+            ).fetchone()
+            if exists is None:
+                return None
+            self._insert_event(connection, incident_id, now, stage, message, metadata or {})
+            connection.execute(
+                "UPDATE incidents SET updated_at = ? WHERE id = ?",
+                (now.isoformat(), incident_id),
+            )
+        return self.get(incident_id)
+
     def _insert_event(
         self,
         connection: sqlite3.Connection,
