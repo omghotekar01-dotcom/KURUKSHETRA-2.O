@@ -237,7 +237,8 @@ def patch_verification(incident_id: str) -> PatchVerificationResult:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     previous = _latest_event_metadata(incident, "PATCH_CI_VERIFICATION")
-    if previous.get("status") != result.status or previous.get("commit_sha") != result.commit_sha:
+    changed = previous.get("status") != result.status or previous.get("commit_sha") != result.commit_sha
+    if changed:
         store.append_event(
             incident_id,
             "PATCH_CI_VERIFICATION",
@@ -251,6 +252,21 @@ def patch_verification(incident_id: str) -> PatchVerificationResult:
                 "pr_state": result.pr_state,
                 "pr_draft": result.pr_draft,
                 "checks": [check.model_dump() for check in result.checks],
+                "derived_incident_outcome": result.derived_incident_outcome.value if result.derived_incident_outcome else None,
+                "verification_evidence": result.verification_evidence,
+                "runtime_verification_required": result.runtime_verification_required,
+            },
+        )
+        store.append_event(
+            incident_id,
+            "VERIFICATION_DERIVED",
+            "Incident verification evidence was derived from the real remediation commit and GitHub CI state.",
+            {
+                "source": "github-ci",
+                "ci_status": result.status,
+                "derived_outcome": result.derived_incident_outcome.value if result.derived_incident_outcome else None,
+                "evidence": result.verification_evidence,
+                "runtime_verification_required": result.runtime_verification_required,
             },
         )
 
