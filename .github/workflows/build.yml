@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - agent-build-core
+      - 'incident-fix/**'
   pull_request:
     branches:
       - develop
+      - main
 
 jobs:
   backend:
