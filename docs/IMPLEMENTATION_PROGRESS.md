@@ -63,13 +63,22 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 - No automatic merge or deployment exists.
 
 ### Live GitHub CI verification
-- Build workflow now also runs on `incident-fix/**` pushes and PRs targeting `main` or `develop`.
-- Added `GET /api/v1/incidents/{incident_id}/patch-verification`.
-- Backend reads the actual Draft PR, remediation commit, GitHub check-runs and combined commit status.
+- Build workflow also runs on `incident-fix/**` pushes and PRs targeting `main` or `develop`.
+- `GET /api/v1/incidents/{incident_id}/patch-verification` reads the actual Draft PR, remediation commit, GitHub check-runs and combined status.
 - CI state is derived as `PASS`, `FAIL`, `PENDING` or `NO_CHECKS`; absence of checks is never treated as success.
 - Failing GitHub checks escalate the incident; passing checks keep the incident in `VERIFYING` because merge/runtime verification still belongs to a human.
 - Remediation Studio exposes a live CI status panel with direct check links.
 - CI state changes are recorded as `PATCH_CI_VERIFICATION` timeline events without duplicating identical poll results.
+
+### Measured Evaluation Lab
+- Added versioned deterministic benchmark `2026.09.11-v1` and `GET /api/v1/evaluation/run`.
+- Benchmark exercises five routing domains: Authentication, Database, Backend, Frontend and Infrastructure.
+- Measures routing accuracy, expected evidence retrieval, RCA evidence grounding, intentional no-match escalation, risk-policy accuracy, unsafe-action blocking and approval-gate correctness.
+- The unknown-service case must remain unmatched and escalate instead of forcing a confident diagnosis.
+- High-risk production/destructive benchmark actions must remain `RECOMMENDATION_ONLY`.
+- Every score is computed from the current backend functions when the benchmark runs; no metric value is hard-coded into the frontend.
+- Dedicated `/evaluation` judge-facing Light-theme scorecard exposes metric numerators/denominators, every PASS/FAIL case, expected vs observed behavior, benchmark version/time, rerun control and truth-boundary notes.
+- The displayed overall score is only the simple mean of the shown deterministic metric ratios; it is explicitly not presented as an industry-wide accuracy claim.
 
 ### Other bounded GitHub action
 - Medium-risk GitHub issue creation requires human approval.
@@ -87,17 +96,17 @@ Build a real, live-first MVP in small, runnable, testable milestones. Emergency 
 
 ## Latest confirmed validation
 
-GitHub Actions run #200 on implementation head `6b0f84538762d1f9b8073a3fb6e8261033b7861a` completed successfully:
+GitHub Actions run #226 on implementation head `df4ee7d6e41e232dc857151ebd7105a5c448976f` completed successfully:
 
 ```text
 Backend compile: PASS
-Backend tests:   41 passed, 2 dependency deprecation warnings, 0 failures
+Backend tests:   45 passed, 2 dependency deprecation warnings, 0 failures
 Frontend install: PASS
 Frontend TypeScript/Vite production build: PASS
 Overall workflow: SUCCESS
 ```
 
-Confirmed coverage includes triage, risk policy, persistence, retrieval, RCA/remediation, live repository evidence, diff/hunk/source-context analysis, exact patch proposal, stale/ambiguous-write rejection, approval-gated branch mutation, validator selection, Draft PR gating, missing-auth fail-closed behavior, verification memory and GitHub CI-state derivation.
+Confirmed coverage now includes the measured Evaluation Lab service and API contract, report structure, high-risk benchmark blocking and intentional no-match escalation in addition to triage, risk policy, persistence, retrieval, RCA/remediation, live repository evidence, diff/hunk/source-context analysis, exact patch proposal, stale/ambiguous-write rejection, approval-gated branch mutation, validator selection, Draft PR gating, missing-auth fail-closed behavior, verification memory and GitHub CI-state derivation.
 
 ## Current live MVP path
 
@@ -120,6 +129,9 @@ Incident + repository
 → Human review / runtime verification
 → Resolved or escalated
 → Verified resolution memory
+
+Parallel proof surface:
+Versioned benchmark → measured routing/retrieval/RCA/safety metrics → judge-facing Evaluation Lab
 ```
 
 ## P0 sequence
@@ -141,32 +153,34 @@ Incident + repository
 15. ~~Approval-gated isolated fix branch + exact patch application + deterministic validation.~~
 16. ~~Draft PR only after validation; never auto-merge.~~
 17. ~~Derive remediation verification from real GitHub CI/check state.~~
-18. Add repeatable Evaluation Lab + judge-facing measured scorecard.
-19. Lock dependencies and add clean-clone / one-command acceptance workflow.
-20. Final responsive Light-theme polish, documentation, demo recovery and security pass.
+18. ~~Repeatable Evaluation Lab + judge-facing measured scorecard.~~
+19. Add remediation idempotency/retry/history hardening and lock dependencies.
+20. Add clean-clone / one-command acceptance workflow.
+21. Final responsive Light-theme polish, documentation, demo recovery and security pass.
 
 ## Next highest-value milestone
 
-Evaluation Lab with measured, reproducible results only:
+Operational hardening before final demo freeze:
 
 ```text
-Versioned benchmark incidents
-→ expected routing/component/severity
-→ retrieval hit / intentional no-match checks
-→ RCA evidence-grounding checks
-→ unsafe-action block checks
-→ remediation validation outcomes
-→ repeatable runner
-→ judge-facing scorecard
+Repeated approve / retry
+→ idempotency key by incident + proposal
+→ do not duplicate branch or Draft PR
+→ reusable execution result / clear conflict state
+→ CI status history
+→ dependency lockfiles
+→ clean-clone acceptance
+→ one-command startup
 ```
 
-No benchmark number may appear in the UI or documentation unless it was produced by the runner on the current codebase.
+After that, finish judge-facing UX/recovery/security polish without changing the trusted golden path.
 
 ## Known implementation risks
 
 - Exact hackathon problem-statement constraints override generic assumptions if they differ from this direction.
 - Commit/hunk correlation is heuristic investigation guidance, not causal proof.
 - The current patch strategy is a conservative hunk-revert candidate, not a guarantee of the best semantic fix.
+- The current benchmark is intentionally small and deterministic; a perfect score on it is not a claim of general real-world accuracy.
 - GitHub API rate limits/network availability may affect live evidence or check polling.
 - GitHub may omit patch/content data for binary or large files; unavailable evidence remains unavailable.
 - Passing CI proves configured checks passed; it does not prove production recovery or justify automatic merge.
