@@ -3,6 +3,7 @@ from __future__ import annotations
 import difflib
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -26,11 +27,23 @@ def _bounded(value: str, limit: int) -> str:
 
 def _extract_json(text: str) -> dict[str, Any]:
     cleaned = text.strip()
+    # Qwen3 reasoning models can emit a <think> block even when the final answer is valid JSON.
+    # Treat reasoning as transport noise and validate only the final structured object.
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.IGNORECASE | re.DOTALL).strip()
+    if "</think>" in cleaned.lower():
+        cleaned = re.split(r"</think>", cleaned, flags=re.IGNORECASE)[-1].strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.removeprefix("```json").removeprefix("```").strip()
         if cleaned.endswith("```"):
             cleaned = cleaned[:-3].strip()
-    payload = json.loads(cleaned)
+    try:
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        payload = json.loads(cleaned[start : end + 1])
     if not isinstance(payload, dict):
         raise ValueError("model response is not a JSON object")
     return payload
@@ -96,13 +109,17 @@ def _request_json(system_prompt: str, evidence: dict[str, Any]) -> tuple[dict[st
     if runtime.mode == "GEMINI_FREE" and not api_key:
         raise RuntimeError("Gemini free-tier key is not configured.")
 
+    user_content = json.dumps(evidence, ensure_ascii=False)
+    if runtime.mode == "LOCAL_OLLAMA" and runtime.model.lower().startswith("qwen3"):
+        user_content = "/no_think\n" + user_content
+
     request_payload = {
         "model": runtime.model,
         "temperature": 0.0,
         "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": json.dumps(evidence, ensure_ascii=False)},
+            {"role": "user", "content": user_content},
         ],
     }
     endpoint = runtime.endpoint.rstrip("/") + "/chat/completions"
