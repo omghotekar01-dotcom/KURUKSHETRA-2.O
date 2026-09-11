@@ -327,6 +327,39 @@ button:disabled { cursor: wait; opacity: .7; }
 }
 .match-list small { color: #7f93ad; line-height: 1.5; }
 
+.analysis-panel h3 { margin: 18px 0 8px; }
+.confidence-chip {
+  color: #79e0c1;
+  background: #113b31;
+  border: 1px solid #286251;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 10px;
+}
+.next-check,
+.verification-box {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #0b1626;
+  border: 1px solid #263751;
+  border-radius: 11px;
+}
+.next-check b,
+.verification-box b {
+  color: #90a8ff;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.next-check span,
+.verification-box span { color: #b6c3d5; font-size: 13px; line-height: 1.5; }
+.remediation-panel > p { color: #d2dbea; line-height: 1.6; }
+.plan-list { color: #aebbd0; line-height: 1.6; padding-left: 20px; }
+.plan-list li + li { margin-top: 6px; }
+.policy-note { display: block; margin-top: 12px; color: #7f93ad; line-height: 1.5; }
+
 @media (max-width: 1050px) {
   .workspace-grid { grid-template-columns: 1fr; }
 }
