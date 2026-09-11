@@ -1,60 +1,54 @@
 # Real-Use Audit — AI Agentic Bug Router
 
-Date: **11 September 2026**  
-Purpose: verify that the project is useful as an actual bounded engineering workflow, not only visually convincing in a hackathon demo.
+Date: **11 September 2026**
 
-## Verdict
+**Verdict: the supported hackathon workflow is real-use functional for its declared scope.**
 
-**The supported hackathon workflow is real-use functional for its declared scope.**
-
-It accepts realistic software incidents, routes them to a technical area, can map those areas to real organization team names, investigates an allowlisted GitHub repository, uses stack-trace/file-path clues to prioritize changed code, surfaces CODEOWNERS routing/review hints, combines repository evidence with verified historical knowledge, prepares only sufficiently grounded exact patch candidates, requires explicit human approval, validates supported changes on an isolated branch, creates a Draft PR only after green checks, reads real GitHub CI state and records derived verification evidence.
-
-It is deliberately a **bounded incident-response assistant**, not a universal autonomous bug fixer.
+The project was audited for actual engineering usefulness rather than only demo behavior. The release now supports realistic incident triage, configurable organization ownership, live GitHub evidence, stack-trace/file-path correlation, CODEOWNERS routing hints, evidence-backed RCA, safety-thresholded exact patch proposals, approval-gated isolated remediation, trusted validation, Draft PR creation, real CI verification, derived verification evidence and human runtime verification.
 
 ## Real-use hardening completed
 
 - Stack-trace/file-path clues materially influence changed-code ranking.
-- `PATCH_PROPOSAL_MIN_CORRELATION` (default `0.18`) blocks weak patch candidates.
+- `PATCH_PROPOSAL_MIN_CORRELATION` blocks weak patch candidates (default `0.18`).
 - Frontend remediation uses locked `npm ci` + production build.
 - Backend Python remediation uses compile + pytest.
 - Unknown/configuration/operational file types fail closed without a trusted validator.
 - `TRIAGE_OWNER_MAP` maps components to real organization teams without code edits.
 - Repository CODEOWNERS provides advisory review/routing hints when available.
 - Duplicate exact approvals reuse existing remediation state.
-- Missing GitHub auth surfaces `AUTH_REQUIRED` rather than fake success.
+- Missing GitHub auth produces `AUTH_REQUIRED`, not fake success.
 - CI `FAIL` derives failed incident verification and escalates.
-- CI `PENDING` / `NO_CHECKS` remains inconclusive.
-- CI `PASS` is evidence only and still requires runtime/human verification.
+- CI `PENDING` / `NO_CHECKS` stays inconclusive.
+- CI `PASS` remains evidence and still requires runtime/human verification.
 
-## Realistic regression scenarios
+## Realistic regression coverage
 
 | Scenario | Expected behavior |
 |---|---|
-| JWT signature failures after login | Authentication routing |
-| Postgres connection-pool exhaustion | Database routing |
-| 502/worker/upstream failure | Backend routing |
-| React/CSS mobile overlap | Frontend routing |
+| JWT signature failures | Authentication routing |
+| Postgres pool exhaustion | Database routing |
+| 502/worker failure | Backend routing |
+| React/CSS mobile regression | Frontend routing |
 | Kubernetes CrashLoop/OOM | Infrastructure routing |
-| Unknown subsystem with weak evidence | human/no-match path rather than invented certainty |
-| Stack trace naming a changed source file | matching source path receives strong ranking boost |
-| Exact code hunk with only 5% incident correlation | patch proposal blocked |
-| Workflow YAML / Terraform / Dockerfile remediation | automatic Draft PR blocked without trusted validator |
-| Duplicate exact approval | existing remediation state reused rather than duplicated |
-| Missing GitHub auth for a write | explicit `AUTH_REQUIRED`; no fake success |
-| No CI checks | `NO_CHECKS`; never converted into PASS |
-| CI failure | derives failed incident verification and escalates |
-| CI pass | retained as evidence; runtime verification still required |
+| Unknown subsystem / weak evidence | human/no-match path |
+| Stack trace names changed source file | source path receives ranking boost |
+| 5% correlated exact hunk | patch proposal blocked |
+| YAML/Terraform/Dockerfile remediation | Draft PR blocked without trusted validator |
+| Duplicate exact approval | remediation state reused |
+| Missing write auth | `AUTH_REQUIRED` |
+| No CI checks | `NO_CHECKS`, never PASS |
+| CI failure | failed verification + escalation |
+| CI pass | evidence only; runtime verification required |
 
-## Latest audited executable proof point
+## Latest audited executable proof
 
-Executable code head: `18112b436803f747a23d60bf5ce73c952f9523a7`  
-GitHub Actions: **run #409**, run ID `34597412643`
+Executable head: `18112b436803f747a23d60bf5ce73c952f9523a7`  
+GitHub Actions: **run #409**, ID `34597412643`
 
 ```text
 Backend compile:                       PASS
 Backend tests:                         73 passed, 0 failures
-Frontend locked install:               PASS
-Frontend TypeScript/Vite build:        PASS
+Frontend locked install/build:         PASS
 Windows launcher syntax:               PASS
 Windows strict environment preflight:  PASS
 Windows clean bootstrap:               PASS
@@ -63,22 +57,22 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The Windows job performs a fresh checkout/bootstrap before acceptance, so this proof is not dependent on an existing local environment. Subsequent closure commits are documentation-only.
+The Windows job performs a fresh checkout/bootstrap before acceptance, so the proof does not depend on a developer's existing local environment. Subsequent closure commits are documentation-only.
 
 ## Actual supported workflow
 
 ```text
 bug report + logs + repo
-→ component/team triage
+→ component / real-team triage
 → historical incident/runbook lookup
-→ live commits/files/diffs/source context
+→ live GitHub commits/files/diffs/source
 → stack-trace/path correlation
-→ CODEOWNERS routing/review hints
+→ CODEOWNERS review/routing hints
 → RCA candidate + next diagnostic
-→ exact safety-gated patch candidate when evidence is strong enough
+→ safety-gated exact patch candidate
 → human approval
 → isolated branch
-→ deterministic validation
+→ deterministic trusted validation
 → Draft PR
 → real CI verification
 → derived verification evidence
@@ -86,15 +80,13 @@ bug report + logs + repo
 → verified-resolution memory
 ```
 
-The useful behavior is not merely that it produces an answer. It knows when **not** to act: weak evidence, stale source, ambiguous replacement, unsupported validator, missing auth, conflicting retry state and absent CI checks stop or escalate instead of being presented as success.
+The system also knows when **not** to act: weak evidence, stale source, ambiguous replacement, unsupported validator, missing auth, conflicting retry state and absent CI checks stop or escalate instead of being shown as success.
 
-## Truth boundaries
+## Truth boundary
 
-This release does **not** claim universal root-cause accuracy, causal proof from commit correlation, automatic semantic code repair for every defect, automatic merge/deployment, production recovery merely because CI is green, a trained custom ML model, complete CODEOWNERS grammar compatibility, complete DLP/universal prompt-injection prevention, or enterprise distributed-locking readiness.
+This is a bounded incident-response MVP, not a universal autonomous bug fixer. It does not claim universal RCA accuracy, causal proof from commit correlation, semantic repair for every defect/language, automatic merge/deployment, production recovery from green CI alone, complete DLP/prompt-injection prevention, or enterprise distributed-locking readiness.
 
-Those limits are intentional: expose evidence, make bounded changes only when supported, and fail closed otherwise.
-
-## Final operator check
+## Final laptop check
 
 ```powershell
 cd C:\Users\ASUS\OneDrive\Desktop\HACKATHON\KURUKSHETRA-2.O
@@ -104,4 +96,4 @@ git pull --ff-only origin agent-build-core
 .\start.bat
 ```
 
-Then test one realistic incident in `/`, live repository investigation in `/evidence`, the controlled flow in `/demo`, and `/evaluation` + `/readiness` before judging. For live remediation writes, authenticate locally; never paste a token into the repository, screenshots or chat.
+Then exercise one realistic incident in `/`, live evidence in `/evidence`, Judge Mode `/demo`, `/evaluation`, and `/readiness`. Authenticate GitHub locally only if demonstrating a real remediation write.
