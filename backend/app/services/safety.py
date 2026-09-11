@@ -21,7 +21,7 @@ _QUOTED_CREDENTIAL_ASSIGNMENT = re.compile(
     rf"(?i)\b({_CREDENTIAL_KEY})(\s*[:=]\s*)['\"][^'\"\r\n]{{4,}}['\"]"
 )
 _UNQUOTED_CREDENTIAL_ASSIGNMENT = re.compile(
-    rf"(?i)\b({_CREDENTIAL_KEY})(\s*[:=]\s*)(?:Bearer\s+)?[^\s,;\r\n]{{4,}}"
+    rf"(?i)\b({_CREDENTIAL_KEY})(\s*[:=]\s*)(?!['\"])(?:Bearer\s+)?[^\s,;\r\n]{{4,}}"
 )
 
 _INJECTION_MARKERS = (
