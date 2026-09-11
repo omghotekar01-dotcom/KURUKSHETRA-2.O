@@ -1,0 +1,55 @@
+html[data-theme='light'] .field-help,
+html[data-theme='light'] .evidence-disclaimer {
+  color: #79879a;
+}
+
+html[data-theme='light'] .repository-panel {
+  border-color: #c8daee;
+}
+
+html[data-theme='light'] .live-badge {
+  border-color: #afe0d0;
+  background: #eaf9f3;
+  color: #22735c;
+}
+
+html[data-theme='light'] .repo-summary > div,
+html[data-theme='light'] .commit-card,
+html[data-theme='light'] .issue-link-list a {
+  border-color: #e0e7f0;
+  background: #f8faff;
+}
+
+html[data-theme='light'] .repo-summary small,
+html[data-theme='light'] .repo-section-title,
+html[data-theme='light'] .commit-card > small {
+  color: #78879b;
+}
+
+html[data-theme='light'] .repo-summary strong,
+html[data-theme='light'] .commit-card strong {
+  color: #26364d;
+}
+
+html[data-theme='light'] .commit-card:hover {
+  border-color: #9eb3e8;
+}
+
+html[data-theme='light'] .commit-card code,
+html[data-theme='light'] .issue-link-list a,
+html[data-theme='light'] .external-action-link {
+  color: #3e5fc5;
+}
+
+html[data-theme='light'] .commit-card-head span {
+  color: #28755f;
+}
+
+html[data-theme='light'] .file-chip-row span {
+  background: #eef3f9;
+  color: #596b82;
+}
+
+html[data-theme='light'] .repository-unavailable {
+  background: #fbfcfe;
+}
