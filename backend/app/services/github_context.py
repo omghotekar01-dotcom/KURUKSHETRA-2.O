@@ -62,9 +62,11 @@ STOPWORDS = {
 
 
 def _tokens(text: str) -> set[str]:
+    # Split code/path punctuation and snake_case so log terms such as "jwt"
+    # can match identifiers such as "jwt_signing_key" and paths like auth/jwt.py.
     return {
         token
-        for token in re.findall(r"[a-zA-Z0-9_./-]+", text.lower())
+        for token in re.findall(r"[a-zA-Z0-9]+", text.lower())
         if len(token) >= 3 and token not in STOPWORDS
     }
 
