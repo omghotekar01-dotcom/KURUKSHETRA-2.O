@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from app.schemas.incident import IncidentRecord, KnowledgeMatch, RepositoryContext
@@ -27,6 +28,13 @@ def _bounded(value: str, limit: int) -> str:
     if len(value) <= limit:
         return value
     return value[:limit] + "…"
+
+
+def _llm_endpoint_allowed(base_url: str) -> bool:
+    parsed = urlparse(base_url)
+    if parsed.scheme == "https" and parsed.netloc:
+        return True
+    return parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
 
 
 def _evidence_payload(
@@ -144,6 +152,14 @@ def synthesize_grounded_reasoning(
             fallback_reason=f"LLM disabled: missing {', '.join(missing)}.",
         )
 
+    if not _llm_endpoint_allowed(base_url):
+        return LLMSynthesisResult(
+            payload=None,
+            provider="deterministic",
+            model="evidence-rules-v1",
+            fallback_reason="LLM disabled: remote endpoints must use HTTPS; plain HTTP is allowed only for localhost.",
+        )
+
     evidence = _evidence_payload(record, matches, repository_context)
     system_prompt = (
         "You are the synthesis layer of an engineering incident-response system. "
@@ -182,7 +198,7 @@ def synthesize_grounded_reasoning(
         timeout_seconds = 8.0
 
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - operator-configured HTTPS endpoint
+        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - endpoint is validated above
             raw = json.loads(response.read().decode("utf-8"))
         content = raw["choices"][0]["message"]["content"]
         payload = _validate_payload(_extract_json(content))
