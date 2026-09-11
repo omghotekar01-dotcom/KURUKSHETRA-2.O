@@ -14,6 +14,7 @@ from app.schemas.incident import (
     RepositoryContext,
     RepositoryDiffHunkEvidence,
     RepositoryFileChange,
+    RepositorySourceLine,
     Severity,
     TriageResult,
 )
@@ -49,6 +50,14 @@ def test_collect_repository_context_uses_live_github_payloads(monkeypatch) -> No
     record = _record()
     monkeypatch.setattr(github_context_module, "github_token", lambda: None)
     monkeypatch.setattr(github_context_module, "repository_allowed", lambda repo: True)
+    monkeypatch.setattr(
+        github_context_module,
+        "_fetch_source_context",
+        lambda client, repository, commit_sha, hunk: [
+            RepositorySourceLine(line_number=41, content="verify_signature(token, jwt_signing_key)", in_hunk=True),
+            RepositorySourceLine(line_number=42, content="validate_jwt_claims(token)", in_hunk=True),
+        ],
+    )
 
     def fake_request(client, path, *, params=None):
         if path == "/repos/omghotekar01-dotcom/KURUKSHETRA-2.O":
@@ -112,6 +121,8 @@ def test_collect_repository_context_uses_live_github_payloads(monkeypatch) -> No
     assert context.commits[0].suspicious_hunks[0].filename == "backend/auth/jwt.py"
     assert "jwt" in context.commits[0].suspicious_hunks[0].matched_terms
     assert context.commits[0].suspicious_hunks[0].correlation_score > 0
+    assert context.commits[0].suspicious_hunks[0].source_context[0].line_number == 41
+    assert context.commits[0].suspicious_hunks[0].source_context[0].in_hunk is True
     assert len(context.open_issues) == 1
     assert context.open_issues[0].number == 12
 
@@ -163,6 +174,9 @@ def test_analyze_includes_repository_evidence_in_api_response(tmp_path: Path, mo
                         added_lines=["verify_signature(token, jwt_signing_key)"],
                         removed_lines=["verify_signature(token, old_key)"],
                         matched_terms=["jwt", "signature"],
+                        source_context=[
+                            RepositorySourceLine(line_number=41, content="verify_signature(token, jwt_signing_key)", in_hunk=True)
+                        ],
                         correlation_score=0.8,
                     )
                 ],
@@ -188,6 +202,7 @@ def test_analyze_includes_repository_evidence_in_api_response(tmp_path: Path, mo
     assert response.status_code == 200
     payload = response.json()
     assert payload["repository_context"]["source"] == "github-live"
+    assert payload["repository_context"]["commits"][0]["suspicious_hunks"][0]["source_context"][0]["line_number"] == 41
     assert "GH-COMMIT-abcdef1" in payload["hypotheses"][0]["evidence_ids"]
     assert any(item.startswith("GH-HUNK-abcdef1") for item in payload["hypotheses"][0]["evidence_ids"])
     assert "live diff hunk" in payload["hypotheses"][0]["rationale"].lower()
