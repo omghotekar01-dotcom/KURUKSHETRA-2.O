@@ -9,7 +9,7 @@ Project name: **AI Agentic Bug Router**
 
 **Planned hackathon MVP implementation scope: COMPLETE.**
 
-The project is now in release-candidate freeze. From this point, prefer rehearsal, screenshots, documentation corrections and bug fixes only. `main` remains untouched until the team explicitly approves final submission promotion.
+The project is in release-candidate hardening. Prefer regression fixes, evidence-quality improvements, rehearsal and documentation over broad new scope. `main` remains untouched until the team explicitly approves final submission promotion.
 
 This completion statement is scoped to the agreed hackathon MVP; it is not a claim of universal bug-free or enterprise-production completeness.
 
@@ -35,7 +35,7 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - Read-only investigation for an allowlisted repository.
 - Real repository metadata, recent commits, commit details, changed files and open issues.
 - Real unified-diff patches where GitHub provides them.
-- Suspicious hunk parsing/ranking using incident/code token correlation.
+- Suspicious hunk parsing/ranking using incident/code token correlation plus stack-trace/file-path hints.
 - Bounded source context at the exact commit SHA.
 - `/evidence` Engineering Evidence Lab with real GitHub links.
 - Correlation is explicitly guidance, not proof of causation.
@@ -43,8 +43,8 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 ### Exact bounded patch proposal
 - `POST /api/v1/incidents/{incident_id}/patch-proposal` creates a reviewable candidate with **no repository write**.
 - Candidate is revalidated against fresh live evidence.
-- Conservative `REVERT_SUSPICIOUS_HUNK` strategy only when the exact target remains available.
-- Stale, ambiguous or missing source state fails closed.
+- Conservative `REVERT_SUSPICIOUS_HUNK` strategy only when the exact target remains available and clears the patch safety threshold.
+- Stale, ambiguous, weakly related or missing source state fails closed.
 - Proposal contains exact file/base/hunk/before/after/diff/rationale/confidence/warnings/verification commands.
 
 ### Human-controlled remediation
@@ -54,7 +54,7 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - Writes only to deterministic isolated `incident-fix/...` branches.
 - Only the exact approved sequence is replaced and re-read for integrity.
 - Frontend/Python/documentation validation paths are deterministic and bounded.
-- Unknown executable types fail closed without a trusted validator.
+- Unknown executable/config/operational file types fail closed without a trusted validator.
 - Draft PR only after validation passes.
 - No automatic merge or production deployment.
 
@@ -67,12 +67,16 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - Existing open exact PR is reused instead of duplicated.
 - Timeline stores remediation identity, branch, commit, PR, validation and reuse state.
 
-### Real GitHub CI verification
+### Real GitHub CI + derived verification evidence
 - CI workflow runs on remediation branches and relevant PRs.
 - `GET /api/v1/incidents/{incident_id}/patch-verification` reads real PR/commit/check/status state.
-- Derived result: `PASS`, `FAIL`, `PENDING` or `NO_CHECKS`.
+- Derived CI result: `PASS`, `FAIL`, `PENDING` or `NO_CHECKS`.
+- The backend now emits canonical `verification_evidence` tied to the real repository, remediation commit, Draft PR and observed checks.
+- A real CI failure derives incident verification outcome `FAIL`, records `VERIFICATION_DERIVED`, and escalates automatically.
+- Pending/no-check state derives `INCONCLUSIVE` evidence while keeping the incident in verification.
+- A green CI result is structured evidence only: it does **not** auto-resolve the incident because configured checks do not prove the original runtime symptom recovered.
+- Runtime/human verification remains required after CI PASS.
 - Missing checks are never treated as success.
-- PASS still requires human review/runtime verification.
 
 ### Evaluation Lab
 - Versioned deterministic benchmark `2026.09.11-v1` via `GET /api/v1/evaluation/run`.
@@ -101,6 +105,7 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 - GitHub commit/issue/diff/source text redacts recognized credential patterns before UI exposure.
 - Repository content is treated as **untrusted evidence only**, not executable instructions.
 - Prompt-like repository text is deterministically flagged as untrusted data.
+- Team ownership routing can be configured through environment variables without code edits.
 - These are defense-in-depth controls, not claims of complete DLP or universal prompt-injection prevention.
 
 ### Judge Mode — final presentation layer
@@ -116,7 +121,7 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 
 ### Release-candidate contract
 - `scripts/release_contract.py` is included in `scripts/acceptance.py`.
-- Acceptance now has four gates: backend compile, backend tests, frontend production build and release-candidate contract.
+- Acceptance has four gates: backend compile, backend tests, frontend production build and release-candidate contract.
 - Contract checks required files/routes, Judge Mode locked-by-default behavior, explicit approval, fail-closed path, CI hook, lockfile v3, launcher Judge Mode links, README safety statements and that `.env` is not tracked.
 
 ### Verification + resolution memory
@@ -131,26 +136,26 @@ Frozen release record: [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FR
 
 ## Latest confirmed release-candidate validation
 
-GitHub Actions run **#358** / run ID `34595268159` on executable code head:
+GitHub Actions run **#409** / run ID `34597412643` on executable code head:
 
-`b6e4959971b08adcf53fa83b9f98fd8c6aca0f6a`
+`18112b436803f747a23d60bf5ce73c952f9523a7`
 
 completed successfully:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         59 passed, 2 dependency warnings, 0 failures
+Backend tests:                         73 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
 Windows strict environment preflight:  PASS
 Windows clean-checkout bootstrap:      PASS
 Release candidate contract:            PASS
-Clean-clone acceptance:                4/4 PASS
+Clean-clone acceptance:                PASS
 Release-candidate acceptance:          PASS
 ```
 
-Later commits in this freeze pass update documentation only; the executable release-candidate proof point remains `b6e495...` / run #358.
+The validation specifically includes regression coverage proving that failed CI derives a failed incident verification outcome, pending CI derives inconclusive evidence, and passing CI remains evidence-only until runtime/human verification.
 
 ## Completed product path
 
@@ -170,7 +175,9 @@ Incident + repository
 → exact approved patch OR safe retry reuse
 → deterministic validation
 → Draft PR only if green OR exact PR reuse
-→ real GitHub CI verification
+→ real GitHub CI/check verification
+→ automatically derived verification evidence
+→ CI failure escalates / CI success waits for runtime proof
 → human runtime verification
 → resolved or escalated
 → verified resolution memory
@@ -205,18 +212,17 @@ Judge/proof path:
 15. ~~Approval-gated isolated branch + patch + validation.~~
 16. ~~Draft PR only after green validation.~~
 17. ~~Real GitHub CI/check verification.~~
-18. ~~Evaluation Lab + measured scorecard.~~
-19. ~~Idempotent retry-safe remediation.~~
-20. ~~Locked dependencies + preflight + dynamic-port startup + clean-clone acceptance.~~
-21. ~~Readiness + redaction + untrusted-evidence hardening.~~
-22. ~~Judge Mode + recovery/presentation flow.~~
-23. ~~Release-candidate contract + automated freeze acceptance.~~
+18. ~~Derived incident-verification evidence from remediation/CI state.~~
+19. ~~Evaluation Lab + measured scorecard.~~
+20. ~~Idempotent retry-safe remediation.~~
+21. ~~Locked dependencies + preflight + dynamic-port startup + clean-clone acceptance.~~
+22. ~~Readiness + redaction + untrusted-evidence hardening.~~
+23. ~~Judge Mode + recovery/presentation flow.~~
+24. ~~Release-candidate contract + automated freeze acceptance.~~
 
 ## What remains before final submission
 
-No planned feature development remains for the hackathon MVP.
-
-Only the team-controlled finalization steps remain:
+No broad feature development is required for the hackathon MVP. Continue only with verified regression fixes, evidence-quality improvements and team-controlled finalization:
 
 ```text
 pull latest agent-build-core
