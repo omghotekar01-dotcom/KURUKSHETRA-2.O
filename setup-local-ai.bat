@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 set "MODEL=qwen3:4b"
@@ -20,23 +20,21 @@ if errorlevel 1 (
 
   set "OLLAMA_READY="
   for /L %%I in (1,1,20) do (
-    ollama list >nul 2>nul
-    if not errorlevel 1 (
-      set "OLLAMA_READY=1"
-      goto :service_ready
+    if not defined OLLAMA_READY (
+      ollama list >nul 2>nul
+      if not errorlevel 1 (
+        set "OLLAMA_READY=1"
+      ) else (
+        echo [LOCAL AI] Waiting for service... %%I/20
+        timeout /t 2 /nobreak >nul
+      )
     )
-    echo [LOCAL AI] Waiting for service... %%I/20
-    timeout /t 2 /nobreak >nul
   )
 
-  :service_ready
   if not defined OLLAMA_READY (
-    ollama list >nul 2>nul
-    if errorlevel 1 (
-      echo [LOCAL AI] Ollama service did not become reachable within the startup window.
-      echo [LOCAL AI] Open the Ollama Windows app once, then run setup-local-ai.bat again.
-      exit /b 1
-    )
+    echo [LOCAL AI] Ollama service did not become reachable within the startup window.
+    echo [LOCAL AI] Open the Ollama Windows app once, then run setup-local-ai.bat again.
+    exit /b 1
   )
 )
 
