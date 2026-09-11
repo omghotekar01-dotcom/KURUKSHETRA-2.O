@@ -176,6 +176,8 @@ class RepositoryContext(BaseModel):
     source: str = "github-live"
     commits: List[RepositoryCommitEvidence] = Field(default_factory=list)
     open_issues: List[RepositoryIssueEvidence] = Field(default_factory=list)
+    suggested_owners: List[str] = Field(default_factory=list)
+    ownership_source: Optional[str] = None
     notes: List[str] = Field(default_factory=list)
 
 
