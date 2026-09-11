@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.repositories.incidents import IncidentStore
 from app.schemas.incident import (
     AnalysisBundle,
+    ApprovalDecision,
+    ApprovalRequest,
+    ApprovalResult,
     EvidenceBundle,
     IncidentIn,
     IncidentRecord,
@@ -11,16 +14,21 @@ from app.schemas.incident import (
     IncidentSummary,
     ProposedAction,
     RiskDecision,
+    RiskLevel,
     TriageResult,
+    VerificationOutcome,
+    VerificationRequest,
+    VerificationResult,
 )
 from app.services.analysis import analyze_incident
+from app.services.execution import execute_bounded_action
 from app.services.retrieval import retrieve_runbooks
 from app.services.risk import evaluate_action
 from app.services.triage import triage_incident
 
 app = FastAPI(
     title="Kurukshetra Incident Command API",
-    version="0.4.0",
+    version="0.5.0",
     description="API-first foundation for evidence-backed, risk-aware incident response.",
 )
 
@@ -116,6 +124,116 @@ def analyze_incident_endpoint(incident_id: str) -> AnalysisBundle:
         {"risk": analysis.remediation.risk.risk.value if analysis.remediation and analysis.remediation.risk else None},
     )
     return analysis
+
+
+@app.post("/api/v1/incidents/{incident_id}/approval", response_model=ApprovalResult)
+def decide_action(incident_id: str, payload: ApprovalRequest) -> ApprovalResult:
+    incident = incident_store.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if incident.status not in {IncidentStatus.remediation_ready, IncidentStatus.awaiting_approval}:
+        raise HTTPException(status_code=409, detail=f"Incident is not awaiting an action decision ({incident.status.value}).")
+
+    risk = evaluate_action(payload.action)
+    incident_store.append_event(
+        incident_id,
+        "APPROVAL",
+        f"{payload.decision.value} recorded by {payload.reviewer}.",
+        {
+            "reviewer": payload.reviewer,
+            "note": payload.note,
+            "action_type": payload.action.action_type,
+            "target": payload.action.target,
+            "risk": risk.risk.value,
+            "policy": risk.policy,
+        },
+    )
+
+    if payload.decision is ApprovalDecision.reject:
+        incident_store.set_status(incident_id, IncidentStatus.escalated)
+        return ApprovalResult(
+            incident_id=incident_id,
+            decision=payload.decision,
+            risk=risk,
+            execution=None,
+            incident_status=IncidentStatus.escalated,
+        )
+
+    if risk.risk is RiskLevel.high or risk.policy == "RECOMMENDATION_ONLY":
+        incident_store.append_event(
+            incident_id,
+            "ACTION_BLOCKED",
+            "High-risk action was not executed; external production-grade authorization is required.",
+            {"risk": risk.risk.value, "policy": risk.policy},
+        )
+        incident_store.set_status(incident_id, IncidentStatus.escalated)
+        return ApprovalResult(
+            incident_id=incident_id,
+            decision=payload.decision,
+            risk=risk,
+            execution=None,
+            incident_status=IncidentStatus.escalated,
+        )
+
+    incident_store.set_status(incident_id, IncidentStatus.executing)
+    execution = execute_bounded_action(incident_id, payload.action)
+    incident_store.append_event(
+        incident_id,
+        "ACTION",
+        execution.message,
+        {
+            "action_id": execution.action_id,
+            "action_type": execution.action_type,
+            "target": execution.target,
+            "status": execution.status,
+            "mode": execution.mode,
+        },
+    )
+    incident_store.set_status(incident_id, IncidentStatus.verifying)
+    return ApprovalResult(
+        incident_id=incident_id,
+        decision=payload.decision,
+        risk=risk,
+        execution=execution,
+        incident_status=IncidentStatus.verifying,
+    )
+
+
+@app.post("/api/v1/incidents/{incident_id}/verify", response_model=VerificationResult)
+def verify_incident(incident_id: str, payload: VerificationRequest) -> VerificationResult:
+    incident = incident_store.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if incident.status is not IncidentStatus.verifying:
+        raise HTTPException(status_code=409, detail=f"Incident is not ready for verification ({incident.status.value}).")
+
+    if payload.outcome is VerificationOutcome.passed:
+        final_status = IncidentStatus.resolved
+        message = "Verification passed; incident marked resolved."
+    elif payload.outcome is VerificationOutcome.failed:
+        final_status = IncidentStatus.escalated
+        message = "Verification failed; incident escalated for further investigation."
+    else:
+        final_status = IncidentStatus.escalated
+        message = "Verification was inconclusive; incident escalated for further investigation."
+
+    incident_store.append_event(
+        incident_id,
+        "VERIFICATION",
+        message,
+        {
+            "outcome": payload.outcome.value,
+            "evidence": payload.evidence,
+            "checked_by": payload.checked_by,
+        },
+    )
+    incident_store.set_status(incident_id, final_status)
+    return VerificationResult(
+        incident_id=incident_id,
+        outcome=payload.outcome,
+        incident_status=final_status,
+        message=message,
+    )
 
 
 @app.post("/api/v1/actions/risk", response_model=RiskDecision)
