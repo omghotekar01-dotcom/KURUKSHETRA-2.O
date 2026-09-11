@@ -11,7 +11,7 @@ from app.services.model_runtime import get_model_runtime_status
 from app.services.workspace_autofix import autofix_target, list_targets, propose_fix, reset_target, scan_target
 
 
-router = APIRouter(prefix="/api/v1/autofix", tags=["autofix"])
+router = APIRouter(prefix="/autofix", tags=["autofix"])
 
 
 @router.get("/targets", response_model=list[WorkspaceTarget])
