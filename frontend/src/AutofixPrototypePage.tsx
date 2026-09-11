@@ -173,12 +173,14 @@ export default function AutofixPrototypePage() {
   }
 
   async function reset() {
+    setScan(null)
     setProposal(null)
     setResult(null)
     await runAction<Scan>('reset', `/api/v1/autofix/${selected.id}/reset`, setScan)
   }
 
   async function scanWorkspace() {
+    setScan(null)
     setProposal(null)
     setResult(null)
     await runAction<Scan>('scan', `/api/v1/autofix/${selected.id}/scan`, setScan)
@@ -191,10 +193,22 @@ export default function AutofixPrototypePage() {
   }
 
   async function autoFix() {
-    await runAction<FixResult>('apply', `/api/v1/autofix/${selected.id}/apply`, (payload) => {
+    if (!selected) return
+    setBusy('apply')
+    setError('')
+    try {
+      const payload = await api<FixResult>(`/api/v1/autofix/${selected.id}/apply`, { method: 'POST' })
       setResult(payload)
       setProposal(payload.proposal)
-    })
+    } catch (reason) {
+      // Apply consumes the one-time reviewed proposal even when current-state revalidation rejects it.
+      // Remove the stale diff from the UI so the operator must preview a fresh patch before retrying.
+      setProposal(null)
+      setResult(null)
+      setError(reason instanceof Error ? reason.message : 'Operation failed')
+    } finally {
+      setBusy('')
+    }
   }
 
   function selectTarget(targetId: string) {
