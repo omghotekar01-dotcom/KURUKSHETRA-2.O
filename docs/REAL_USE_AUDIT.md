@@ -7,19 +7,19 @@ Purpose: verify that the project is useful as an actual bounded engineering work
 
 **The supported hackathon workflow is real-use functional for its declared scope.**
 
-It can accept realistic software incidents, route them to a technical area, optionally map those areas to real organization team names, investigate an allowlisted GitHub repository, use stack-trace/file-path clues to prioritize changed code, surface repository ownership hints from CODEOWNERS, combine repository evidence with verified historical knowledge, prepare only sufficiently grounded exact patch candidates, require explicit human approval, validate supported changes on an isolated branch, create a Draft PR only after green checks, read real GitHub CI state afterward, and derive canonical verification evidence from the exact remediation commit/check state.
+It accepts realistic software incidents, routes them to a technical area, can map those areas to real organization team names, investigates an allowlisted GitHub repository, uses stack-trace/file-path clues to prioritize changed code, surfaces CODEOWNERS routing/review hints, combines repository evidence with verified historical knowledge, prepares only sufficiently grounded exact patch candidates, requires explicit human approval, validates supported changes on an isolated branch, creates a Draft PR only after green checks, reads real GitHub CI state and records derived verification evidence.
 
-This is deliberately a **bounded incident-response assistant**, not a universal autonomous bug fixer. It does not claim to synthesize the correct semantic fix for every programming language or incident.
+It is deliberately a **bounded incident-response assistant**, not a universal autonomous bug fixer.
 
 ## Real-use hardening completed
 
-- Stack-trace/file-path clues now materially influence changed-code ranking.
-- Patch proposal generation enforces `PATCH_PROPOSAL_MIN_CORRELATION` (default `0.18`).
-- Frontend remediation validates with locked `npm ci` + production build.
-- Backend Python remediation validates with compile + pytest.
+- Stack-trace/file-path clues materially influence changed-code ranking.
+- `PATCH_PROPOSAL_MIN_CORRELATION` (default `0.18`) blocks weak patch candidates.
+- Frontend remediation uses locked `npm ci` + production build.
+- Backend Python remediation uses compile + pytest.
 - Unknown/configuration/operational file types fail closed without a trusted validator.
 - `TRIAGE_OWNER_MAP` maps components to real organization teams without code edits.
-- Repository CODEOWNERS can provide advisory routing/review hints for ranked files.
+- Repository CODEOWNERS provides advisory review/routing hints when available.
 - Duplicate exact approvals reuse existing remediation state.
 - Missing GitHub auth surfaces `AUTH_REQUIRED` rather than fake success.
 - CI `FAIL` derives failed incident verification and escalates.
@@ -63,7 +63,7 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The Windows job performs a fresh checkout/bootstrap before acceptance, so this proof is not dependent on an existing local `node_modules` or Python environment. Subsequent closure commits are documentation-only.
+The Windows job performs a fresh checkout/bootstrap before acceptance, so this proof is not dependent on an existing local environment. Subsequent closure commits are documentation-only.
 
 ## Actual supported workflow
 
@@ -86,13 +86,13 @@ bug report + logs + repo
 → verified-resolution memory
 ```
 
-The useful behavior is not merely that it produces an answer. It also knows when **not** to act: weak evidence, stale source, ambiguous replacement, unsupported validator, missing auth, conflicting retry state and absent CI checks all stop or escalate instead of being presented as success.
+The useful behavior is not merely that it produces an answer. It knows when **not** to act: weak evidence, stale source, ambiguous replacement, unsupported validator, missing auth, conflicting retry state and absent CI checks stop or escalate instead of being presented as success.
 
 ## Truth boundaries
 
 This release does **not** claim universal root-cause accuracy, causal proof from commit correlation, automatic semantic code repair for every defect, automatic merge/deployment, production recovery merely because CI is green, a trained custom ML model, complete CODEOWNERS grammar compatibility, complete DLP/universal prompt-injection prevention, or enterprise distributed-locking readiness.
 
-Those limits are intentional. For this hackathon MVP, the safer and more useful behavior is to expose evidence, make bounded changes only when supported, and fail closed otherwise.
+Those limits are intentional: expose evidence, make bounded changes only when supported, and fail closed otherwise.
 
 ## Final operator check
 
@@ -104,6 +104,4 @@ git pull --ff-only origin agent-build-core
 .\start.bat
 ```
 
-Then test one normal realistic incident in `/`, one live repository investigation in `/evidence`, the controlled flow in `/demo`, and `/evaluation` + `/readiness` before judging.
-
-For live remediation writes, authenticate locally with GitHub CLI or a local environment token. Never paste a token into the repository, screenshots or chat.
+Then test one realistic incident in `/`, live repository investigation in `/evidence`, the controlled flow in `/demo`, and `/evaluation` + `/readiness` before judging. For live remediation writes, authenticate locally; never paste a token into the repository, screenshots or chat.
