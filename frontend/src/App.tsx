@@ -50,6 +50,27 @@ type EvidenceBundle = {
   no_strong_match: boolean
 }
 
+type AnalysisBundle = {
+  incident_id: string
+  evidence: EvidenceBundle
+  hypotheses: Array<{
+    id: string
+    title: string
+    confidence: number
+    evidence_ids: string[]
+    rationale: string
+    next_diagnostic: string
+  }>
+  remediation: null | {
+    summary: string
+    steps: string[]
+    verification: string
+    proposed_action: null | { action_type: string; target: string; description: string; confidence: number; destructive: boolean }
+    risk: null | { risk: 'LOW' | 'MEDIUM' | 'HIGH'; policy: string; reason: string; requires_human_approval: boolean }
+  }
+  needs_human_investigation: boolean
+}
+
 type IncidentSummary = {
   id: string
   title: string
@@ -72,11 +93,16 @@ export default function App() {
   const [form, setForm] = useState(emptyForm)
   const [incident, setIncident] = useState<IncidentRecord | null>(null)
   const [recent, setRecent] = useState<IncidentSummary[]>([])
-  const [evidence, setEvidence] = useState<EvidenceBundle | null>(null)
+  const [analysis, setAnalysis] = useState<AnalysisBundle | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const activeStageCount = useMemo(() => (evidence ? 3 : incident ? 2 : 1), [incident, evidence])
+  const activeStageCount = useMemo(() => {
+    if (analysis?.remediation) return 5
+    if (analysis?.hypotheses.length) return 4
+    if (analysis) return 3
+    return incident ? 2 : 1
+  }, [incident, analysis])
 
   useEffect(() => {
     void loadRecent()
@@ -96,7 +122,7 @@ export default function App() {
     event.preventDefault()
     setLoading(true)
     setError('')
-    setEvidence(null)
+    setAnalysis(null)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents`, {
@@ -121,10 +147,10 @@ export default function App() {
       const created: IncidentRecord = await response.json()
       setIncident(created)
 
-      const investigationResponse = await fetch(`${API_BASE}/api/v1/incidents/${created.id}/investigate`, { method: 'POST' })
-      if (investigationResponse.ok) {
-        const bundle: EvidenceBundle = await investigationResponse.json()
-        setEvidence(bundle)
+      const analysisResponse = await fetch(`${API_BASE}/api/v1/incidents/${created.id}/analyze`, { method: 'POST' })
+      if (analysisResponse.ok) {
+        const bundle: AnalysisBundle = await analysisResponse.json()
+        setAnalysis(bundle)
         const refreshed = await fetch(`${API_BASE}/api/v1/incidents/${created.id}`)
         if (refreshed.ok) setIncident(await refreshed.json())
       }
@@ -217,7 +243,7 @@ export default function App() {
             </div>
             {error && <div className="error-box"><AlertCircle size={16} /> {error}</div>}
             <button className="primary submit-button" disabled={loading}>
-              {loading ? <><Loader2 className="spin" size={16} /> Analyzing…</> : 'Create & triage incident'}
+              {loading ? <><Loader2 className="spin" size={16} /> Analyzing…</> : 'Create & analyze incident'}
             </button>
           </form>
 
@@ -238,14 +264,14 @@ export default function App() {
                   </div>
                 </article>
 
-                {evidence && (
+                {analysis && (
                   <article className="panel">
                     <div className="panel-title">Historical evidence <span className="baseline-tag">lexical baseline</span></div>
-                    {evidence.no_strong_match ? (
+                    {analysis.evidence.no_strong_match ? (
                       <p className="muted">No sufficiently relevant historical runbook match was found. The workflow should continue without forcing a known fix.</p>
                     ) : (
                       <ul className="match-list">
-                        {evidence.matches.map((match) => (
+                        {analysis.evidence.matches.map((match) => (
                           <li key={match.id}>
                             <div className="match-head"><b>{match.id} · {match.component}</b><span>{Math.round(match.score * 100)}%</span></div>
                             <p>{match.issue}</p>
@@ -253,6 +279,29 @@ export default function App() {
                           </li>
                         ))}
                       </ul>
+                    )}
+                  </article>
+                )}
+
+                {analysis?.hypotheses[0] && (
+                  <article className="panel analysis-panel">
+                    <div className="panel-title">Top root-cause hypothesis <span className="confidence-chip">{Math.round(analysis.hypotheses[0].confidence * 100)}%</span></div>
+                    <h3>{analysis.hypotheses[0].title}</h3>
+                    <p className="muted">{analysis.hypotheses[0].rationale}</p>
+                    <div className="next-check"><b>Next diagnostic</b><span>{analysis.hypotheses[0].next_diagnostic}</span></div>
+                  </article>
+                )}
+
+                {analysis?.remediation && (
+                  <article className="panel remediation-panel">
+                    <div className="panel-title">Remediation plan {analysis.remediation.risk && <span className={`pill ${analysis.remediation.risk.risk.toLowerCase()}`}>{analysis.remediation.risk.risk} RISK</span>}</div>
+                    <p>{analysis.remediation.summary}</p>
+                    <ol className="plan-list">
+                      {analysis.remediation.steps.map((step) => <li key={step}>{step}</li>)}
+                    </ol>
+                    <div className="verification-box"><b>Verification</b><span>{analysis.remediation.verification}</span></div>
+                    {analysis.remediation.risk && (
+                      <small className="policy-note">Policy: {analysis.remediation.risk.policy} · {analysis.remediation.risk.reason}</small>
                     )}
                   </article>
                 )}
