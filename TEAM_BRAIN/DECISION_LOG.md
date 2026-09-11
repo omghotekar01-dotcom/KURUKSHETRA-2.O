@@ -148,6 +148,25 @@ Consequences:
 
 Date: 2026-09-11
 
+## D-013 — LLM is a grounded synthesis layer, not an authority layer
+
+Status: ACCEPTED
+
+Decision:
+The optional LLM operates only after deterministic triage and retrieval have assembled bounded evidence. It may synthesize RCA wording, a next diagnostic and remediation wording from that evidence, but it does not control confidence scores, risk classification, approval, repository writes, merge/deploy decisions or verification outcomes. The same analysis API must continue through a deterministic RAG/RCA fallback when the LLM is unconfigured, unavailable, times out or returns invalid output.
+
+Reason:
+A hackathon-quality agent should demonstrate real LLM/RAG capability without making safety or product correctness depend on a network model call. Keeping authority outside the model also makes fallback behavior truthful and judge-visible instead of silently simulating AI success.
+
+Consequences:
+- `AnalysisBundle.agent_trace` exposes whether `LLM_RAG` or `DETERMINISTIC_RAG` actually ran, including provider/model, retrieval sources and fallback reason.
+- Retrieved runbooks, verified incident memory, repository commits/diffs/source and logs are treated as untrusted evidence; embedded instructions must not become system instructions.
+- The LLM adapter receives bounded evidence only and returns validated JSON.
+- Risk policy, human approval, exact patch execution, deterministic validation, CI derivation and runtime verification remain authoritative outside the LLM.
+- Missing LLM credentials or provider failure never blocks the core demo; the UI must visibly show fallback rather than claim LLM execution.
+
+Date: 2026-09-11
+
 ---
 
 ## Decision template
