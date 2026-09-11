@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ExternalLink, FileCode2, GitBranch, Loader2, Search, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ExternalLink, FileCode2, GitBranch, Loader2, Search, ShieldCheck, Users } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -59,6 +59,8 @@ type RepositoryContext = {
     url: string
     labels: string[]
   }>
+  suggested_owners: string[]
+  ownership_source?: string | null
   notes: string[]
 }
 
@@ -174,7 +176,7 @@ export default function RepositoryEvidencePage() {
         <div>
           <p className="evidence-eyebrow">ENGINEERING EVIDENCE LAB</p>
           <h1>Trace an incident to the exact code changes worth inspecting.</h1>
-          <p>Recent GitHub commits, real unified-diff hunks and bounded source context are ranked against incident symptoms. Scores prioritize investigation; they never claim causal proof.</p>
+          <p>Recent GitHub commits, real unified-diff hunks, stack-trace path hints, CODEOWNERS routing and bounded source context are ranked against incident symptoms. Scores prioritize investigation; they never claim causal proof.</p>
         </div>
         <div className="evidence-guardrail"><ShieldCheck size={20} /><div><b>Read-only investigation</b><span>Patch proposals are previews only. No branch, file, PR, merge or deployment is modified from this screen.</span></div></div>
       </section>
@@ -203,11 +205,12 @@ export default function RepositoryEvidencePage() {
             <div><small>Default branch</small><strong>{context.default_branch}</strong></div>
             <div><small>GitHub access</small><strong>{context.authenticated ? 'Authenticated' : 'Public read-only'}</strong></div>
             <div><small>Evidence source</small><strong>{context.source}</strong></div>
+            <div className="owner-overview"><small>Repository owner hint</small><strong>{context.suggested_owners.length > 0 ? context.suggested_owners.join(', ') : 'Configured triage fallback'}</strong>{context.ownership_source && <span><Users size={11} /> {context.ownership_source}</span>}</div>
           </section>
 
           <section className="evidence-section">
             <div className="section-heading">
-              <div><span className="section-icon"><GitBranch size={17} /></span><div><h2>Correlated commits</h2><p>Recent commits ranked against the active incident.</p></div></div>
+              <div><span className="section-icon"><GitBranch size={17} /></span><div><h2>Correlated commits</h2><p>Recent commits ranked against incident text, logs and stack-trace/file-path hints.</p></div></div>
               <b>{context.commits.length} inspected</b>
             </div>
             <div className="commit-evidence-grid">
@@ -248,7 +251,7 @@ export default function RepositoryEvidencePage() {
                       </div>
                       <code className="hunk-header">{hunk.header}</code>
                       {hunk.matched_terms.length > 0 && (
-                        <div className="matched-term-row">Matched incident terms: {hunk.matched_terms.map((term) => <span key={term}>{term}</span>)}</div>
+                        <div className="matched-term-row">Matched incident evidence: {hunk.matched_terms.map((term) => <span key={term}>{term}</span>)}</div>
                       )}
                       <div className="diff-preview">
                         <div className="removed-lines">
@@ -282,7 +285,7 @@ export default function RepositoryEvidencePage() {
                               disabled={proposalLoadingKey === proposalKey}
                               onClick={() => void preparePatchProposal(hunk, hunk.commit)}
                             >
-                              {proposalLoadingKey === proposalKey ? <><Loader2 className="spin" size={13} /> Preparing…</> : <><FileCode2 size={13} /> Prepare patch proposal</>}
+                              {proposalLoadingKey === proposalKey ? <><Loader2 className="spin" size={13} /> Preparing…</> : <><FileCode2 size={13} /> Prepare safety-gated patch</>}
                             </button>
                           )}
                           <a href={hunk.commit.url} target="_blank" rel="noreferrer">Review full diff <ExternalLink size={13} /></a>
