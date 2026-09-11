@@ -118,6 +118,15 @@ class RepositoryFileChange(BaseModel):
     changes: int = 0
 
 
+class RepositoryDiffHunkEvidence(BaseModel):
+    filename: str
+    header: str
+    added_lines: List[str] = Field(default_factory=list)
+    removed_lines: List[str] = Field(default_factory=list)
+    matched_terms: List[str] = Field(default_factory=list)
+    correlation_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class RepositoryCommitEvidence(BaseModel):
     sha: str
     short_sha: str
@@ -126,6 +135,7 @@ class RepositoryCommitEvidence(BaseModel):
     authored_at: Optional[datetime] = None
     url: str
     files: List[RepositoryFileChange] = Field(default_factory=list)
+    suspicious_hunks: List[RepositoryDiffHunkEvidence] = Field(default_factory=list)
     correlation_score: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
