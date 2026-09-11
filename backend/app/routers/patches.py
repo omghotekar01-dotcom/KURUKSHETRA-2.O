@@ -8,11 +8,19 @@ from app.repositories.incidents import IncidentStore
 from app.routers.evaluation import router as evaluation_router
 from app.routers.workspace import router as workspace_router
 from app.schemas.incident import ApprovalDecision, IncidentStatus, PatchProposalRequest
-from app.schemas.patch import PatchDecisionRequest, PatchExecutionResult, PatchVerificationResult, ValidationCheck
+from app.schemas.patch import (
+    PatchDecisionRequest,
+    PatchExecutionResult,
+    PatchMergeRequest,
+    PatchMergeResult,
+    PatchVerificationResult,
+    ValidationCheck,
+)
 from app.services.github_context import GitHubContextUnavailable, collect_repository_context
 from app.services.patch_execution import execute_approved_patch, patch_idempotency_key
 from app.services.patch_proposal import PatchProposalUnavailable, build_patch_proposal
 from app.services.patch_verification import PatchVerificationUnavailable, verify_patch_ci
+from app.services.pull_request_merge import PatchMergeUnavailable, merge_verified_patch_pr
 
 router = APIRouter(prefix="/api/v1", tags=["patch-remediation"])
 router.include_router(evaluation_router)
@@ -79,6 +87,30 @@ def _existing_successful_execution(incident, proposal_id: str, idempotency_key: 
             incident_status=IncidentStatus.verifying,
             reused=True,
             idempotency_key=idempotency_key,
+        )
+    return None
+
+
+def _existing_merge_result(incident, *, repository: str, draft_pr_number: int) -> PatchMergeResult | None:
+    for event in reversed(incident.timeline):
+        if event.stage != "PATCH_MERGED":
+            continue
+        metadata = event.metadata
+        if str(metadata.get("repository") or "") != repository:
+            continue
+        if int(metadata.get("draft_pr_number") or 0) != draft_pr_number:
+            continue
+        return PatchMergeResult(
+            incident_id=incident.id,
+            repository=repository,
+            draft_pr_number=draft_pr_number,
+            merged=True,
+            merge_sha=metadata.get("merge_sha"),
+            merge_method=str(metadata.get("merge_method") or "squash"),
+            reviewer=str(metadata.get("reviewer") or "human-reviewer"),
+            message="This exact remediation pull request was already merged after human confirmation; no duplicate merge was attempted.",
+            incident_status=IncidentStatus.verifying,
+            runtime_verification_required=True,
         )
     return None
 
@@ -274,3 +306,86 @@ def patch_verification(incident_id: str) -> PatchVerificationResult:
 
     store.set_status(incident_id, result.incident_status)
     return result
+
+
+@router.post("/incidents/{incident_id}/patch-merge", response_model=PatchMergeResult)
+def merge_patch(incident_id: str, payload: PatchMergeRequest) -> PatchMergeResult:
+    """Second explicit human gate for an already validated remediation PR.
+
+    This endpoint is never invoked by CI or background automation. It is only
+    available after the operator explicitly confirms MERGE in the product UI.
+    """
+    incident = store.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    execution = _latest_event_metadata(incident, "PATCH_EXECUTION")
+    repository = str(execution.get("repository") or incident.incident.repo or "")
+    commit_sha = str(execution.get("commit_sha") or "")
+    draft_pr_number = int(execution.get("draft_pr_number") or 0)
+    if not repository or not commit_sha or not draft_pr_number:
+        raise HTTPException(status_code=409, detail="No validated remediation Draft PR is available to merge.")
+
+    previous = _existing_merge_result(incident, repository=repository, draft_pr_number=draft_pr_number)
+    if previous is not None:
+        return previous
+
+    merge_lock_key = f"merge:{repository}:{draft_pr_number}:{commit_sha}"
+    with _lock_for(merge_lock_key):
+        refreshed = store.get(incident_id)
+        if refreshed is None:
+            raise HTTPException(status_code=404, detail="Incident not found")
+        previous = _existing_merge_result(refreshed, repository=repository, draft_pr_number=draft_pr_number)
+        if previous is not None:
+            return previous
+
+        try:
+            result = merge_verified_patch_pr(
+                refreshed,
+                repository=repository,
+                commit_sha=commit_sha,
+                draft_pr_number=draft_pr_number,
+                reviewer=payload.reviewer,
+                confirmation=payload.confirmation,
+                merge_method=payload.merge_method,
+            )
+        except PatchMergeUnavailable as exc:
+            store.append_event(
+                incident_id,
+                "PATCH_MERGE_BLOCKED",
+                "Human-confirmed merge was blocked by a fresh safety check.",
+                {
+                    "repository": repository,
+                    "draft_pr_number": draft_pr_number,
+                    "commit_sha": commit_sha,
+                    "reviewer": payload.reviewer,
+                    "reason": str(exc),
+                },
+            )
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        store.append_event(
+            incident_id,
+            "PATCH_MERGED",
+            result.message,
+            {
+                "repository": result.repository,
+                "draft_pr_number": result.draft_pr_number,
+                "merge_sha": result.merge_sha,
+                "merge_method": result.merge_method,
+                "reviewer": result.reviewer,
+                "runtime_verification_required": result.runtime_verification_required,
+            },
+        )
+        store.append_event(
+            incident_id,
+            "RUNTIME_VERIFICATION_REQUIRED",
+            "Repository merge completed, but the original runtime incident still requires independent verification.",
+            {
+                "source": "human-confirmed-merge",
+                "merge_sha": result.merge_sha,
+                "draft_pr_number": result.draft_pr_number,
+            },
+        )
+        store.set_status(incident_id, IncidentStatus.verifying)
+        return result
