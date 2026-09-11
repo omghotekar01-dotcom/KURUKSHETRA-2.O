@@ -130,6 +130,25 @@ if (-not $backendReady) {
 }
 Write-Host "Backend health: PASS" -ForegroundColor Green
 
+$ModelRuntimeSummary = "unknown"
+try {
+    $modelRuntime = Invoke-RestMethod -Uri "$ApiBase/api/v1/autofix/model-runtime" -TimeoutSec 3
+    $ModelRuntimeSummary = "$($modelRuntime.mode) · $($modelRuntime.provider) · $($modelRuntime.model)"
+    if ($modelRuntime.mode -eq "LOCAL_OLLAMA" -and $modelRuntime.ready) {
+        Write-Host "AI runtime:      LIVE LOCAL QWEN ($($modelRuntime.model))" -ForegroundColor Green
+    }
+    elseif ($modelRuntime.mode -eq "GEMINI_FREE" -and $modelRuntime.ready) {
+        Write-Host "AI runtime:      LIVE GEMINI FREE-TIER ($($modelRuntime.model))" -ForegroundColor Green
+    }
+    else {
+        Write-Host "AI runtime:      DETERMINISTIC FALLBACK" -ForegroundColor Yellow
+        Write-Host "Local AI setup:  run setup-local-ai.bat, then use Judge Intake -> Test Qwen now" -ForegroundColor Yellow
+    }
+}
+catch {
+    Write-Host "AI runtime:      unable to query model status; backend remains available" -ForegroundColor Yellow
+}
+
 $frontendCommand = "Set-Location '$FrontendDir'; `$env:VITE_API_BASE_URL='$ApiBase'; npm run dev -- --host 127.0.0.1 --port $ResolvedFrontendPort --strictPort"
 $frontendProcess = Start-Process powershell -PassThru -ArgumentList @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $frontendCommand)
 Set-Content -Path (Join-Path $RunDir "frontend.pid") -Value $frontendProcess.Id
@@ -153,6 +172,7 @@ Write-Host "Real AutoFix:    $DashboardBase/prototype"
 Write-Host "Judge Intake:    $DashboardBase/intake"
 Write-Host "AI Reasoning:    $DashboardBase/ai"
 Write-Host "Judge Mode:      $DashboardBase/demo"
+Write-Host "AI runtime:      $ModelRuntimeSummary"
 Write-Host "API health:      $ApiBase/health"
 Write-Host "API docs:        $ApiBase/docs"
 Write-Host "Evidence Lab:    $DashboardBase/evidence"
