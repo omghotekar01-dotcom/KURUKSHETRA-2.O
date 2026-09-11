@@ -1,190 +1,225 @@
 # IIT Bombay Final Demo — AI Agentic Bug Router
 
-This is the preferred judge-facing flow for the final presentation. Keep the demo truthful: LIVE data is shown as LIVE, deterministic fallback is shown as fallback, and no repository write is performed without a separate human approval action.
+This is the preferred judge-facing flow for the final presentation. The strongest proof is now `/prototype`: a genuinely broken local project is scanned, reproduced, edited and verified in real time. Keep every label truthful: local model use is shown as local model use, deterministic fallback is shown as fallback, and a repair is called FIXED only after the target's own validator passes.
 
 ## 1. Open these tabs before presenting
 
 Use the exact dashboard URL printed by `start.bat`.
 
-1. `/readiness` — prove integrations and safety state.
-2. `/ai` — explain the AI system and run a problem-to-solution scenario.
-3. `/demo` — controlled golden engineering workflow.
+1. `/prototype` — **primary proof:** real broken workspace → failing test → source diagnosis → real edit → same test passes.
+2. `/readiness` — integrations and safety state.
+3. `/ai` — RAG/LLM reasoning architecture and broader incident scenarios.
 4. `/evidence` — live GitHub commits, diffs and source context.
-5. `/remediate` — exact patch + approval gate.
+5. `/remediate` — GitHub-oriented exact patch + approval gate.
 6. `/evaluation` — measured benchmark results.
+7. `/demo` — controlled full engineering workflow.
 
-The shared left navigation now links all of these surfaces and highlights the active screen.
+The shared left navigation links all of these surfaces and highlights the active screen.
 
 ## 2. 20-second problem statement
 
-> Engineering teams lose time after a bug because the report, historical fixes, source-code changes, ownership, remediation and verification live in different places. Our AI Agentic Bug Router turns one incident into an evidence-backed engineering workflow: route it, retrieve relevant knowledge, inspect the real repository, synthesize an RCA, prepare a bounded fix, require human approval, validate it, and use CI/runtime evidence before resolution.
+> Engineering teams lose time because reproducing a bug, finding the responsible code, understanding historical context, making a safe fix and proving recovery happen in different tools. Our AI Agentic Bug Router turns one granted project workspace into a verified repair loop: reproduce the failure, ground the diagnosis in tests and source, let a free/local model propose a bounded patch, modify the real file, rerun trusted validation, roll back on failure, and preserve the result as reusable engineering knowledge.
 
-## 3. Explain the AI architecture on `/ai`
+## 3. Primary judge demo: `/prototype`
 
-Use the architecture strip on screen:
+Use **Broken Bearer Authentication API**.
+
+The target is a real project under:
 
 ```text
-Incident
-→ deterministic triage / owner routing
-→ RAG over runbooks + verified incident memory
-→ live GitHub commits / diffs / bounded source context
-→ optional evidence-constrained LLM synthesis
-→ deterministic risk policy
-→ human approval
-→ exact patch / isolated branch
-→ deterministic validation
-→ Draft PR
-→ CI + runtime verification
+demo_targets/broken_auth_api/
+```
+
+Its client/test contract uses:
+
+```text
+Authorization: Bearer demo-valid-token
+```
+
+but the source incorrectly checks:
+
+```python
+if scheme.lower() != "token":
+```
+
+### Demo sequence
+
+1. Click **Reset broken target**.
+2. Click **1. Scan + reproduce**.
+3. Show the actual `pytest` command, non-zero exit code and failure output.
+4. Show the grounded diagnosis: `app.py`, exact line, Bearer-vs-Token mismatch and evidence.
+5. Click **2. Preview exact fix**.
+6. Point at the reasoning badge:
+   - `AI GROUNDED PATCH · ollama-local · qwen3:4b` when local Qwen is available; or
+   - `SAFE FALLBACK PATCH` when the model is unavailable/rejected.
+7. Show the real unified diff before it writes anything.
+8. Click **3. Auto Fix + Verify**.
+9. Show **BEFORE FAIL → AFTER PASS** and the post-fix output from the same test suite.
+10. Open the audit trail and explain that a failed candidate is restored automatically.
+
+Recommended line:
+
+> “This is not a screenshot or generated success message. That is a real broken FastAPI project, a real source-file edit and a rerun of its own test suite. The system is not allowed to say FIXED until the validator exits zero.”
+
+### Why this proof matters
+
+A judge can independently inspect `demo_targets/broken_auth_api/app.py`, run its tests manually, or compare the file before and after AutoFix. The product therefore demonstrates an observable engineering state transition rather than a simulated chat response.
+
+## 4. Zero-cost AI setup
+
+No paid API is required.
+
+Default order:
+
+```text
+Local Ollama + qwen3:4b
+→ optional Gemini Developer API free-tier key
+→ deterministic evidence/repair fallback
+```
+
+Recommended laptop preparation:
+
+```powershell
+setup-local-ai.bat
+```
+
+or manually:
+
+```powershell
+ollama pull qwen3:4b
+```
+
+The application uses Ollama's OpenAI-compatible localhost endpoint. If Ollama is offline, the repair proof still runs through the deterministic source/test contract engine; the UI shows that fallback instead of pretending an LLM ran.
+
+Gemini is optional only. Keep any `GEMINI_API_KEY` in the local `.env`; never commit it. Free-tier availability and quota remain provider-controlled.
+
+## 5. Explain the architecture on `/ai`
+
+Use this mental model:
+
+```text
+Incident / project failure
+→ deterministic triage + validator evidence
+→ RAG over runbooks + verified resolution memory
+→ local workspace files and/or live GitHub evidence
+→ optional Qwen/Gemma/Gemini grounded reasoning
+→ bounded exact patch candidate
+→ workspace/path policy
+→ real file edit
+→ predefined trusted validator
+→ PASS = proven repair
+→ FAIL = automatic rollback / alternate safe candidate
+→ optional Draft PR + CI
+→ runtime verification
 → verified resolution memory
 ```
 
-### What is actually AI/RAG
+### What the model can do
 
-- RAG retrieves relevant local runbooks and previously verified resolution memory for the current incident.
-- Live GitHub evidence is a separate source of truth: commits, changed files, suspicious diff hunks and bounded source context.
-- If `LLM_API_KEY`, `LLM_BASE_URL` and `LLM_MODEL` are configured, an OpenAI-compatible LLM receives only the bounded retrieved evidence and can synthesize the RCA wording, next diagnostic and remediation wording.
-- Repository text is explicitly treated as untrusted data in the LLM prompt. The model is instructed not to follow instructions embedded in code, logs, commit messages or retrieved text.
-- If the LLM is missing, times out, returns invalid JSON or the provider fails, the same API path falls back to deterministic evidence reasoning.
-- The API returns an `agent_trace` with the real mode: `LLM_RAG` or `DETERMINISTIC_RAG`, provider, model, retrieval sources and fallback reason.
+- synthesize RCA wording from bounded evidence;
+- propose a tiny exact `search → replace` code patch using only files supplied to it;
+- explain the candidate patch.
 
-### What the LLM is NOT allowed to control
+### What the model cannot do
 
-The LLM does not set confidence scores, approve actions, choose risk policy, write to GitHub, merge, deploy, or decide verification success. Those remain deterministic or human-controlled boundaries.
-
-Recommended line:
-
-> “The model helps synthesize engineering reasoning, but authority stays outside the model.”
-
-## 4. Recommended problem-to-solution demo
-
-Use **JWT authentication regression** first.
-
-Problem shown to judges:
-
-```text
-Users can sign in, but protected API requests immediately fail after an auth-related deployment.
-Logs:
-- JWT signature verification failed
-- 401 unauthorized after authentication deployment
-```
-
-Click **Run this incident**.
-
-Then walk through the five result cards:
-
-1. **Triage & routing** — Authentication, owner, severity, deterministic confidence.
-2. **Retrieval-augmented context** — show the runbook / verified-memory matches and their measured retrieval scores.
-3. **Live repository evidence** — show the real repository, top commit and correlation score. Say clearly that correlation guides investigation and is not proof of causation.
-4. **Agent RCA synthesis** — point at the `LLM + RAG ACTIVE` or `DETERMINISTIC RAG FALLBACK` label. Do not describe fallback as an LLM result.
-5. **Safe solution path** — show remediation steps, verification requirement and human-approval policy.
-
-Then open `/evidence` to inspect the actual commit/diff/source proof and `/remediate` to show the exact patch boundary.
-
-## 5. Other judge scenarios
-
-### Database pool exhaustion
-
-Use when a judge asks whether the router only knows authentication bugs.
-
-Problem:
-
-```text
-Write requests fail under peak traffic.
-sqlalchemy.exc.TimeoutError: QueuePool limit reached
-PostgreSQL connection pool exhausted
-```
-
-What to demonstrate:
-- Database routing.
-- RAG selects database knowledge instead of auth knowledge.
-- RCA/verification changes with the problem domain.
-
-### Frontend API contract regression
-
-Problem:
-
-```text
-A dashboard view stops rendering after an API response shape change.
-TypeError: cannot read properties of undefined
-```
-
-What to demonstrate:
-- Frontend routing.
-- Live changed-file / diff investigation.
-- Verification is the affected user flow, not merely “build passed.”
-
-### Infrastructure health regression
-
-Problem:
-
-```text
-New replicas repeatedly restart after rollout.
-readiness probe failed
-container memory pressure
-```
-
-What to demonstrate:
-- Infrastructure routing.
-- Risk policy is stricter for production-impacting actions.
-- The system never auto-deploys or performs destructive production operations.
-
-### Unknown / no-match safe stop
-
-Problem:
-
-```text
-A new Orion service changes payload fields intermittently with no trusted historical or repository context.
-```
-
-What to demonstrate:
-- RAG reports no strong match.
-- No root-cause hypothesis is fabricated.
-- No remediation is invented.
-- The workflow escalates for human investigation.
+- access arbitrary operating-system paths;
+- select unrestricted shell commands;
+- write outside the approved workspace;
+- declare that tests passed;
+- bypass stale-file checks;
+- bypass rollback;
+- merge or deploy automatically;
+- decide runtime verification success.
 
 Recommended line:
 
-> “A useful engineering agent needs to know when not to act.”
+> “The model can reason and propose; evidence and validators hold authority.”
 
-## 6. Live remediation flow
+## 6. Workspace safety story
 
-Only demonstrate live GitHub writes if auth is working and the exact proposal is understandable.
+Do **not** describe the product as giving an LLM unrestricted control of the entire laptop. Describe it as startup-grade workspace autonomy.
+
+Current boundary:
 
 ```text
-Exact no-write patch proposal
-→ human reviews before/after lines
-→ Arm live remediation
-→ explicit APPROVE
+Explicit workspace root
+→ registered target folder
+→ bounded readable source files
+→ blocked secret/build/system directories
+→ exact reviewed patch
+→ predefined validator only
+→ rollback on failure
+```
+
+The scanner blocks path traversal and excludes sensitive/build directories such as `.git`, `.ssh`, `.aws`, `.azure`, `.config`, virtual environments and `node_modules`.
+
+That design lets a company grant the agent access to a repository/project without granting arbitrary OS authority.
+
+## 7. Broader incident/RAG demonstration
+
+After proving AutoFix, open `/ai` and use the JWT authentication regression or another scenario.
+
+Show:
+
+1. deterministic routing;
+2. RAG runbook/verified-memory retrieval;
+3. live GitHub evidence where available;
+4. actual reasoning mode/provider/model;
+5. grounded RCA;
+6. safe remediation and verification plan.
+
+Other available demonstrations include database pool exhaustion, frontend API contract regression, infrastructure health regression and an unknown/no-match safe-stop case.
+
+For the unknown case, emphasize that the system refuses to fabricate a fix when evidence is insufficient.
+
+Recommended line:
+
+> “A useful engineering agent needs to know both how to repair and when not to act.”
+
+## 8. GitHub remediation flow
+
+Use `/evidence` and `/remediate` after the local proof if the judges want to see repository-scale operation.
+
+```text
+Live commit/diff/source evidence
+→ exact no-write patch proposal
+→ human review / approval
 → fresh stale-state validation
 → isolated incident-fix branch
-→ exact approved replacement only
+→ exact approved replacement
 → deterministic validation
 → Draft PR only if validation passes
-→ real GitHub CI status
+→ real GitHub CI
+→ runtime proof still required
 ```
 
 Never merge the Draft PR during judging.
 
-## 7. Best 60-second complete sequence
+## 9. Best 90-second complete sequence
 
-1. `/readiness`: “Live-first, repo allowlisted, no auto-merge/deploy.”
-2. `/ai`: choose JWT regression and click **Run this incident**.
-3. Point at triage + RAG match + live repo evidence.
-4. Point at the real agent mode (`LLM_RAG` or deterministic fallback).
-5. Show RCA + next diagnostic + safe remediation.
-6. `/evidence`: show commit/diff/source context.
-7. `/remediate`: show exact patch and human approval gate, but do not write unless intentionally demonstrating it.
-8. `/evaluation`: show measured benchmark results and say they apply to the displayed deterministic benchmark only.
+1. `/prototype`: Reset broken target.
+2. Scan + reproduce → show real pytest FAIL.
+3. Show exact culprit source line and evidence.
+4. Preview fix → point out `AI GROUNDED PATCH` or truthful safe fallback.
+5. Auto Fix + Verify → show real FAIL → PASS.
+6. `/ai`: explain local/free model + RAG + verified memory architecture.
+7. `/evidence`: show real GitHub source evidence.
+8. `/evaluation`: show measured benchmark results, clearly scoped to displayed benchmark cases.
 
-## 8. Strong closing line
+If there is extra time, show `/remediate` and its approval/Draft-PR boundary.
 
-> “This is not an AI chatbot that guesses fixes. It is an auditable engineering control loop: retrieval, live code evidence, grounded reasoning, policy, human approval, validation, CI verification and reusable incident memory.”
+## 10. Strong closing line
 
-## 9. Final safety rules
+> “Most coding assistants generate an answer. We prove an engineering state transition: reproduce, ground, repair the granted workspace, validate the real code, roll back bad changes, and learn only from verified outcomes.”
 
-- Never expose a token or `.env` value on screen.
-- Never call fallback/demo evidence live.
-- Never say correlation proves causation.
-- Never say CI PASS proves production recovery.
-- Never auto-merge or deploy.
-- Never force a patch when the system returns a safe stop.
+## 11. Final safety/truth rules
+
+- Never expose tokens or `.env` values on screen.
+- Never call fallback evidence live AI.
+- Never claim a model solved the bug if the UI says deterministic fallback.
+- Never say commit correlation proves causation.
+- Never say CI PASS alone proves production recovery.
+- Never allow model-generated arbitrary shell execution.
+- Never grant the model unrestricted whole-computer file access.
+- Never auto-merge or production deploy.
+- Never force a patch when evidence or validation fails.
