@@ -1,5 +1,6 @@
+from app.schemas.incident import VerificationOutcome
 from app.schemas.patch import CIVerificationCheck
-from app.services.patch_verification import _derive_status
+from app.services.patch_verification import _derive_incident_verification, _derive_status
 
 
 def test_ci_verification_passes_when_all_checks_succeed():
@@ -45,3 +46,47 @@ def test_ci_verification_accepts_neutral_and_skipped_checks_without_failure():
         "success",
     )
     assert status == "PASS"
+
+
+def test_failed_ci_derives_failed_incident_verification_without_runtime_confirmation():
+    outcome, evidence, runtime_required = _derive_incident_verification(
+        status="FAIL",
+        repository="example/repo",
+        commit_sha="abcdef1234567890",
+        draft_pr_number=17,
+        checks=[CIVerificationCheck(name="backend", status="completed", conclusion="failure")],
+    )
+
+    assert outcome is VerificationOutcome.failed
+    assert runtime_required is False
+    assert "Draft PR #17" in evidence
+    assert "backend=failure" in evidence
+
+
+def test_passing_ci_is_structured_evidence_but_never_auto_resolves_incident():
+    outcome, evidence, runtime_required = _derive_incident_verification(
+        status="PASS",
+        repository="example/repo",
+        commit_sha="abcdef1234567890",
+        draft_pr_number=17,
+        checks=[CIVerificationCheck(name="backend", status="completed", conclusion="success")],
+    )
+
+    assert outcome is None
+    assert runtime_required is True
+    assert "CI=PASS" in evidence
+    assert "backend=success" in evidence
+
+
+def test_pending_ci_derives_inconclusive_evidence_and_keeps_runtime_gate():
+    outcome, evidence, runtime_required = _derive_incident_verification(
+        status="PENDING",
+        repository="example/repo",
+        commit_sha="abcdef1234567890",
+        draft_pr_number=17,
+        checks=[CIVerificationCheck(name="frontend", status="in_progress", conclusion=None)],
+    )
+
+    assert outcome is VerificationOutcome.inconclusive
+    assert runtime_required is True
+    assert "frontend=in_progress" in evidence
