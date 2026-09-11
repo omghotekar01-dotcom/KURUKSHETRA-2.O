@@ -32,6 +32,39 @@
     }
   },
   {
+    "id": "DEMO-FRONTEND-001",
+    "name": "Frontend API contract regression",
+    "description": "Frontend incident used to demonstrate UI routing, retrieval and user-flow verification after an API shape change.",
+    "expected_component": "Frontend",
+    "incident": {
+      "title": "Dashboard breaks after response contract change",
+      "description": "The incident detail view renders an empty panel after a backend response field changes while the rest of the application stays healthy.",
+      "environment": "production",
+      "repo": "demo/incident-console",
+      "logs": [
+        "TypeError: cannot read properties of undefined",
+        "incident detail response contract mismatch"
+      ]
+    }
+  },
+  {
+    "id": "DEMO-INFRA-001",
+    "name": "Readiness probe restart loop",
+    "description": "Infrastructure scenario that proves rollout diagnosis, safety policy and recommendation-only behavior for production actions.",
+    "expected_component": "Infrastructure",
+    "incident": {
+      "title": "API workers restart after rollout",
+      "description": "New replicas repeatedly restart after deployment because readiness checks fail under resource pressure.",
+      "environment": "production",
+      "repo": "demo/platform-config",
+      "logs": [
+        "readiness probe failed",
+        "container memory pressure",
+        "worker restart loop"
+      ]
+    }
+  },
+  {
     "id": "DEMO-NOVEL-001",
     "name": "Unknown incident requiring escalation",
     "description": "No-match case that demonstrates uncertainty instead of hallucinating a historical fix.",
