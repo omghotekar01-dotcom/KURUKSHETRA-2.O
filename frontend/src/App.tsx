@@ -1,11 +1,14 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { Activity, AlertCircle, GitBranch, History, Loader2, ShieldCheck, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
+import { Activity, AlertCircle, CheckCircle2, GitBranch, History, Loader2, ShieldCheck, Sparkles, XCircle } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 const stages = ['Intake', 'Triage', 'Evidence', 'RCA', 'Remediation', 'Approval', 'Verification']
 
 type Severity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 type IncidentStatus = 'NEW' | 'TRIAGING' | 'INVESTIGATING' | 'RCA_READY' | 'REMEDIATION_READY' | 'AWAITING_APPROVAL' | 'EXECUTING' | 'VERIFYING' | 'RESOLVED' | 'ESCALATED'
+type ProposedAction = { action_type: string; target: string; description: string; confidence: number; destructive: boolean }
+type RiskDecision = { risk: 'LOW' | 'MEDIUM' | 'HIGH'; policy: string; reason: string; requires_human_approval: boolean }
 
 type IncidentRecord = {
   id: string
@@ -65,10 +68,34 @@ type AnalysisBundle = {
     summary: string
     steps: string[]
     verification: string
-    proposed_action: null | { action_type: string; target: string; description: string; confidence: number; destructive: boolean }
-    risk: null | { risk: 'LOW' | 'MEDIUM' | 'HIGH'; policy: string; reason: string; requires_human_approval: boolean }
+    proposed_action: ProposedAction | null
+    risk: RiskDecision | null
   }
   needs_human_investigation: boolean
+}
+
+type ApprovalResult = {
+  incident_id: string
+  decision: 'APPROVE' | 'REJECT'
+  risk: RiskDecision
+  execution: null | {
+    action_id: string
+    incident_id: string
+    action_type: string
+    target: string
+    status: string
+    mode: string
+    message: string
+    external_url?: string | null
+  }
+  incident_status: IncidentStatus
+}
+
+type VerificationResult = {
+  incident_id: string
+  outcome: 'PASS' | 'FAIL' | 'INCONCLUSIVE'
+  incident_status: IncidentStatus
+  message: string
 }
 
 type IncidentSummary = {
@@ -94,15 +121,20 @@ export default function App() {
   const [incident, setIncident] = useState<IncidentRecord | null>(null)
   const [recent, setRecent] = useState<IncidentSummary[]>([])
   const [analysis, setAnalysis] = useState<AnalysisBundle | null>(null)
+  const [approval, setApproval] = useState<ApprovalResult | null>(null)
+  const [verification, setVerification] = useState<VerificationResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [workflowBusy, setWorkflowBusy] = useState(false)
   const [error, setError] = useState('')
 
   const activeStageCount = useMemo(() => {
+    if (incident?.status === 'RESOLVED' || incident?.status === 'VERIFYING') return 7
+    if (approval) return 6
     if (analysis?.remediation) return 5
     if (analysis?.hypotheses.length) return 4
     if (analysis) return 3
     return incident ? 2 : 1
-  }, [incident, analysis])
+  }, [incident, analysis, approval])
 
   useEffect(() => {
     void loadRecent()
@@ -118,11 +150,18 @@ export default function App() {
     }
   }
 
+  async function refreshIncident(incidentId: string) {
+    const response = await fetch(`${API_BASE}/api/v1/incidents/${incidentId}`)
+    if (response.ok) setIncident(await response.json())
+  }
+
   async function submitIncident(event: FormEvent) {
     event.preventDefault()
     setLoading(true)
     setError('')
     setAnalysis(null)
+    setApproval(null)
+    setVerification(null)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/incidents`, {
@@ -151,8 +190,7 @@ export default function App() {
       if (analysisResponse.ok) {
         const bundle: AnalysisBundle = await analysisResponse.json()
         setAnalysis(bundle)
-        const refreshed = await fetch(`${API_BASE}/api/v1/incidents/${created.id}`)
-        if (refreshed.ok) setIncident(await refreshed.json())
+        await refreshIncident(created.id)
       }
 
       await loadRecent()
@@ -160,6 +198,59 @@ export default function App() {
       setError(requestError instanceof Error ? requestError.message : 'Unable to create incident.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function decideAction(decision: 'APPROVE' | 'REJECT') {
+    const action = analysis?.remediation?.proposed_action
+    if (!incident || !action) return
+
+    setWorkflowBusy(true)
+    setError('')
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/incidents/${incident.id}/approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision,
+          action,
+          reviewer: 'Hackathon operator',
+          note: decision === 'APPROVE' ? 'Approved from the incident command dashboard.' : 'Rejected from the incident command dashboard.',
+        }),
+      })
+      if (!response.ok) throw new Error(await response.text())
+      setApproval(await response.json())
+      await refreshIncident(incident.id)
+      await loadRecent()
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to record approval decision.')
+    } finally {
+      setWorkflowBusy(false)
+    }
+  }
+
+  async function verify(outcome: 'PASS' | 'FAIL' | 'INCONCLUSIVE') {
+    if (!incident) return
+
+    setWorkflowBusy(true)
+    setError('')
+    try {
+      const evidence = outcome === 'PASS'
+        ? analysis?.remediation?.verification ?? 'Verification check completed successfully.'
+        : 'Verification did not confirm the expected remediation outcome.'
+      const response = await fetch(`${API_BASE}/api/v1/incidents/${incident.id}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome, evidence, checked_by: 'dashboard-verifier' }),
+      })
+      if (!response.ok) throw new Error(await response.text())
+      setVerification(await response.json())
+      await refreshIncident(incident.id)
+      await loadRecent()
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to record verification result.')
+    } finally {
+      setWorkflowBusy(false)
     }
   }
 
@@ -180,7 +271,7 @@ export default function App() {
           {recent.map((item) => (
             <button key={item.id} className="recent-item" type="button">
               <span>{item.title}</span>
-              <small>{item.component} · {item.severity}</small>
+              <small>{item.component} · {item.severity} · {item.status}</small>
             </button>
           ))}
         </div>
@@ -191,9 +282,9 @@ export default function App() {
           <div>
             <p className="eyebrow">KURUKSHETRA 2.0 · WORKING BUILD</p>
             <h1>Evidence-backed incident response</h1>
-            <p className="muted">Start with a real incident. The system stores the case, triages it and builds an auditable timeline.</p>
+            <p className="muted">Investigate, authorize, execute and verify through one auditable workflow.</p>
           </div>
-          <span className="status">● API-connected build</span>
+          <span className="status">● Closed-loop build</span>
         </header>
 
         <section className="stage-row">
@@ -209,23 +300,11 @@ export default function App() {
             <div className="panel-title">New incident</div>
             <label>
               <span>Title</span>
-              <input
-                value={form.title}
-                onChange={(event) => setForm({ ...form, title: event.target.value })}
-                minLength={3}
-                maxLength={160}
-                required
-              />
+              <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} minLength={3} maxLength={160} required />
             </label>
             <label>
               <span>Description</span>
-              <textarea
-                rows={5}
-                value={form.description}
-                onChange={(event) => setForm({ ...form, description: event.target.value })}
-                minLength={5}
-                required
-              />
+              <textarea rows={5} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} minLength={5} required />
             </label>
             <div className="form-row">
               <label>
@@ -242,7 +321,7 @@ export default function App() {
               </label>
             </div>
             {error && <div className="error-box"><AlertCircle size={16} /> {error}</div>}
-            <button className="primary submit-button" disabled={loading}>
+            <button className="primary submit-button" disabled={loading || workflowBusy}>
               {loading ? <><Loader2 className="spin" size={16} /> Analyzing…</> : 'Create & analyze incident'}
             </button>
           </form>
@@ -253,7 +332,10 @@ export default function App() {
                 <article className="panel hero-panel">
                   <div className="panel-title">
                     <span>{incident.id}</span>
-                    <span className={`pill ${incident.triage.severity.toLowerCase()}`}>{incident.triage.severity}</span>
+                    <div className="status-group">
+                      <span className={`pill ${incident.triage.severity.toLowerCase()}`}>{incident.triage.severity}</span>
+                      <span className="state-pill">{incident.status}</span>
+                    </div>
                   </div>
                   <h2>{incident.incident.title}</h2>
                   <p className="muted">{incident.incident.description}</p>
@@ -268,7 +350,7 @@ export default function App() {
                   <article className="panel">
                     <div className="panel-title">Historical evidence <span className="baseline-tag">lexical baseline</span></div>
                     {analysis.evidence.no_strong_match ? (
-                      <p className="muted">No sufficiently relevant historical runbook match was found. The workflow should continue without forcing a known fix.</p>
+                      <p className="muted">No sufficiently relevant historical runbook match was found. The workflow escalates instead of forcing a known fix.</p>
                     ) : (
                       <ul className="match-list">
                         {analysis.evidence.matches.map((match) => (
@@ -300,17 +382,58 @@ export default function App() {
                       {analysis.remediation.steps.map((step) => <li key={step}>{step}</li>)}
                     </ol>
                     <div className="verification-box"><b>Verification</b><span>{analysis.remediation.verification}</span></div>
-                    {analysis.remediation.risk && (
-                      <small className="policy-note">Policy: {analysis.remediation.risk.policy} · {analysis.remediation.risk.reason}</small>
+                    {analysis.remediation.risk && <small className="policy-note">Policy: {analysis.remediation.risk.policy} · {analysis.remediation.risk.reason}</small>}
+
+                    {incident.status === 'REMEDIATION_READY' && analysis.remediation.proposed_action && (
+                      <div className="approval-box">
+                        <div>
+                          <b>Exact bounded action</b>
+                          <span>{analysis.remediation.proposed_action.description}</span>
+                        </div>
+                        <div className="button-row">
+                          <button type="button" className="secondary danger-button" disabled={workflowBusy} onClick={() => void decideAction('REJECT')}>Reject</button>
+                          <button type="button" className="primary" disabled={workflowBusy} onClick={() => void decideAction('APPROVE')}>
+                            {workflowBusy ? 'Recording…' : 'Approve action'}
+                          </button>
+                        </div>
+                      </div>
                     )}
+                  </article>
+                )}
+
+                {approval?.execution && (
+                  <article className="panel action-result-panel">
+                    <div className="panel-title">Action result <span className="state-pill">{approval.execution.mode}</span></div>
+                    <div className="action-result-line"><CheckCircle2 size={18} /><div><b>{approval.execution.status}</b><span>{approval.execution.message}</span></div></div>
+                    <small className="policy-note">Action ID: {approval.execution.action_id} · Target: {approval.execution.target}</small>
+                  </article>
+                )}
+
+                {incident.status === 'VERIFYING' && (
+                  <article className="panel verification-panel">
+                    <div className="panel-title">Independent verification</div>
+                    <p className="muted">Execution alone never closes the incident. Record the outcome of the defined verification check.</p>
+                    <div className="button-row verification-actions">
+                      <button type="button" className="secondary" disabled={workflowBusy} onClick={() => void verify('INCONCLUSIVE')}>Inconclusive</button>
+                      <button type="button" className="secondary danger-button" disabled={workflowBusy} onClick={() => void verify('FAIL')}><XCircle size={15} /> Fail</button>
+                      <button type="button" className="primary" disabled={workflowBusy} onClick={() => void verify('PASS')}><CheckCircle2 size={15} /> Pass</button>
+                    </div>
+                  </article>
+                )}
+
+                {verification && (
+                  <article className={`panel final-result ${verification.outcome === 'PASS' ? 'success-result' : 'failure-result'}`}>
+                    <div className="panel-title">Verification outcome</div>
+                    <h3>{verification.outcome} · {verification.incident_status}</h3>
+                    <p>{verification.message}</p>
                   </article>
                 )}
 
                 <article className="panel">
                   <div className="panel-title">Investigation timeline</div>
                   <ul className="timeline-list">
-                    {incident.timeline.map((event) => (
-                      <li key={`${event.timestamp}-${event.stage}`}>
+                    {incident.timeline.map((event, index) => (
+                      <li key={`${event.timestamp}-${event.stage}-${index}`}>
                         <b>{event.stage}</b>
                         <span>{event.message}</span>
                       </li>
