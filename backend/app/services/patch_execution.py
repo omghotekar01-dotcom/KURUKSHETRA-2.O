@@ -23,8 +23,10 @@ class PatchExecutionError(RuntimeError):
     pass
 
 
-_CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java", ".kt", ".cpp", ".c", ".cs"}
+_CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java", ".kt", ".cpp", ".c", ".cc", ".cs"}
+_CONFIG_OR_SCRIPT_EXTENSIONS = {".yml", ".yaml", ".json", ".toml", ".ini", ".cfg", ".conf", ".xml", ".sh", ".ps1", ".bat", ".cmd", ".tf", ".hcl"}
 _TEXT_ONLY_EXTENSIONS = {".md", ".txt", ".rst"}
+_SPECIAL_EXECUTABLE_NAMES = {"dockerfile", "makefile", "jenkinsfile", "procfile"}
 
 
 def _api(
@@ -117,10 +119,20 @@ def patch_idempotency_key(incident_id: str, proposal: PatchProposal) -> str:
 
 def _validation_plan(file_path: str) -> list[tuple[str, str, list[str], int]] | None:
     lowered = file_path.lower()
-    if lowered.startswith("frontend/") or Path(lowered).suffix in {".ts", ".tsx", ".js", ".jsx"}:
-        npm = shutil.which("npm") or "npm"
+    suffix = Path(lowered).suffix
+    filename = Path(lowered).name
+    npm = shutil.which("npm") or "npm"
+
+    # Lockfile-aware frontend validation is reproducible; never mutate the lock
+    # during remediation validation.
+    if lowered.endswith(("package.json", "package-lock.json")):
         return [
-            ("frontend dependencies", "frontend", [npm, "install", "--no-audit", "--no-fund"], 180),
+            ("frontend dependencies", "frontend", [npm, "ci", "--no-audit", "--no-fund"], 180),
+            ("frontend production build", "frontend", [npm, "run", "build"], 180),
+        ]
+    if lowered.startswith("frontend/") or suffix in {".ts", ".tsx", ".js", ".jsx"}:
+        return [
+            ("frontend dependencies", "frontend", [npm, "ci", "--no-audit", "--no-fund"], 180),
             ("frontend production build", "frontend", [npm, "run", "build"], 180),
         ]
     if lowered.startswith("backend/") or lowered.endswith(".py"):
@@ -128,18 +140,17 @@ def _validation_plan(file_path: str) -> list[tuple[str, str, list[str], int]] | 
             ("backend compile", "backend", [sys.executable, "-m", "compileall", "-q", "app", "tests"], 90),
             ("backend tests", "backend", [sys.executable, "-m", "pytest", "-q"], 180),
         ]
-    suffix = Path(lowered).suffix
     if suffix in _TEXT_ONLY_EXTENSIONS:
         return []
-    if suffix in _CODE_EXTENSIONS:
+
+    # Configuration, automation and unsupported executable/code changes must
+    # never get a green Draft PR merely because exact content was re-read.
+    if suffix in _CODE_EXTENSIONS or suffix in _CONFIG_OR_SCRIPT_EXTENSIONS or filename in _SPECIAL_EXECUTABLE_NAMES:
         return None
-    if lowered.endswith(("package.json", "package-lock.json")):
-        npm = shutil.which("npm") or "npm"
-        return [
-            ("frontend dependencies", "frontend", [npm, "install", "--no-audit", "--no-fund"], 180),
-            ("frontend production build", "frontend", [npm, "run", "build"], 180),
-        ]
-    return []
+
+    # Unknown file types fail closed. Only explicitly safe text documentation
+    # receives the no-executable-validator path above.
+    return None
 
 
 def _run_command(name: str, command: list[str], cwd: Path, timeout: int) -> ValidationCheck:
@@ -166,7 +177,7 @@ def _run_local_validation(repository: str, branch: str, file_path: str) -> list[
                 name="validator availability",
                 command="n/a",
                 status="FAIL",
-                output="No trusted deterministic validator is configured for this code type; draft PR creation is blocked.",
+                output="No trusted deterministic validator is configured for this code/configuration type; draft PR creation is blocked.",
             )
         ]
     if not plan:
@@ -175,7 +186,7 @@ def _run_local_validation(repository: str, branch: str, file_path: str) -> list[
                 name="non-code change gate",
                 command="exact GitHub content verification",
                 status="PASS",
-                output="The approved text replacement was re-read from the isolated branch. No executable code check is required for this file type.",
+                output="The approved documentation/text replacement was re-read from the isolated branch. No executable code check is required for this explicitly safe file type.",
             )
         ]
 
