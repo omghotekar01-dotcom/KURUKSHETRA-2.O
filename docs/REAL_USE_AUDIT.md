@@ -4,41 +4,22 @@ Date: **11 September 2026**
 
 **Verdict: the supported hackathon workflow is real-use functional for its declared scope.**
 
-The project was audited for actual engineering usefulness rather than only demo behavior. The release now supports realistic incident triage, configurable organization ownership, live GitHub evidence, stack-trace/file-path correlation, CODEOWNERS routing hints, evidence-backed RCA, safety-thresholded exact patch proposals, approval-gated isolated remediation, trusted validation, Draft PR creation, real CI verification, derived verification evidence and human runtime verification.
+The project was audited for actual engineering usefulness rather than only demo behavior. It now supports realistic incident triage, configurable organization ownership, live GitHub evidence, stack-trace/file-path correlation, CODEOWNERS routing hints, evidence-backed RCA, safety-thresholded exact patch proposals, approval-gated isolated remediation, trusted validation, Draft PR creation, real CI verification, derived verification evidence and human runtime verification.
 
-## Real-use hardening completed
+## Hardening completed
 
-- Stack-trace/file-path clues materially influence changed-code ranking.
+- Stack-trace/file-path clues influence changed-code ranking.
 - `PATCH_PROPOSAL_MIN_CORRELATION` blocks weak patch candidates (default `0.18`).
 - Frontend remediation uses locked `npm ci` + production build.
 - Backend Python remediation uses compile + pytest.
 - Unknown/configuration/operational file types fail closed without a trusted validator.
-- `TRIAGE_OWNER_MAP` maps components to real organization teams without code edits.
-- Repository CODEOWNERS provides advisory review/routing hints when available.
+- `TRIAGE_OWNER_MAP` maps components to real teams without code edits.
+- CODEOWNERS can provide advisory review/routing hints.
 - Duplicate exact approvals reuse existing remediation state.
-- Missing GitHub auth produces `AUTH_REQUIRED`, not fake success.
-- CI `FAIL` derives failed incident verification and escalates.
+- Missing GitHub auth returns `AUTH_REQUIRED`, not fake success.
+- CI `FAIL` derives failed verification and escalates.
 - CI `PENDING` / `NO_CHECKS` stays inconclusive.
 - CI `PASS` remains evidence and still requires runtime/human verification.
-
-## Realistic regression coverage
-
-| Scenario | Expected behavior |
-|---|---|
-| JWT signature failures | Authentication routing |
-| Postgres pool exhaustion | Database routing |
-| 502/worker failure | Backend routing |
-| React/CSS mobile regression | Frontend routing |
-| Kubernetes CrashLoop/OOM | Infrastructure routing |
-| Unknown subsystem / weak evidence | human/no-match path |
-| Stack trace names changed source file | source path receives ranking boost |
-| 5% correlated exact hunk | patch proposal blocked |
-| YAML/Terraform/Dockerfile remediation | Draft PR blocked without trusted validator |
-| Duplicate exact approval | remediation state reused |
-| Missing write auth | `AUTH_REQUIRED` |
-| No CI checks | `NO_CHECKS`, never PASS |
-| CI failure | failed verification + escalation |
-| CI pass | evidence only; runtime verification required |
 
 ## Latest audited executable proof
 
@@ -57,7 +38,7 @@ Clean-clone acceptance:                4/4 PASS
 Release-candidate acceptance:          PASS
 ```
 
-The Windows job performs a fresh checkout/bootstrap before acceptance, so the proof does not depend on a developer's existing local environment. Subsequent closure commits are documentation-only.
+The Windows job performs a fresh checkout/bootstrap before acceptance. Subsequent closure commits are documentation-only.
 
 ## Actual supported workflow
 
