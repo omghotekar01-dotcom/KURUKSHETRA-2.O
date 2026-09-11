@@ -179,6 +179,17 @@ class IncidentStore:
             )
         return summaries
 
+    def set_status(self, incident_id: str, status: IncidentStatus) -> IncidentRecord | None:
+        now = _utc_now()
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "UPDATE incidents SET status = ?, updated_at = ? WHERE id = ?",
+                (status.value, now.isoformat(), incident_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+        return self.get(incident_id)
+
     def append_event(
         self,
         incident_id: str,
