@@ -6,7 +6,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from app.schemas.incident import IncidentRecord, KnowledgeMatch
+from app.schemas.incident import IncidentRecord, KnowledgeMatch, ResolutionMemory
 
 
 TOKEN_RE = re.compile(r"[a-z0-9_+-]+")
@@ -32,12 +32,19 @@ def _cosine(left: Counter[str], right: Counter[str]) -> float:
     return numerator / (left_norm * right_norm) if left_norm and right_norm else 0.0
 
 
-def retrieve_runbooks(
+def _score_candidate(query: Counter[str], component: str, record: IncidentRecord, text: str) -> float:
+    lexical_score = _cosine(query, _tokens(text))
+    component_bonus = 0.12 if component.lower() == record.triage.component.lower() else 0.0
+    return min(1.0, lexical_score + component_bonus)
+
+
+def retrieve_knowledge(
     record: IncidentRecord,
+    memories: list[ResolutionMemory] | None = None,
     limit: int = 3,
     corpus_path: str | Path = DEFAULT_CORPUS,
 ) -> list[KnowledgeMatch]:
-    """Return a deterministic lexical baseline before embedding retrieval is enabled."""
+    """Retrieve runbooks plus verified resolution memory using a deterministic baseline."""
     entries = json.loads(Path(corpus_path).read_text(encoding="utf-8"))
     query_text = " ".join(
         [
@@ -52,10 +59,12 @@ def retrieve_runbooks(
 
     matches: list[KnowledgeMatch] = []
     for entry in entries:
-        document_tokens = _tokens(f"{entry['issue']} {entry['fix']} {entry['component']}")
-        lexical_score = _cosine(query_tokens, document_tokens)
-        component_bonus = 0.12 if entry["component"].lower() == record.triage.component.lower() else 0.0
-        score = min(1.0, lexical_score + component_bonus)
+        score = _score_candidate(
+            query_tokens,
+            entry["component"],
+            record,
+            f"{entry['issue']} {entry['fix']} {entry['component']}",
+        )
         matches.append(
             KnowledgeMatch(
                 id=entry["id"],
@@ -67,5 +76,34 @@ def retrieve_runbooks(
             )
         )
 
+    for memory in memories or []:
+        if memory.incident_id == record.id:
+            continue
+        score = _score_candidate(
+            query_tokens,
+            memory.component,
+            record,
+            f"{memory.symptoms} {memory.working_hypothesis} {memory.remediation} {memory.component}",
+        )
+        matches.append(
+            KnowledgeMatch(
+                id=memory.memory_id,
+                component=memory.component,
+                issue=memory.symptoms,
+                fix=memory.remediation,
+                source=memory.source,
+                score=round(score, 3),
+            )
+        )
+
     matches.sort(key=lambda item: item.score, reverse=True)
     return [match for match in matches[:limit] if match.score >= 0.18]
+
+
+def retrieve_runbooks(
+    record: IncidentRecord,
+    limit: int = 3,
+    corpus_path: str | Path = DEFAULT_CORPUS,
+) -> list[KnowledgeMatch]:
+    """Backward-compatible static-runbook retrieval used by baseline tests."""
+    return retrieve_knowledge(record, memories=None, limit=limit, corpus_path=corpus_path)
