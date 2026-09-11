@@ -11,6 +11,7 @@ from app.repositories.incidents import IncidentStore
 def _client(tmp_path: Path, monkeypatch) -> TestClient:
     monkeypatch.setattr(main_module, "incident_store", IncidentStore(tmp_path / "github-action.db"))
     monkeypatch.setenv("GITHUB_REPOSITORY", "omghotekar01-dotcom/KURUKSHETRA-2.O")
+    monkeypatch.setenv("GITHUB_ALLOWED_REPOSITORIES", "omghotekar01-dotcom/KURUKSHETRA-2.O")
     return TestClient(main_module.app)
 
 
@@ -84,6 +85,6 @@ def test_live_github_action_fails_closed_without_auth(tmp_path: Path, monkeypatc
 
     assert result.status_code == 200
     payload = result.json()
-    assert payload["execution"]["status"] == "PREPARED"
-    assert payload["execution"]["mode"] == "SAFE_PREVIEW"
+    assert payload["execution"]["status"] == "AUTH_REQUIRED"
+    assert payload["execution"]["mode"] == "LIVE"
     assert payload["incident_status"] == "ESCALATED"
