@@ -81,7 +81,7 @@ def test_analyze_advances_incident_to_remediation_ready(tmp_path: Path, monkeypa
     assert response.status_code == 200
     analysis = response.json()
     assert analysis["hypotheses"][0]["evidence_ids"][0] == "RB-AUTH-001"
-    assert analysis["remediation"]["risk"]["policy"] == "ALLOWED"
+    assert analysis["remediation"]["risk"]["policy"] == "APPROVAL_REQUIRED"
 
     refreshed = client.get(f"/api/v1/incidents/{created['id']}").json()
     assert refreshed["status"] == "REMEDIATION_READY"
