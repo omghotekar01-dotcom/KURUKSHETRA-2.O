@@ -165,6 +165,31 @@ class RepositoryContext(BaseModel):
     notes: List[str] = Field(default_factory=list)
 
 
+class PatchProposalRequest(BaseModel):
+    commit_sha: str = Field(min_length=7, max_length=64)
+    filename: str = Field(min_length=1, max_length=500)
+    hunk_header: str = Field(min_length=4, max_length=240)
+
+
+class PatchProposal(BaseModel):
+    proposal_id: str
+    incident_id: str
+    repository: str
+    base_commit: str
+    file_path: str
+    hunk_header: str
+    strategy: str = "REVERT_SUSPICIOUS_HUNK"
+    line_start: int = Field(ge=1)
+    before_lines: List[str] = Field(default_factory=list)
+    after_lines: List[str] = Field(default_factory=list)
+    diff_preview: str
+    rationale: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    verification_commands: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    writes_repository: bool = False
+
+
 class ProposedAction(BaseModel):
     action_type: str
     target: str
