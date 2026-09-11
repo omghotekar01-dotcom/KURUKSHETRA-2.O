@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+from threading import Lock
+
 from fastapi import APIRouter, HTTPException
 
 from app.repositories.incidents import IncidentStore
 from app.routers.evaluation import router as evaluation_router
 from app.schemas.incident import ApprovalDecision, IncidentStatus, PatchProposalRequest
-from app.schemas.patch import PatchDecisionRequest, PatchExecutionResult, PatchVerificationResult
+from app.schemas.patch import PatchDecisionRequest, PatchExecutionResult, PatchVerificationResult, ValidationCheck
 from app.services.github_context import GitHubContextUnavailable, collect_repository_context
-from app.services.patch_execution import execute_approved_patch
+from app.services.patch_execution import execute_approved_patch, patch_idempotency_key
 from app.services.patch_proposal import PatchProposalUnavailable, build_patch_proposal
 from app.services.patch_verification import PatchVerificationUnavailable, verify_patch_ci
 
 router = APIRouter(prefix="/api/v1", tags=["patch-remediation"])
 router.include_router(evaluation_router)
 store = IncidentStore.from_env()
+
+_approval_locks: dict[str, Lock] = {}
+_approval_locks_guard = Lock()
 
 
 def _same_exact_proposal(left, right) -> bool:
@@ -33,6 +38,142 @@ def _latest_event_metadata(incident, stage: str) -> dict:
         if event.stage == stage:
             return event.metadata
     return {}
+
+
+def _lock_for(key: str) -> Lock:
+    with _approval_locks_guard:
+        return _approval_locks.setdefault(key, Lock())
+
+
+def _existing_successful_execution(incident, proposal_id: str, idempotency_key: str) -> PatchExecutionResult | None:
+    for event in reversed(incident.timeline):
+        if event.stage != "PATCH_EXECUTION":
+            continue
+        metadata = event.metadata
+        if metadata.get("proposal_id") != proposal_id:
+            continue
+        if metadata.get("status") != "DRAFT_PR_CREATED":
+            continue
+        stored_key = metadata.get("idempotency_key")
+        if stored_key and stored_key != idempotency_key:
+            continue
+
+        repository = str(metadata.get("repository") or incident.incident.repo or "")
+        branch = metadata.get("branch")
+        validation = [ValidationCheck.model_validate(item) for item in metadata.get("validation", [])]
+        return PatchExecutionResult(
+            incident_id=incident.id,
+            proposal_id=proposal_id,
+            decision=ApprovalDecision.approve,
+            status="DRAFT_PR_CREATED",
+            message="Existing successful remediation reused. No duplicate branch, commit, validation write or pull request was created.",
+            repository=repository,
+            branch=branch,
+            branch_url=metadata.get("branch_url") or (f"https://github.com/{repository}/tree/{branch}" if repository and branch else None),
+            commit_sha=metadata.get("commit_sha"),
+            draft_pr_number=metadata.get("draft_pr_number"),
+            draft_pr_url=metadata.get("draft_pr_url"),
+            validation=validation,
+            incident_status=IncidentStatus.verifying,
+            reused=True,
+            idempotency_key=idempotency_key,
+        )
+    return None
+
+
+def _approve_patch(incident_id: str, payload: PatchDecisionRequest, idempotency_key: str) -> PatchExecutionResult:
+    incident = store.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    previous = _existing_successful_execution(incident, payload.proposal.proposal_id, idempotency_key)
+    if previous is not None:
+        store.append_event(
+            incident_id,
+            "PATCH_EXECUTION_REUSED",
+            "Duplicate approval safely returned the existing remediation result.",
+            {
+                "proposal_id": payload.proposal.proposal_id,
+                "idempotency_key": idempotency_key,
+                "branch": previous.branch,
+                "commit_sha": previous.commit_sha,
+                "draft_pr_number": previous.draft_pr_number,
+                "draft_pr_url": previous.draft_pr_url,
+            },
+        )
+        store.set_status(incident_id, IncidentStatus.verifying)
+        return previous
+
+    try:
+        context = collect_repository_context(incident)
+        fresh = build_patch_proposal(
+            incident,
+            context,
+            PatchProposalRequest(
+                commit_sha=payload.proposal.base_commit,
+                filename=payload.proposal.file_path,
+                hunk_header=payload.proposal.hunk_header,
+            ),
+        )
+    except (GitHubContextUnavailable, PatchProposalUnavailable) as exc:
+        store.append_event(
+            incident_id,
+            "PATCH_STALE",
+            "Patch approval blocked because live evidence could not reproduce the reviewed proposal.",
+            {"proposal_id": payload.proposal.proposal_id, "reason": str(exc), "idempotency_key": idempotency_key},
+        )
+        raise HTTPException(status_code=409, detail=f"Reviewed patch is stale or unavailable: {exc}") from exc
+
+    if not _same_exact_proposal(fresh, payload.proposal):
+        store.append_event(
+            incident_id,
+            "PATCH_STALE",
+            "Patch approval blocked because the live proposal changed since review.",
+            {
+                "proposal_id": payload.proposal.proposal_id,
+                "fresh_proposal_id": fresh.proposal_id,
+                "idempotency_key": idempotency_key,
+            },
+        )
+        raise HTTPException(status_code=409, detail="Reviewed patch changed after live revalidation. Refresh evidence and review again.")
+
+    store.append_event(
+        incident_id,
+        "PATCH_APPROVED",
+        f"Exact patch proposal {fresh.proposal_id} approved by {payload.reviewer}.",
+        {
+            "proposal_id": fresh.proposal_id,
+            "reviewer": payload.reviewer,
+            "note": payload.note,
+            "repository": fresh.repository,
+            "file_path": fresh.file_path,
+            "base_commit": fresh.base_commit,
+            "idempotency_key": idempotency_key,
+        },
+    )
+    store.set_status(incident_id, IncidentStatus.executing)
+
+    result = execute_approved_patch(incident, fresh)
+    store.append_event(
+        incident_id,
+        "PATCH_EXECUTION",
+        result.message,
+        {
+            "proposal_id": result.proposal_id,
+            "status": result.status,
+            "repository": result.repository,
+            "branch": result.branch,
+            "branch_url": result.branch_url,
+            "commit_sha": result.commit_sha,
+            "draft_pr_number": result.draft_pr_number,
+            "draft_pr_url": result.draft_pr_url,
+            "validation": [check.model_dump() for check in result.validation],
+            "reused": result.reused,
+            "idempotency_key": result.idempotency_key or idempotency_key,
+        },
+    )
+    store.set_status(incident_id, result.incident_status)
+    return result
 
 
 @router.post("/incidents/{incident_id}/patch-decision", response_model=PatchExecutionResult)
@@ -64,68 +205,9 @@ def decide_patch(incident_id: str, payload: PatchDecisionRequest) -> PatchExecut
             incident_status=status,
         )
 
-    try:
-        context = collect_repository_context(incident)
-        fresh = build_patch_proposal(
-            incident,
-            context,
-            PatchProposalRequest(
-                commit_sha=payload.proposal.base_commit,
-                filename=payload.proposal.file_path,
-                hunk_header=payload.proposal.hunk_header,
-            ),
-        )
-    except (GitHubContextUnavailable, PatchProposalUnavailable) as exc:
-        store.append_event(
-            incident_id,
-            "PATCH_STALE",
-            "Patch approval blocked because live evidence could not reproduce the reviewed proposal.",
-            {"proposal_id": payload.proposal.proposal_id, "reason": str(exc)},
-        )
-        raise HTTPException(status_code=409, detail=f"Reviewed patch is stale or unavailable: {exc}") from exc
-
-    if not _same_exact_proposal(fresh, payload.proposal):
-        store.append_event(
-            incident_id,
-            "PATCH_STALE",
-            "Patch approval blocked because the live proposal changed since review.",
-            {"proposal_id": payload.proposal.proposal_id, "fresh_proposal_id": fresh.proposal_id},
-        )
-        raise HTTPException(status_code=409, detail="Reviewed patch changed after live revalidation. Refresh evidence and review again.")
-
-    store.append_event(
-        incident_id,
-        "PATCH_APPROVED",
-        f"Exact patch proposal {fresh.proposal_id} approved by {payload.reviewer}.",
-        {
-            "proposal_id": fresh.proposal_id,
-            "reviewer": payload.reviewer,
-            "note": payload.note,
-            "repository": fresh.repository,
-            "file_path": fresh.file_path,
-            "base_commit": fresh.base_commit,
-        },
-    )
-    store.set_status(incident_id, IncidentStatus.executing)
-
-    result = execute_approved_patch(incident, fresh)
-    store.append_event(
-        incident_id,
-        "PATCH_EXECUTION",
-        result.message,
-        {
-            "proposal_id": result.proposal_id,
-            "status": result.status,
-            "repository": result.repository,
-            "branch": result.branch,
-            "commit_sha": result.commit_sha,
-            "draft_pr_number": result.draft_pr_number,
-            "draft_pr_url": result.draft_pr_url,
-            "validation": [check.model_dump() for check in result.validation],
-        },
-    )
-    store.set_status(incident_id, result.incident_status)
-    return result
+    idempotency_key = patch_idempotency_key(incident_id, payload.proposal)
+    with _lock_for(idempotency_key):
+        return _approve_patch(incident_id, payload, idempotency_key)
 
 
 @router.get("/incidents/{incident_id}/patch-verification", response_model=PatchVerificationResult)
