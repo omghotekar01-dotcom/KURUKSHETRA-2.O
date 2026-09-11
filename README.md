@@ -2,11 +2,11 @@
 
 **From bug report to evidence-backed, human-approved, verified fix.**
 
-AI Agentic Bug Router is a live-first engineering incident-response MVP. It accepts a software incident, routes it to the likely technical owner, searches previous verified knowledge, investigates the attached GitHub repository, ranks relevant commits and diff hunks, prepares an exact patch proposal, requires human approval before any write, validates the approved change on an isolated branch, and creates a Draft Pull Request only after configured checks pass.
+AI Agentic Bug Router is a live-first engineering incident-response MVP. It accepts a software incident, routes it to the likely technical owner, searches previous verified knowledge, investigates the attached GitHub repository, ranks relevant commits and diff hunks, prepares an exact patch proposal, requires human approval before any write, validates the approved change on an isolated branch, and creates a Draft Pull Request only after the configured checks pass.
 
 The system never auto-merges or deploys production code.
 
-> **Hackathon release-candidate note:** the completed implementation is frozen on `agent-build-core` until the team explicitly promotes the reviewed build for final submission. `main` remains intentionally untouched during this stage.
+> **Hackathon development note:** the active implementation is on `agent-build-core` until the final release-candidate freeze. `main` remains intentionally untouched during active integration.
 
 ## Fastest Windows start
 
@@ -25,7 +25,17 @@ verify.bat
 start.bat
 ```
 
-The launcher checks the local toolchain, creates `.env` from `.env.example` when absent, creates the backend virtual environment, installs pinned/locked dependencies, automatically chooses free backend/frontend ports, injects the selected backend URL into Vite, waits for both services to become healthy, and prints the exact live URLs.
+On launch the project:
+
+1. checks the local toolchain,
+2. creates `.env` from `.env.example` if needed,
+3. creates `backend/.venv`,
+4. installs pinned Python dependencies and the locked npm dependency tree,
+5. selects a free backend port (prefers `8000`, falls back from `8011`),
+6. selects a free frontend port (prefers `5173`, falls back from `5181`),
+7. injects the selected backend URL into Vite,
+8. waits for backend `/health` and frontend HTTP,
+9. prints the exact live URLs and opens the dashboard.
 
 **Use the URLs printed by `start.bat`; do not assume the default ports are free.**
 
@@ -52,37 +62,14 @@ bash scripts/stop.sh
 
 The launcher prints the exact selected port for every surface:
 
-- **Judge Mode — `/demo`**
 - Incident Command Dashboard — `/`
+- Judge Mode — `/demo`
 - Engineering Evidence Lab — `/evidence`
 - Remediation Studio — `/remediate`
 - Evaluation Lab — `/evaluation`
 - System Readiness — `/readiness`
 - FastAPI health — backend `/health`
 - FastAPI docs — backend `/docs`
-
-## Judge Mode
-
-`/demo` is the recommended hackathon presentation entrypoint. It runs a controlled golden authentication incident through readiness, incident creation, routing, historical retrieval, RCA, live GitHub evidence and exact patch-proposal generation.
-
-Repository writes remain **locked by default**. The demo must reach an exact reviewable patch before a human can separately enable **Arm live remediation** and approve the bounded write. If evidence is stale, missing or ambiguous, Judge Mode displays an explicit fail-closed result instead of inventing a patch. If a Draft PR is created, Judge Mode can surface the real GitHub CI state.
-
-```text
-Golden incident
-→ readiness
-→ routing
-→ historical evidence
-→ RCA
-→ live GitHub commits/diffs/source context
-→ exact patch proposal (NO WRITE)
-→ HUMAN APPROVAL BOUNDARY
-→ optional isolated remediation branch
-→ deterministic validation
-→ Draft PR
-→ real GitHub CI
-```
-
-Resetting Judge Mode clears only the presentation view; the incident audit history remains intact.
 
 ## Current live workflow
 
@@ -92,9 +79,11 @@ Incident + logs + repository
 → historical evidence
 → live GitHub investigation
 → recent commits + changed files + real diff hunks
+→ stack-trace/file-path correlation
+→ CODEOWNERS routing/review hints when available
 → bounded source context
 → evidence-backed RCA
-→ exact patch proposal (NO WRITE)
+→ exact safety-gated patch proposal (NO WRITE)
 → human approve / reject
 → stale-proposal + exact-file revalidation
 → deterministic incident-fix branch
@@ -102,6 +91,7 @@ Incident + logs + repository
 → deterministic validation gate
 → Draft PR only if green OR reuse exact existing PR
 → live GitHub CI/check verification
+→ derived verification evidence
 → human runtime verification
 → resolved / escalated
 → verified-resolution memory
@@ -112,7 +102,6 @@ Parallel trust surfaces:
 ```text
 Evaluation Lab → measured deterministic benchmark cases
 System Readiness → runtime mode + configuration + safety boundary
-Judge Mode → controlled end-to-end presentation flow
 ```
 
 ## Live GitHub configuration
@@ -127,9 +116,17 @@ GITHUB_REPOSITORY=omghotekar01-dotcom/KURUKSHETRA-2.O
 GITHUB_ALLOWED_REPOSITORIES=omghotekar01-dotcom/KURUKSHETRA-2.O
 ALLOW_GH_CLI_AUTH=true
 GITHUB_TOKEN=
+TRIAGE_OWNER_MAP=
+PATCH_PROPOSAL_MIN_CORRELATION=0.18
 ```
 
-For authenticated live write actions, either authenticate GitHub CLI locally:
+`TRIAGE_OWNER_MAP` can map components to real organization teams without changing code, for example:
+
+```env
+TRIAGE_OWNER_MAP=Authentication=identity-platform,Database=data-reliability,Backend=api-platform,Frontend=web-experience,Infrastructure=sre
+```
+
+For authenticated live write actions, either authenticate GitHub CLI:
 
 ```bash
 gh auth login
@@ -138,7 +135,7 @@ gh auth status
 
 or provide a suitable token through the local environment. Never paste tokens into issues, prompts, screenshots, repository files or chat messages.
 
-## Reproducibility and release gate
+## Reproducibility
 
 The tested local toolchain is recorded in:
 
@@ -148,26 +145,20 @@ The tested local toolchain is recorded in:
 - `frontend/package.json` → exact direct frontend/tooling versions
 - `frontend/package-lock.json` → npm lockfile v3 with transitive tree + integrity hashes
 
-Bootstrap uses `npm ci`. `scripts/acceptance.py` now requires four release-candidate checks to pass:
-
-```text
-backend compile
-backend test suite
-frontend production build
-release candidate contract
-```
-
-The release contract verifies the critical routes/artifacts, Judge Mode's locked-by-default write boundary, explicit approval requirement, fail-closed behavior, CI hook, lockfile, launcher links, README safety statements and that `.env` is not tracked.
+Bootstrap uses `npm ci`. GitHub Actions runs Linux backend/frontend jobs and a real `windows-latest` clean-checkout bootstrap/acceptance job.
 
 ## Security and trust boundaries
 
 - Repository investigation is read-only until explicit approval.
 - Patch proposal generation performs no repository write.
+- Weakly correlated patch candidates are blocked by the configured safety threshold.
 - Every repository write is tied to one exact human-approved proposal.
 - Duplicate approvals reuse exact successful remediation state instead of creating duplicate branches/PRs.
 - Stale or conflicting state fails closed.
+- Unsupported executable/configuration file types fail closed when no trusted deterministic validator exists.
 - High-risk merge/deploy/destructive actions remain recommendation-only.
 - Passing CI never triggers automatic merge or claims production recovery.
+- CI failure can derive failed incident-verification evidence; CI PASS still requires runtime/human verification.
 - Incident text/logs redact recognized credential patterns before normal persistence/display.
 - Commit messages, issue titles/labels, diff lines and bounded source snippets redact recognized credential patterns before UI exposure.
 - Repository text is treated as **untrusted evidence, not executable instructions**.
@@ -176,23 +167,23 @@ The release contract verifies the critical routes/artifacts, Judge Mode's locked
 
 These deterministic safeguards are defense-in-depth; they are not a claim of complete DLP or universal prompt-injection protection.
 
-## Latest verified release-candidate build
+## Latest verified build
 
-GitHub Actions run **#358** / run ID `34595268159` on code head `b6e4959971b08adcf53fa83b9f98fd8c6aca0f6a` completed successfully:
+GitHub Actions run **#409** on executable code head `18112b436803f747a23d60bf5ce73c952f9523a7` passed:
 
 ```text
-Backend compile:                       PASS
-Backend tests:                         59 passed, 0 failures
-Frontend locked install/build:         PASS
-Windows launcher syntax:               PASS
-Windows environment preflight:         PASS
-Windows clean bootstrap:               PASS
-Release candidate contract:            PASS
-Clean-clone acceptance:                4/4 PASS
-Release-candidate acceptance:          PASS
+Backend compile:                      PASS
+Backend tests:                        73 passed, 0 failures
+Frontend locked install/build:        PASS
+Windows launcher syntax:              PASS
+Windows environment preflight:        PASS
+Windows clean bootstrap:              PASS
+Release candidate contract:           PASS
+Clean-clone acceptance:               4/4 PASS
+Release-candidate acceptance:         PASS
 ```
 
-This is the frozen executable release-candidate proof point. Later documentation-only edits do not change that validated executable snapshot.
+The later documentation updates do not change that validated executable behavior.
 
 ## Development / submission links
 
@@ -200,7 +191,7 @@ Current working-code branch:
 
 `https://github.com/omghotekar01-dotcom/KURUKSHETRA-2.O/tree/agent-build-core`
 
-Repository root (use after final release is explicitly promoted to `main`):
+Repository root (use after final release is promoted to `main`):
 
 `https://github.com/omghotekar01-dotcom/KURUKSHETRA-2.O`
 
@@ -208,16 +199,13 @@ Draft integration PR: `agent-build-core` → `develop`.
 
 ## Project documentation
 
-- [`docs/IMPLEMENTATION_PROGRESS.md`](docs/IMPLEMENTATION_PROGRESS.md) — verified capability/status ledger
-- [`docs/RELEASE_CANDIDATE_FREEZE.md`](docs/RELEASE_CANDIDATE_FREEZE.md) — frozen release-candidate proof and final rehearsal instructions
+- [`docs/IMPLEMENTATION_PROGRESS.md`](docs/IMPLEMENTATION_PROGRESS.md) — current verified capability/status ledger
+- [`docs/REAL_USE_AUDIT.md`](docs/REAL_USE_AUDIT.md) — practical usefulness audit and realistic regression proof
 - [`docs/REPRODUCIBLE_STARTUP_MILESTONE.md`](docs/REPRODUCIBLE_STARTUP_MILESTONE.md) — reproducible setup proof
 - [`docs/SECURITY_READINESS_MILESTONE.md`](docs/SECURITY_READINESS_MILESTONE.md) — readiness/redaction/untrusted-evidence hardening
 - [`docs/JUDGE_DEMO_RUNBOOK.md`](docs/JUDGE_DEMO_RUNBOOK.md) — safe presentation and recovery sequence
+- [`docs/RELEASE_CANDIDATE_FREEZE.md`](docs/RELEASE_CANDIDATE_FREEZE.md) — release-candidate boundary
 
 ## Originality and open-source use
 
 This GitHub repository is not registered as a fork or template-derived repository. The project uses standard open-source frameworks/libraries such as React, TypeScript, Vite, FastAPI, Pydantic, Uvicorn, HTTPX, Pytest, Lucide React and SQLite. AI-assisted development tools were used for brainstorming, architecture discussion, implementation assistance, debugging, testing and documentation; project-specific workflow integration and final implementation are reviewed and tested in this repository.
-
-## Scope-completion boundary
-
-The planned **hackathon MVP scope is complete** on the validated release-candidate snapshot above. That does not mean the software is universally bug-free or production-enterprise complete. Future work such as horizontal-scale distributed locking, fully hashed transitive Python locking, broader semantic patch synthesis, enterprise authentication/authorization and production deployment infrastructure is intentionally outside this hackathon release scope.
