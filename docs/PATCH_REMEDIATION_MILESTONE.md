@@ -3,7 +3,13 @@
 Date: 2026-09-11
 Branch: `agent-build-core`
 
-## What is now real
+## Status
+
+**COMPLETE for the hackathon MVP.**
+
+This document originally captured the first approval-gated GitHub remediation implementation. The follow-on work that was previously listed as the next milestone — real CI/check-derived verification evidence and the Evaluation Lab — is now implemented and covered by the current release-candidate flow.
+
+## What is real
 
 The live MVP can move from repository evidence to an approval-gated code remediation workflow:
 
@@ -11,71 +17,132 @@ The live MVP can move from repository evidence to an approval-gated code remedia
 Incident
 → live GitHub evidence
 → ranked diff hunk + bounded source context
-→ exact patch proposal
+→ exact patch proposal (NO WRITE)
 → human APPROVE / REJECT
 → live proposal revalidation
+→ stable remediation identity
 → isolated `incident-fix/...` GitHub branch
 → apply only the exact approved before/after replacement
 → re-read branch content to verify patch integrity
-→ run deterministic local checks for supported code types
-→ create a DRAFT pull request only when validation passes
+→ deterministic validation for supported code types
+→ create/reuse a DRAFT pull request only when validation passes
+→ inspect real GitHub Actions / commit-status evidence
+→ derive auditable incident-verification evidence
+→ runtime/human verification remains authoritative for final recovery
 ```
 
 ## Safety boundaries
 
 - No repository write occurs during investigation or patch-proposal generation.
 - Rejection creates no branch, commit or PR.
-- Approval is tied to the exact proposal object reviewed by the human.
-- Before writing, the backend regenerates the proposal from fresh GitHub evidence and requires the exact proposal ID, file, hunk, before-lines and after-lines to match.
-- The default-branch file is re-read immediately before the write. Missing or ambiguous source sequences fail closed.
-- Every approved change is isolated on a dedicated `incident-fix/...` branch.
-- Only the exact approved line sequence is replaced.
-- The written branch file is re-read and byte-equivalent content is checked before validation.
-- A draft PR is created only if all configured validation checks pass.
-- No automatic merge or production deployment exists.
+- Approval is tied to the exact proposal reviewed by the human.
+- Before writing, fresh GitHub state is revalidated; stale, ambiguous or conflicting source state fails closed.
+- Every approved change is isolated on a deterministic `incident-fix/...` branch.
+- Only the exact approved sequence is replaced.
+- The written branch file is re-read and checked for exact integrity before validation.
+- Duplicate approvals reuse exact successful remediation state rather than writing twice.
+- Existing exact branches and open exact Draft PRs are reused instead of duplicated.
+- Conflicting retry/branch/PR state fails closed.
+- A Draft PR is created only after configured validation passes.
+- No automatic merge, production deployment, destructive action, unrestricted repository write or secret mutation exists.
 
 ## Validation behavior
 
-Supported frontend changes run a real dependency install plus production build in a fresh clone of the isolated branch.
+Supported frontend changes use a locked dependency install plus production TypeScript/Vite build in a fresh clone of the isolated branch.
 
-Supported backend/Python changes run compile and pytest in a fresh clone of the isolated branch using the running backend environment.
+Supported backend/Python changes run compile and pytest in a fresh clone using the trusted project validation environment.
 
-Documentation-only changes use exact branch-content integrity validation because no executable code test is relevant.
+Documentation-only changes use exact branch-content integrity validation when no executable validator is relevant.
 
-Unknown executable code types fail closed until a trusted deterministic validator is configured.
+Unknown executable/configuration types fail closed until a trusted deterministic validator is configured.
 
 ## Live authentication
 
-Repository writes require a configured `GITHUB_TOKEN` or an authenticated GitHub CLI session exposed through the existing credential adapter. Missing credentials return `AUTH_REQUIRED`; they never silently fall back to simulated success.
+Repository writes require configured GitHub credentials through the existing approved credential adapter. Missing credentials return `AUTH_REQUIRED`; they never fall back to simulated write success.
+
+Secrets are not exposed through normal evidence or readiness surfaces, and `.env` remains untracked.
 
 ## Operator UI
 
-`/remediate` now exposes the Remediation Studio with:
+`/remediate` exposes the Remediation Studio with:
 
-- incident selection,
-- live repository inspection,
-- safest eligible patch candidate,
-- exact current/replacement lines,
-- diff preview,
-- proposal confidence and verification plan,
-- human reviewer and note,
-- explicit Reject and Approve actions,
-- long-running validation state,
-- isolated branch link,
-- real validation results,
-- draft PR link when the gate passes.
+- incident selection;
+- live repository inspection;
+- safest eligible patch candidate;
+- exact current/replacement lines;
+- unified diff preview;
+- proposal confidence and verification plan;
+- reviewer and note;
+- explicit Reject and Approve actions;
+- long-running validation state;
+- isolated branch link;
+- real validation results;
+- Draft PR link when the gate passes;
+- real CI/check verification state;
+- auditable remediation/verification timeline evidence.
 
-## Confirmed CI for implementation
+## Automatic CI/check-derived verification
 
-GitHub Actions run #170 on implementation head `a8bab7a16e586c502d84fc02ed0741c1185fb0b1` completed successfully:
+The remediation loop now reads real GitHub Actions/check/status state for the remediation commit/PR and converts it into canonical verification evidence.
 
-- backend compile: PASS
-- backend tests: 36 passed, 0 failures
-- frontend install: PASS
-- frontend TypeScript/Vite production build: PASS
+Current policy is intentionally conservative:
 
-The test suite includes exact-sequence replacement, ambiguous-write rejection, validator selection and missing-auth fail-closed behavior in addition to the previous repository-evidence and patch-proposal coverage.
+- `FAIL` from real CI/check evidence can derive failed incident verification and escalate the incident;
+- `PENDING` or no checks remain inconclusive;
+- `PASS` is recorded as strong structured evidence but does **not** automatically resolve the original runtime incident;
+- runtime/human verification is still required before declaring production recovery.
 
-## Next milestone
+This follows decision D-012: CI proves configured checks on the remediation commit, not necessarily that the original production symptom recovered.
 
-Derive incident verification from actual remediation results and CI/check state, then build the repeatable Evaluation Lab / judge-facing scorecard.
+## Retry / idempotency hardening
+
+The current path includes:
+
+- stable remediation identity for an exact incident/proposal;
+- serialization around remediation execution in this single-process MVP;
+- duplicate approval reuse;
+- deterministic branch naming;
+- safe partial-state recovery;
+- already-patched exact-branch reuse;
+- exact open-PR reuse;
+- stale-source rejection;
+- conflicting branch/PR safe-stop behavior;
+- timeline storage of remediation identity, branch, commit, PR, validation and reuse state.
+
+A horizontally scaled production deployment should move this state to shared transactional storage without weakening the exact-proposal semantics.
+
+## Evaluation follow-on is also complete
+
+The previously planned follow-on Evaluation Lab now exists at `/evaluation` and measures the displayed deterministic benchmark cases rather than showing fabricated headline accuracy.
+
+It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, unsafe-action blocking and approval-gate behavior with visible measured numerators/denominators. Results are explicitly scoped to the benchmark cases and are not presented as universal real-world accuracy.
+
+## Current verification record
+
+The broader release candidate now includes substantially more regression coverage than the original remediation milestone. The latest fully confirmed executable release-contract head recorded in `docs/IMPLEMENTATION_PROGRESS.md` is:
+
+```text
+a9221524011c2609e718bc1e3c6505445d5a90d6
+```
+
+GitHub Actions run #632 / run ID `34619390410` completed successfully with:
+
+```text
+Backend compile:                       PASS
+Backend tests:                         102 passed, 2 dependency warnings, 0 failures
+Frontend locked install/build:         PASS
+Windows launcher syntax:               PASS
+Windows strict preflight:              PASS
+Windows clean-checkout bootstrap:      PASS
+Windows clean-clone acceptance:        PASS
+Release-candidate contract:            PASS
+Overall workflow:                      PASS
+```
+
+The two backend warnings are dependency deprecations from FastAPI/Starlette test infrastructure, not test failures.
+
+## Release discipline
+
+The remediation milestone is closed. Do not add broad remediation scope before submission. Continue only with verified regressions, evidence-quality improvements, actual-device rehearsal and documentation polish.
+
+`main` remains untouched and promotion remains manual.
