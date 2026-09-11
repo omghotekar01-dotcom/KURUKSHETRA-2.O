@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import BugWorkspacePage from './BugWorkspacePage'
+import TestLabPage from './TestLabPage'
 import RepositoryEvidencePage from './RepositoryEvidencePage'
 import PatchRemediationPage from './PatchRemediationPage'
 import EvaluationLabPage from './EvaluationLabPage'
@@ -31,6 +32,7 @@ import './autofix-strategy.css'
 import './judge-intake.css'
 import './bug-workspace.css'
 import './workspace-depth.css'
+import './test-lab.css'
 import './apple-polish.css'
 import './dark-polish.css'
 import './busy-polish.css'
@@ -40,25 +42,27 @@ import './async-state-polish.css'
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const screen = path === '/' || path === '/workspace'
   ? <BugWorkspacePage />
-  : path === '/incidents'
-    ? <App />
-    : path === '/demo'
-      ? <JudgeDemoPage />
-      : path === '/prototype' || path === '/autofix'
-        ? <AutofixPrototypePage />
-        : path === '/intake'
-          ? <JudgeIntakePage />
-          : path === '/ai'
-            ? <AgentIntelligencePage />
-            : path === '/readiness'
-              ? <ReadinessPage />
-              : path === '/evaluation'
-                ? <EvaluationLabPage />
-                : path === '/remediate'
-                  ? <PatchRemediationPage />
-                  : path === '/evidence'
-                    ? <RepositoryEvidencePage />
-                    : <BugWorkspacePage />
+  : path === '/test'
+    ? <TestLabPage />
+    : path === '/incidents'
+      ? <App />
+      : path === '/demo'
+        ? <JudgeDemoPage />
+        : path === '/prototype' || path === '/autofix'
+          ? <AutofixPrototypePage />
+          : path === '/intake'
+            ? <JudgeIntakePage />
+            : path === '/ai'
+              ? <AgentIntelligencePage />
+              : path === '/readiness'
+                ? <ReadinessPage />
+                : path === '/evaluation'
+                  ? <EvaluationLabPage />
+                  : path === '/remediate'
+                    ? <PatchRemediationPage />
+                    : path === '/evidence'
+                      ? <RepositoryEvidencePage />
+                      : <BugWorkspacePage />
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
