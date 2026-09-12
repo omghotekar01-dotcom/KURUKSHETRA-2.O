@@ -65,7 +65,6 @@ def _model_available(requested: str, available: set[str]) -> bool:
             return True
         if normalized.removesuffix(":latest") == requested_lower.removesuffix(":latest"):
             return True
-        # If a family without a tag was configured, accept one installed tag.
         if ":" not in requested_lower and normalized.startswith(requested_lower + ":"):
             return True
     return False
@@ -129,24 +128,53 @@ def _ollama_status() -> ModelRuntimeStatus:
     )
 
 
+def _gemini_status() -> ModelRuntimeStatus | None:
+    gemini_key = _setting("GEMINI_API_KEY")
+    if not gemini_key:
+        return None
+    return ModelRuntimeStatus(
+        mode="GEMINI_FREE",
+        provider="gemini-free-tier",
+        model=_setting("GEMINI_MODEL") or "gemini-3.5-flash-lite",
+        ready=True,
+        endpoint=_setting("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
+        note=(
+            "Gemini is configured as the primary AI runtime. If a live Gemini request fails in auto mode, "
+            "the reasoning pipeline may fall back to local Ollama/Qwen and then deterministic evidence rules."
+        ),
+    )
+
+
 def get_model_runtime_status() -> ModelRuntimeStatus:
+    """Return the preferred live model runtime.
+
+    AUTO priority is intentionally Gemini first, then local Ollama/Qwen, then
+    deterministic verified fallbacks. Explicit LLM_PROVIDER values still force
+    the selected provider.
+    """
     requested = (_setting("LLM_PROVIDER") or "auto").lower()
 
+    # Gemini is the first choice whenever AUTO is used and a key is configured.
+    if requested in {"auto", "gemini", "gemini_free"}:
+        gemini = _gemini_status()
+        if gemini is not None:
+            return gemini
+        if requested != "auto":
+            return ModelRuntimeStatus(
+                mode="GEMINI_FREE",
+                provider="gemini-free-tier",
+                model=_setting("GEMINI_MODEL") or "gemini-3.5-flash-lite",
+                ready=False,
+                endpoint=_setting("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
+                note="Gemini is selected but GEMINI_API_KEY is missing.",
+            )
+
+    # Local Qwen/Ollama is the second choice in AUTO mode and the forced choice
+    # when an Ollama/local provider is explicitly requested.
     if requested in {"auto", "ollama", "local", "local_ollama"}:
         local = _ollama_status()
         if local.ready or requested != "auto":
             return local
-
-    gemini_key = _setting("GEMINI_API_KEY")
-    if requested in {"auto", "gemini", "gemini_free"} and gemini_key:
-        return ModelRuntimeStatus(
-            mode="GEMINI_FREE",
-            provider="gemini-free-tier",
-            model=_setting("GEMINI_MODEL") or "gemini-3.8-flash",
-            ready=True,
-            endpoint=_setting("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
-            note="Gemini is configured as an optional fallback. Usage remains subject to the provider's current quota.",
-        )
 
     return ModelRuntimeStatus(
         mode="DETERMINISTIC_FALLBACK",
@@ -154,7 +182,10 @@ def get_model_runtime_status() -> ModelRuntimeStatus:
         model="evidence-rules-v1",
         ready=True,
         endpoint=None,
-        note="No live model service is connected. Verified scan, bounded repair, rollback and validation remain available where deterministic rules exist.",
+        note=(
+            "No live model service is connected. Configure Gemini first or start Ollama/Qwen. "
+            "Verified scan, bounded repair, rollback and validation remain available where deterministic rules exist."
+        ),
     )
 
 
@@ -223,7 +254,7 @@ def probe_model_runtime() -> ModelProbeResult:
             model=runtime.model,
             latency_ms=0,
             reply="",
-            note="No live model is connected. Start Ollama/Qwen or configure the optional Gemini fallback.",
+            note="No live model is connected. Configure Gemini or start the local Ollama/Qwen fallback.",
         )
 
     api_key = "ollama" if runtime.mode == "LOCAL_OLLAMA" else _setting("GEMINI_API_KEY")
@@ -247,14 +278,11 @@ def probe_model_runtime() -> ModelProbeResult:
             model=runtime.model,
             latency_ms=latency_ms,
             reply=reply[:160],
-            note="Live chat-completions request succeeded. This proves the configured model endpoint is actually callable.",
+            note="Live chat-completions request succeeded. This proves the preferred model endpoint is actually callable.",
         )
     except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError, OSError) as exc:
         first_error = exc
 
-    # Some Ollama installations expose the native API before/without the
-    # OpenAI-compatible route. Probing /api/chat keeps local Qwen usable across
-    # those versions while preserving the same truthful connectivity proof.
     if runtime.mode == "LOCAL_OLLAMA":
         try:
             reply, latency_ms = _ollama_native_chat_probe(runtime.model)
@@ -271,6 +299,11 @@ def probe_model_runtime() -> ModelProbeResult:
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     error_name = type(first_error).__name__ if first_error is not None else "ConnectionError"
+    if runtime.mode == "GEMINI_FREE":
+        recovery = "Confirm the Gemini API key, free-tier quota, internet connection and configured model."
+    else:
+        recovery = f"Confirm Ollama is running and {runtime.model} is installed."
+
     return ModelProbeResult(
         connected=False,
         provider=runtime.provider,
@@ -278,7 +311,7 @@ def probe_model_runtime() -> ModelProbeResult:
         latency_ms=latency_ms,
         reply="",
         note=(
-            f"Live model probe failed ({error_name}). Confirm Ollama is running and {runtime.model} is installed. "
-            "The deterministic engine remains available, but generic judge intake fails closed rather than guessing."
+            f"Live model probe failed ({error_name}). {recovery} "
+            "The deterministic engine remains available, and normal auto-mode reasoning can use the next configured provider."
         ),
     )
