@@ -70,6 +70,12 @@ def _validate_pr_binding(pr: dict[str, Any], *, commit_sha: str, draft_pr_number
         except (TypeError, ValueError) as exc:
             raise PatchVerificationUnavailable("GitHub returned an invalid pull-request number during verification.") from exc
 
+    pr_state = str(pr.get("state") or "").lower()
+    if pr_state != "open":
+        raise PatchVerificationUnavailable(
+            "The remediation pull request is no longer open. Refresh remediation state before trusting CI evidence."
+        )
+
     head = pr.get("head")
     head_sha = str(head.get("sha") or "") if isinstance(head, dict) else ""
     if not head_sha:
