@@ -17,6 +17,7 @@ _FAIL_CONCLUSIONS = {"failure", "cancelled", "timed_out", "action_required", "st
 _PASS_CONCLUSIONS = {"success", "neutral", "skipped"}
 _RETRYABLE_GITHUB_READ_STATUSES = {502, 503, 504}
 _GITHUB_READ_ATTEMPTS = 3
+_CHECK_RUN_PAGE_SIZE = 100
 
 
 def _request(client: httpx.Client, path: str) -> Any:
@@ -57,6 +58,50 @@ def _request(client: httpx.Client, path: str) -> Any:
             f"GitHub verification request failed: {type(last_transport_error).__name__}"
         ) from last_transport_error
     raise PatchVerificationUnavailable("GitHub verification request failed after bounded retries.")
+
+
+def _read_all_check_runs(client: httpx.Client, repository: str, commit_sha: str) -> list[dict[str, Any]]:
+    """Read the complete GitHub check-run set so a later page cannot hide a failure.
+
+    GitHub paginates check runs. Treat inconsistent pagination metadata as unavailable rather than
+    deriving PASS from a partial page.
+    """
+    first = _request(
+        client,
+        f"/repos/{repository}/commits/{commit_sha}/check-runs?per_page={_CHECK_RUN_PAGE_SIZE}&page=1",
+    )
+    first_runs = first.get("check_runs")
+    if not isinstance(first_runs, list):
+        raise PatchVerificationUnavailable("GitHub returned an invalid check-run payload during verification.")
+
+    raw_total = first.get("total_count", len(first_runs))
+    try:
+        total_count = int(raw_total)
+    except (TypeError, ValueError) as exc:
+        raise PatchVerificationUnavailable("GitHub returned an invalid check-run total during verification.") from exc
+    if total_count < 0:
+        raise PatchVerificationUnavailable("GitHub returned an invalid check-run total during verification.")
+
+    runs = list(first_runs)
+    page = 2
+    while len(runs) < total_count:
+        payload = _request(
+            client,
+            f"/repos/{repository}/commits/{commit_sha}/check-runs?per_page={_CHECK_RUN_PAGE_SIZE}&page={page}",
+        )
+        page_runs = payload.get("check_runs")
+        if not isinstance(page_runs, list) or not page_runs:
+            raise PatchVerificationUnavailable(
+                "GitHub check-run pagination was incomplete; refusing to derive CI verification from partial evidence."
+            )
+        runs.extend(page_runs)
+        page += 1
+
+    if len(runs) != total_count:
+        raise PatchVerificationUnavailable(
+            "GitHub check-run pagination changed during verification; refresh before trusting CI evidence."
+        )
+    return runs
 
 
 def _validate_pr_binding(pr: dict[str, Any], *, commit_sha: str, draft_pr_number: int) -> None:
@@ -167,7 +212,7 @@ def verify_patch_ci(
     with httpx.Client(base_url=GITHUB_API, headers=headers, timeout=20.0, follow_redirects=True) as client:
         pr = _request(client, f"/repos/{normalized_repo}/pulls/{draft_pr_number}")
         _validate_pr_binding(pr, commit_sha=commit_sha, draft_pr_number=draft_pr_number)
-        check_payload = _request(client, f"/repos/{normalized_repo}/commits/{commit_sha}/check-runs")
+        check_runs = _read_all_check_runs(client, normalized_repo, commit_sha)
         status_payload = _request(client, f"/repos/{normalized_repo}/commits/{commit_sha}/status")
 
     checks = [
@@ -177,7 +222,7 @@ def verify_patch_ci(
             conclusion=item.get("conclusion"),
             details_url=item.get("details_url") or item.get("html_url"),
         )
-        for item in check_payload.get("check_runs", [])
+        for item in check_runs
     ]
 
     status, message = _derive_status(checks, str(status_payload.get("state") or ""))
