@@ -92,6 +92,8 @@ Current policy is intentionally conservative:
 - `PASS` is recorded as strong structured evidence but does **not** automatically resolve the original runtime incident;
 - runtime/human verification is still required before declaring production recovery.
 
+Every observed check-run must reach a recognized terminal state/conclusion, and the live Draft PR head must still match the recorded remediation commit before CI evidence is trusted. Transient **read-only** GitHub verification reads now retry up to three times for transport failures and `502`/`503`/`504` responses; authentication/authorization and other non-transient failures fail immediately. This retry helper never retries repository writes.
+
 This follows decision D-012: CI proves configured checks on the remediation commit, not necessarily that the original production symptom recovered.
 
 ## Retry / idempotency hardening
@@ -107,6 +109,7 @@ The current path includes:
 - exact open-PR reuse;
 - stale-source rejection;
 - conflicting branch/PR safe-stop behavior;
+- bounded retry of transient read-only GitHub verification calls only;
 - timeline storage of remediation identity, branch, commit, PR, validation and reuse state.
 
 A horizontally scaled production deployment should move this state to shared transactional storage without weakening the exact-proposal semantics.
@@ -119,23 +122,23 @@ It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, 
 
 ## Current verification record
 
-The release-candidate documentation and safety-restored executable path are covered by the latest confirmed green push workflow before this documentation refresh:
+The latest confirmed green executable release-candidate head is:
 
 ```text
-e743e1c22b71525f87ce5fac555ddbe0c40fceb6
+b97389234357c6e0d978a415b7cc0655f93eb3d0
 ```
 
-GitHub Actions **Build and test run #791** / run ID `34644314306` completed successfully with all three workflow jobs green:
+GitHub Actions **Build and test run #819** / run ID `34660577574` completed successfully with all three workflow jobs green:
 
 ```text
-backend:             SUCCESS
-frontend:            SUCCESS
-windows-clean-clone: SUCCESS
+backend:             SUCCESS — compile PASS; 120 tests passed, 2 dependency warnings
+frontend:            SUCCESS — locked dependency install + TypeScript/Vite build PASS
+windows-clean-clone: SUCCESS — launcher syntax, PID safety, preflight, bootstrap and acceptance PASS
 ```
 
-The prior executable code head `8c7ab3357af3365bff896397955e779db2847e25` was also fully green in run #789 with 109 backend tests passing, frontend locked install/build passing, Windows launcher/PID/preflight/bootstrap checks passing, clean-clone acceptance passing and the release contract passing.
+This head includes the earlier fail-closed CI/check-state handling, live Draft-PR-head binding, adversarial-evidence/redaction hardening, plus bounded transient retry handling for idempotent GitHub verification reads. Regression tests prove both transient recovery (`ConnectError → 503 → success`) and immediate no-retry behavior for `401` authentication failure.
 
-Do not substitute older run #632 / head `a9221524011c2609e718bc1e3c6505445d5a90d6` as the current release evidence; that record is historical only.
+Older run #791 / head `e743e1c22b71525f87ce5fac555ddbe0c40fceb6`, run #789 / head `8c7ab3357af3365bff896397955e779db2847e25`, and run #632 / head `a9221524011c2609e718bc1e3c6505445d5a90d6` are historical verification records only and should not be substituted for the current release evidence.
 
 ## Release discipline
 
