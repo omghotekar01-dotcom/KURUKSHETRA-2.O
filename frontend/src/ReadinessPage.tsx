@@ -95,7 +95,7 @@ export default function ReadinessPage() {
         <div>
           <p>SYSTEM READINESS</p>
           <h1>Know exactly what is live before the demo starts.</h1>
-          <span>This page performs real, read-only connectivity checks for Qwen and GitHub write permission without exposing credentials or creating repository resources.</span>
+          <span>This page performs real, read-only connectivity checks for the configured AI runtime (local Qwen or Gemini fallback) and GitHub access without exposing credentials or creating repository resources.</span>
         </div>
         {report && (
           <div className={`readiness-state ${report.status.toLowerCase()}`}>
@@ -110,7 +110,7 @@ export default function ReadinessPage() {
       {loading && !report && (
         <section className="readiness-grid">
           <LoadingShimmer lines={5} label="Checking runtime readiness" />
-          <LoadingShimmer lines={5} label="Probing GitHub and Qwen" />
+          <LoadingShimmer lines={5} label="Probing GitHub and AI runtime" />
         </section>
       )}
 
@@ -125,7 +125,7 @@ export default function ReadinessPage() {
 
           <section className="readiness-grid">
             <article className="readiness-card">
-              <div className="readiness-card-title"><Bot size={18} /> Local AI / Qwen</div>
+              <div className="readiness-card-title"><Bot size={18} /> AI reasoning runtime</div>
               <dl className="readiness-facts">
                 <div><dt>Provider</dt><dd>{report.model.provider}</dd></div>
                 <div><dt>Model</dt><dd>{report.model.model}</dd></div>
@@ -175,7 +175,7 @@ export default function ReadinessPage() {
           <section className="readiness-safety">
             <div className="readiness-section-heading">
               <ShieldCheck size={21} />
-              <div><h2>Safety boundary</h2><p>These controls remain active even when Qwen and GitHub write access are green.</p></div>
+              <div><h2>Safety boundary</h2><p>These controls remain active regardless of whether Qwen, Gemini or deterministic fallback is currently providing reasoning.</p></div>
             </div>
             <div className="safety-grid">
               <div><small>Repository evidence</small><strong>{report.safety.repository_evidence}</strong></div>
