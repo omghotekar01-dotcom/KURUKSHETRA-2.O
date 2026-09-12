@@ -96,7 +96,7 @@ def test_default_provider_is_zero_cost_local_ollama(tmp_path: Path, monkeypatch)
     assert result.model == "qwen3:4b"
 
 
-def test_auto_provider_falls_from_local_ollama_to_configured_gemini(tmp_path: Path, monkeypatch) -> None:
+def test_auto_provider_uses_configured_gemini_before_local_ollama(tmp_path: Path, monkeypatch) -> None:
     record = _record(tmp_path)
     monkeypatch.setenv("LLM_PROVIDER", "auto")
     monkeypatch.setenv("GEMINI_API_KEY", "free-tier-key")
@@ -105,8 +105,6 @@ def test_auto_provider_falls_from_local_ollama_to_configured_gemini(tmp_path: Pa
 
     def fake_urlopen(request, timeout):
         calls.append(request.full_url)
-        if request.full_url.startswith("http://localhost:11434"):
-            raise URLError("ollama offline")
         assert request.full_url == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         return FakeResponse(_response_content())
 
@@ -116,7 +114,35 @@ def test_auto_provider_falls_from_local_ollama_to_configured_gemini(tmp_path: Pa
     assert result.payload is not None
     assert result.provider == "gemini-free-tier"
     assert result.model == "gemini-test"
-    assert len(calls) == 2
+    assert calls == ["https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"]
+
+
+def test_auto_provider_falls_from_configured_gemini_to_local_ollama(tmp_path: Path, monkeypatch) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setenv("LLM_PROVIDER", "auto")
+    monkeypatch.setenv("GEMINI_API_KEY", "free-tier-key")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-test")
+    calls: list[str] = []
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        if request.full_url.startswith("https://generativelanguage.googleapis.com"):
+            raise URLError("gemini unavailable")
+        assert request.full_url == "http://localhost:11434/v1/chat/completions"
+        body = json.loads(request.data.decode("utf-8"))
+        assert body["model"] == "qwen3:4b"
+        return FakeResponse(_response_content())
+
+    monkeypatch.setattr("app.services.llm_reasoning.urlopen", fake_urlopen)
+    result = synthesize_grounded_reasoning(record, _matches(), repository_context=None)
+
+    assert result.payload is not None
+    assert result.provider == "ollama-local"
+    assert result.model == "qwen3:4b"
+    assert calls == [
+        "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "http://localhost:11434/v1/chat/completions",
+    ]
 
 
 def test_remote_plain_http_llm_endpoint_fails_closed(tmp_path: Path, monkeypatch) -> None:
