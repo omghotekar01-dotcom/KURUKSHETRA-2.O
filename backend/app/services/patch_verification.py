@@ -15,26 +15,48 @@ class PatchVerificationUnavailable(RuntimeError):
 
 _FAIL_CONCLUSIONS = {"failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"}
 _PASS_CONCLUSIONS = {"success", "neutral", "skipped"}
+_RETRYABLE_GITHUB_READ_STATUSES = {502, 503, 504}
+_GITHUB_READ_ATTEMPTS = 3
 
 
 def _request(client: httpx.Client, path: str) -> Any:
-    try:
-        response = client.get(path)
-    except httpx.HTTPError as exc:
-        raise PatchVerificationUnavailable(f"GitHub verification request failed: {type(exc).__name__}") from exc
-    if response.status_code >= 400:
-        detail = ""
+    """Read GitHub verification state with bounded retries for transient read failures only.
+
+    This helper is deliberately scoped to idempotent GET requests. Repository writes are never
+    retried here, and authentication/authorization/rate-limit failures still fail immediately.
+    """
+    last_transport_error: httpx.HTTPError | None = None
+    for attempt in range(1, _GITHUB_READ_ATTEMPTS + 1):
         try:
-            detail = str(response.json().get("message", ""))[:240]
-        except ValueError:
-            detail = response.text[:240]
+            response = client.get(path)
+        except httpx.HTTPError as exc:
+            last_transport_error = exc
+            if attempt < _GITHUB_READ_ATTEMPTS:
+                continue
+            raise PatchVerificationUnavailable(f"GitHub verification request failed: {type(exc).__name__}") from exc
+
+        if response.status_code in _RETRYABLE_GITHUB_READ_STATUSES and attempt < _GITHUB_READ_ATTEMPTS:
+            continue
+        if response.status_code >= 400:
+            detail = ""
+            try:
+                detail = str(response.json().get("message", ""))[:240]
+            except ValueError:
+                detail = response.text[:240]
+            raise PatchVerificationUnavailable(
+                f"GitHub returned {response.status_code} while reading verification state: {detail or 'request failed'}"
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise PatchVerificationUnavailable("GitHub returned a non-JSON verification response.") from exc
+
+    # Defensive guard for type-checkers/future edits; current loop always returns or raises.
+    if last_transport_error is not None:
         raise PatchVerificationUnavailable(
-            f"GitHub returned {response.status_code} while reading verification state: {detail or 'request failed'}"
-        )
-    try:
-        return response.json()
-    except ValueError as exc:
-        raise PatchVerificationUnavailable("GitHub returned a non-JSON verification response.") from exc
+            f"GitHub verification request failed: {type(last_transport_error).__name__}"
+        ) from last_transport_error
+    raise PatchVerificationUnavailable("GitHub verification request failed after bounded retries.")
 
 
 def _validate_pr_binding(pr: dict[str, Any], *, commit_sha: str, draft_pr_number: int) -> None:
