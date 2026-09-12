@@ -1,3 +1,4 @@
+import httpx
 import pytest
 
 from app.schemas.incident import VerificationOutcome
@@ -6,8 +7,57 @@ from app.services.patch_verification import (
     PatchVerificationUnavailable,
     _derive_incident_verification,
     _derive_status,
+    _request,
     _validate_pr_binding,
 )
+
+
+class _FakeResponse:
+    def __init__(self, status_code: int, payload: dict | None = None, text: str = ""):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("not json")
+        return self._payload
+
+
+class _FakeClient:
+    def __init__(self, outcomes: list[object]):
+        self.outcomes = list(outcomes)
+        self.calls = 0
+
+    def get(self, path: str):
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+
+def test_verification_read_retries_transient_transport_and_server_failures():
+    request = httpx.Request("GET", "https://api.github.com/example")
+    client = _FakeClient(
+        [
+            httpx.ConnectError("temporary network failure", request=request),
+            _FakeResponse(503, {"message": "Service Unavailable"}),
+            _FakeResponse(200, {"ok": True}),
+        ]
+    )
+
+    assert _request(client, "/example") == {"ok": True}
+    assert client.calls == 3
+
+
+def test_verification_read_does_not_retry_authentication_failure():
+    client = _FakeClient([_FakeResponse(401, {"message": "Bad credentials"})])
+
+    with pytest.raises(PatchVerificationUnavailable, match="GitHub returned 401"):
+        _request(client, "/example")
+
+    assert client.calls == 1
 
 
 def test_ci_verification_passes_when_all_checks_succeed():
