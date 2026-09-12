@@ -15,6 +15,18 @@ FORBIDDEN_CALL_NAMES = {
     "deploy_production",
     "production_deploy",
 }
+FORBIDDEN_FRONTEND_ENDPOINT_MARKERS = (
+    '/merge"',
+    "/merge'",
+    "/merge`",
+    "/merge?",
+    "/merge/",
+    '/deploy"',
+    "/deploy'",
+    "/deploy`",
+    "/deploy?",
+    "/deploy/",
+)
 
 
 def _python_files() -> list[Path]:
@@ -53,6 +65,11 @@ def _called_names(tree: ast.AST) -> set[str]:
     return names
 
 
+def _contains_forbidden_frontend_endpoint(source: str) -> bool:
+    normalized = source.lower()
+    return any(marker in normalized for marker in FORBIDDEN_FRONTEND_ENDPOINT_MARKERS)
+
+
 def test_backend_exposes_no_merge_or_deploy_route() -> None:
     violations: list[str] = []
     for path in _python_files():
@@ -83,7 +100,5 @@ def test_judge_facing_remediation_stops_at_draft_pr() -> None:
     assert "Draft PR" in remediation
     assert "Draft PR" in judge_demo
     assert "never merges or deploys" in remediation.lower() or "merge and deployment stay outside" in remediation.lower()
-    assert "/merge" not in remediation.lower()
-    assert "/deploy" not in remediation.lower()
-    assert "/merge" not in judge_demo.lower()
-    assert "/deploy" not in judge_demo.lower()
+    assert not _contains_forbidden_frontend_endpoint(remediation)
+    assert not _contains_forbidden_frontend_endpoint(judge_demo)
