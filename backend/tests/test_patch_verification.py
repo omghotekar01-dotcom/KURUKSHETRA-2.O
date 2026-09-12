@@ -7,6 +7,7 @@ from app.services.patch_verification import (
     PatchVerificationUnavailable,
     _derive_incident_verification,
     _derive_status,
+    _read_all_check_runs,
     _request,
     _validate_pr_binding,
 )
@@ -28,9 +29,11 @@ class _FakeClient:
     def __init__(self, outcomes: list[object]):
         self.outcomes = list(outcomes)
         self.calls = 0
+        self.paths: list[str] = []
 
     def get(self, path: str):
         self.calls += 1
+        self.paths.append(path)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, BaseException):
             raise outcome
@@ -58,6 +61,64 @@ def test_verification_read_does_not_retry_authentication_failure():
         _request(client, "/example")
 
     assert client.calls == 1
+
+
+def test_check_run_reader_collects_all_pages_before_deriving_ci_state():
+    first_page = [
+        {"name": f"check-{index}", "status": "completed", "conclusion": "success"}
+        for index in range(100)
+    ]
+    final_failure = {"name": "security-final", "status": "completed", "conclusion": "failure"}
+    client = _FakeClient(
+        [
+            _FakeResponse(200, {"total_count": 101, "check_runs": first_page}),
+            _FakeResponse(200, {"total_count": 101, "check_runs": [final_failure]}),
+        ]
+    )
+
+    runs = _read_all_check_runs(client, "example/repo", "abc123")
+
+    assert len(runs) == 101
+    assert runs[-1]["name"] == "security-final"
+    assert client.calls == 2
+    assert "per_page=100&page=1" in client.paths[0]
+    assert "per_page=100&page=2" in client.paths[1]
+
+
+def test_check_run_reader_fails_closed_on_incomplete_pagination():
+    first_page = [
+        {"name": f"check-{index}", "status": "completed", "conclusion": "success"}
+        for index in range(100)
+    ]
+    client = _FakeClient(
+        [
+            _FakeResponse(200, {"total_count": 101, "check_runs": first_page}),
+            _FakeResponse(200, {"total_count": 101, "check_runs": []}),
+        ]
+    )
+
+    with pytest.raises(PatchVerificationUnavailable, match="pagination was incomplete"):
+        _read_all_check_runs(client, "example/repo", "abc123")
+
+
+def test_check_run_reader_rejects_pagination_count_drift():
+    client = _FakeClient(
+        [
+            _FakeResponse(
+                200,
+                {
+                    "total_count": 1,
+                    "check_runs": [
+                        {"name": "backend", "status": "completed", "conclusion": "success"},
+                        {"name": "frontend", "status": "completed", "conclusion": "success"},
+                    ],
+                },
+            )
+        ]
+    )
+
+    with pytest.raises(PatchVerificationUnavailable, match="pagination changed"):
+        _read_all_check_runs(client, "example/repo", "abc123")
 
 
 def test_ci_verification_passes_when_all_checks_succeed():
