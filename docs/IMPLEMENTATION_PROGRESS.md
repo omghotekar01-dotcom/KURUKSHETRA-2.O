@@ -41,7 +41,7 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The latest confirmed green `agent-build-core` release-candidate head is commit `4a37152ea1ec5c500f3599d89510035955985874`, validated by GitHub Actions **Build and test #947** / run ID `34684957052` on 2026-09-12.
+The latest confirmed green `agent-build-core` head is commit `c0e517350d4d99ad727d96659f7f86facc0d9b62`, validated by GitHub Actions **Build and test #951** / run ID `34687473525` on 2026-09-12.
 
 All three workflow jobs completed successfully:
 
@@ -52,7 +52,9 @@ All three workflow jobs completed successfully:
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-This verification supersedes older release-candidate records such as Build #943, #935, #879, #864 and #841 for the current branch state. The verified head includes normalized LLM policy scanning: Unicode NFKC normalization plus removal of invisible Unicode format characters occurs before privileged-action checks, and regression coverage confirms Unicode-obfuscated merge/deploy instructions fail closed to the deterministic path. The current head also preserves a reliable judge-demo starting state: `REPAIR_VALIDATION.bat` proves every registered demo contract in isolated copies and then explicitly restores each live demo target to its intentional broken baseline before the demonstration begins. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
+The latest functional hardening remains commit `4a37152ea1ec5c500f3599d89510035955985874`; the commits between that point and `c0e51735...` only refresh verified release documentation. Build #951 re-ran the complete release workflow on the exact current branch head, so the branch-level release record now supersedes #947, #943, #935, #879, #864 and #841.
+
+The verified functional state includes normalized LLM policy scanning: Unicode NFKC normalization plus removal of invisible Unicode format characters occurs before privileged-action checks, and regression coverage confirms Unicode-obfuscated merge/deploy instructions fail closed to the deterministic path. The current head also preserves a reliable judge-demo starting state: `REPAIR_VALIDATION.bat` proves every registered demo contract in isolated copies and then explicitly restores each live demo target to its intentional broken baseline before the demonstration begins. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
 
 ## Demo-critical proof surfaces
 
