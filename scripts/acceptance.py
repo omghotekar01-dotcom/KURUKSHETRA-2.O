@@ -62,6 +62,7 @@ def main() -> int:
     checks = [
         Check("backend compile", [str(python), "-m", "compileall", "-q", "app", "tests"], BACKEND),
         Check("backend test suite", [str(python), "-m", "pytest", "-q"], BACKEND),
+        Check("RAG + RCA smoke", [str(python), str(ROOT / "scripts" / "rag_smoke.py")], ROOT),
         Check("frontend production build", _npm_command("run", "build"), FRONTEND),
         Check("release candidate contract", [str(python), str(ROOT / "scripts" / "release_contract.py")], ROOT),
     ]
