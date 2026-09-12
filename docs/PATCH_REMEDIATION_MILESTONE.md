@@ -92,7 +92,7 @@ Current policy is intentionally conservative:
 - `PASS` is recorded as strong structured evidence but does **not** automatically resolve the original runtime incident;
 - runtime/human verification is still required before declaring production recovery.
 
-Every observed check-run must reach a recognized terminal state/conclusion, and the live Draft PR head must still match the recorded remediation commit before CI evidence is trusted. Transient **read-only** GitHub verification reads now retry up to three times for transport failures and `502`/`503`/`504` responses; authentication/authorization and other non-transient failures fail immediately. This retry helper never retries repository writes.
+Every observed check-run must reach a recognized terminal state/conclusion, and the live Draft PR head must still match the recorded remediation commit before CI evidence is trusted. Transient **read-only** GitHub verification reads retry up to three times for transport failures and `502`/`503`/`504` responses; authentication/authorization and other non-transient failures fail immediately. This retry helper never retries repository writes.
 
 This follows decision D-012: CI proves configured checks on the remediation commit, not necessarily that the original production symptom recovered.
 
@@ -118,30 +118,30 @@ A horizontally scaled production deployment should move this state to shared tra
 
 The previously planned follow-on Evaluation Lab now exists at `/evaluation` and measures the displayed deterministic benchmark cases rather than showing fabricated headline accuracy.
 
-It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, unsafe-action blocking and approval-gate behavior with visible measured numerators/denominators. Results are explicitly scoped to the benchmark cases and are not presented as universal real-world accuracy.
+It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, unsafe-action blocking, approval-gate behavior and measured validation success with visible numerators/denominators. Results are explicitly scoped to the benchmark cases and are not presented as universal real-world accuracy.
 
 ## Current verification record
 
-The latest confirmed green executable release-candidate head is:
+The latest confirmed green `agent-build-core` release-candidate head is:
 
 ```text
-b97389234357c6e0d978a415b7cc0655f93eb3d0
+ad15b25b17d21a6e201a5c052a774e9fd7ed3fe9
 ```
 
-GitHub Actions **Build and test run #819** / run ID `34660577574` completed successfully with all three workflow jobs green:
+GitHub Actions **Build and test #864** / run ID `34667724750` completed successfully on 2026-09-12 with all three workflow jobs green:
 
 ```text
-backend:             SUCCESS — compile PASS; 120 tests passed, 2 dependency warnings
+backend:             SUCCESS — compile, tests and deterministic RAG/RCA smoke PASS
 frontend:            SUCCESS — locked dependency install + TypeScript/Vite build PASS
 windows-clean-clone: SUCCESS — launcher syntax, PID safety, preflight, bootstrap and acceptance PASS
 ```
 
-This head includes the earlier fail-closed CI/check-state handling, live Draft-PR-head binding, adversarial-evidence/redaction hardening, plus bounded transient retry handling for idempotent GitHub verification reads. Regression tests prove both transient recovery (`ConnectError → 503 → success`) and immediate no-retry behavior for `401` authentication failure.
+This current head includes the previously verified fail-closed CI/check-state handling, Draft-PR-head binding, adversarial-evidence/redaction hardening, bounded transient retry handling for idempotent GitHub verification reads, Evaluation Lab validation measurement, release-authority regression guards, and deterministic RAG/RCA smoke coverage in CI and clean-clone acceptance.
 
-Older run #791 / head `e743e1c22b71525f87ce5fac555ddbe0c40fceb6`, run #789 / head `8c7ab3357af3365bff896397955e779db2847e25`, and run #632 / head `a9221524011c2609e718bc1e3c6505445d5a90d6` are historical verification records only and should not be substituted for the current release evidence.
+Older runs/head records, including #819 / `b97389234357c6e0d978a415b7cc0655f93eb3d0`, #791 / `e743e1c22b71525f87ce5fac555ddbe0c40fceb6`, #789 / `8c7ab3357af3365bff896397955e779db2847e25`, and #632 / `a9221524011c2609e718bc1e3c6505445d5a90d6`, are historical verification records only and should not be substituted for the current release evidence.
 
 ## Release discipline
 
 The remediation milestone is closed. Do not add broad remediation scope before submission. Continue only with verified regressions, evidence-quality improvements, actual-device rehearsal and documentation polish.
 
-`main` remains untouched and promotion remains manual.
+`main` remains outside this branch's write scope and promotion remains manual.

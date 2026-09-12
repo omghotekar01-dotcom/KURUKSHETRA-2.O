@@ -41,17 +41,18 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The functional release candidate was validated by GitHub Actions **Build and test #841** on commit `8403a896c171c788791d7f7ebab63d882945ddd3`:
+The latest confirmed green `agent-build-core` release-candidate head is commit `ad15b25b17d21a6e201a5c052a774e9fd7ed3fe9`, validated by GitHub Actions **Build and test #864** / run ID `34667724750` on 2026-09-12.
 
-- frontend locked install/build: PASS
-- backend compile: PASS
-- backend tests: PASS
+All three workflow jobs completed successfully:
+
+- frontend locked dependency install + TypeScript/Vite production build: PASS
+- backend compile + backend tests + deterministic RAG/RCA smoke: PASS
 - Windows launcher syntax checks: PASS
 - stale/reused PID safety checks: PASS
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-Final public-repository cleanup is intentionally limited to documentation/presentation artifacts and release-contract wording; product runtime architecture, APIs, safety gates and application behavior remain unchanged.
+This verification supersedes older release-candidate records such as Build #841 for the current branch state. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
 
 ## Demo-critical proof surfaces
 
