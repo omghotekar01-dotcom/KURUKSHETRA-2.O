@@ -231,6 +231,11 @@ export default function JudgeIntakePage() {
   const modelConnected = probe?.connected ?? (runtime?.mode !== 'DETERMINISTIC_FALLBACK' && runtime?.ready === true)
   const canCreate = problem.trim().length >= 8 && uploads.length > 0 && !busy
   const canApply = !!proposal && proposal.strategy !== 'NONE' && !!proposal.diff && !result
+  const probeLabel = runtime?.mode === 'GEMINI_FREE'
+    ? 'Test Gemini now'
+    : runtime?.mode === 'LOCAL_OLLAMA'
+      ? 'Test Qwen now'
+      : 'Test live AI'
 
   return (
     <main className="judge-intake-page">
@@ -251,7 +256,7 @@ export default function JudgeIntakePage() {
             <span>{runtime?.model ?? '—'}</span>
           </div>
           <button type="button" onClick={probeModel} disabled={!!busy}>
-            {busy === 'probe' ? 'Probing…' : 'Test Qwen now'}
+            {busy === 'probe' ? 'Probing…' : probeLabel}
           </button>
         </div>
       </section>
@@ -315,7 +320,7 @@ export default function JudgeIntakePage() {
           <FlaskConical size={16} /> {busy === 'intake' ? 'Creating isolated workspace…' : '1. Analyze files + retrieve RAG'}
         </button>
         <button type="button" className="secondary" onClick={preview} disabled={!intake || !!busy || !!result}>
-          <Bot size={16} /> {busy === 'proposal' ? 'Qwen reasoning…' : '2. Preview grounded AI fix'}
+          <Bot size={16} /> {busy === 'proposal' ? 'AI reasoning…' : '2. Preview grounded AI fix'}
         </button>
         <button type="button" className="primary" onClick={apply} disabled={!canApply || !!busy}>
           <Play size={16} /> {busy === 'apply' ? 'Applying + verifying…' : '3. Apply reviewed patch + verify'}
@@ -376,7 +381,7 @@ export default function JudgeIntakePage() {
             ? <pre className="judge-terminal diff">{proposal.diff}</pre>
             : (
               <div className="judge-empty">
-                Guidance only — no file will be changed. This is an evidence-backed fallback, not a fabricated live-model patch. Retry Qwen or attach stronger evidence for an exact reviewed edit.
+                Guidance only — no file will be changed. This is an evidence-backed fallback, not a fabricated live-model patch. Retry the live model or attach stronger evidence for an exact reviewed edit.
               </div>
             )}
         </section>
