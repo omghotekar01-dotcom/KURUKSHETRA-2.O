@@ -41,7 +41,7 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The latest confirmed green `agent-build-core` head is commit `aa44f38405609e8402bdc4302548fccde702768f`, validated by GitHub Actions **Build and test #969** / run ID `34701233243` on 2026-09-12.
+The latest confirmed green `agent-build-core` head is commit `3be5c8d34b5af3722babaa8d73349b9641a2be39`, validated by GitHub Actions **Build and test #977** / run ID `34707205224` on 2026-09-12.
 
 All three workflow jobs completed successfully:
 
@@ -52,9 +52,11 @@ All three workflow jobs completed successfully:
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-Build #969 verifies the release workflow with the current GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`) and the new reproducible backend dependency path: direct dependencies remain pinned in `backend/requirements.txt`, transitive versions are constrained in `backend/constraints.txt`, clean bootstrap refuses unconstrained backend installs, CI installs through both files, and the resolved Python package set is recorded in the backend job. Frontend installs remain lockfile-based and CI records their resolved versions as well.
+Build #977 verifies the release workflow with the current GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`), reproducible backend dependency constraints, and the latest real-CI verification hardening. GitHub check-runs are now read across all API pages before deriving CI state, so a later-page failure cannot be hidden by first-page evidence. Inconsistent or incomplete pagination fails closed instead of producing PASS.
 
-The latest product-security hardening remains commit `4a37152ea1ec5c500f3599d89510035955985874`; subsequent commits refresh release evidence, CI runtime maintenance and dependency reproducibility without expanding product authority. Build #969 re-ran the complete release workflow on the exact branch head, so the branch-level release record supersedes #963, #959, #957, #951, #947, #943, #935, #879, #864 and #841.
+Direct backend dependencies remain pinned in `backend/requirements.txt`, transitive versions are constrained in `backend/constraints.txt`, clean bootstrap refuses unconstrained backend installs, CI installs through both files, and the resolved Python package set is recorded in the backend job. Frontend installs remain lockfile-based and CI records their resolved versions as well.
+
+The latest product-security hardening remains commit `4a37152ea1ec5c500f3599d89510035955985874`; subsequent commits refresh release evidence, CI runtime maintenance, dependency reproducibility and CI-evidence integrity without expanding product authority. Build #977 re-ran the complete release workflow on the exact branch head, so the branch-level release record supersedes #973, #969, #963, #959, #957, #951, #947, #943, #935, #879, #864 and #841.
 
 The verified functional state includes normalized LLM policy scanning: Unicode NFKC normalization plus removal of invisible Unicode format characters occurs before privileged-action checks, and regression coverage confirms Unicode-obfuscated merge/deploy instructions fail closed to the deterministic path. The current head also preserves a reliable judge-demo starting state: `REPAIR_VALIDATION.bat` proves every registered demo contract in isolated copies and then explicitly restores each live demo target to its intentional broken baseline before the demonstration begins. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
 
@@ -88,5 +90,6 @@ Active probes distinguish configured/installed integrations from integrations th
 - repository writes are allowlisted and approval-gated;
 - stale patches fail closed;
 - generic Judge Intake does not invent a patch when the grounded model path is unavailable;
+- CI check-runs are collected across all GitHub API pages before status derivation, and pagination drift/incompleteness fails closed;
 - CI failure/pending/unknown states are not treated as success;
 - CI PASS does not automatically resolve the original runtime incident.
