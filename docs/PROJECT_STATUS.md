@@ -22,8 +22,13 @@ The AI Agentic Bug Router is implemented on `agent-build-core` and is being hard
 - Active release-candidate branch: `agent-build-core`
 - Draft integration PR: `#1` → `develop`
 - Repository visibility: PUBLIC
-- Current `agent-build-core` head before this status correction: `e743e1c22b71525f87ce5fac555ddbe0c40fceb6`
-- Latest completed push CI before this status correction: Build and test run **#791** / run ID `34644314306` — **SUCCESS**
+- Latest fully verified executable head: `e9a80e808ea4810f0588831df584f90c13ccceec`
+- Latest completed full CI on that executable head: Build and test **#831** / run ID `34664079242` — **SUCCESS**
+- Verified backend suite: **121 passed**, 2 dependency warnings, 0 failures
+- Locked frontend TypeScript/Vite build: **PASS**
+- Windows clean-clone/release-candidate acceptance: **PASS**
+
+Documentation-only commits may sit above this executable head; they do not change the verified runtime behavior described here.
 
 ## Current Product
 
@@ -67,7 +72,7 @@ The system does **not** auto-merge, deploy production, execute arbitrary model-g
 - `/demo` — controlled golden Judge Mode.
 - `/evidence` — live read-only GitHub evidence, ranked commits/hunks and bounded patch preview.
 - `/remediate` — explicit human approval, exact patch application, validation, Draft PR creation and CI evidence.
-- `/evaluation` — repeatable measured benchmark; no hard-coded headline accuracy.
+- `/evaluation` — repeatable measured benchmark including a real validation-success contract; no hard-coded headline accuracy.
 - `/readiness` — live Qwen/GitHub/runtime readiness and safety boundary.
 
 ## Real Repair Proofs
@@ -114,14 +119,17 @@ RAG is intentionally bounded to curated engineering runbooks and verified resolu
 
 ## Evaluation Lab
 
-`/evaluation` runs backend-computed benchmark cases and exposes expected vs observed behavior. Current dimensions include:
+`/evaluation` runs backend-computed benchmark version `2026.09.12-v2` and exposes expected vs observed behavior. Current dimensions include:
 
 - routing accuracy;
 - retrieval hit / explicit no-match behavior;
 - RCA evidence grounding;
 - risk-policy behavior;
 - unsafe-action blocking;
-- approval-gate behavior.
+- approval-gate behavior;
+- **validation success** from a real isolated same-pytest FAIL → PASS contract.
+
+The benchmark currently exposes 8 measured metrics and 21 cases. The validation case runs in a temporary workspace, records real validator exit codes/output, performs no repository write, and passes only when the controlled broken fixture fails before repair and the bounded repaired fixture passes the same trusted test afterward.
 
 Any score shown by the UI is scoped to the displayed benchmark fixture set. It must not be generalized into universal production accuracy.
 
@@ -139,12 +147,15 @@ Current retry/idempotency protections include:
 - already-patched branch reuse;
 - exact open Draft PR reuse;
 - stale source rejection;
-- conflicting branch/PR fail-closed behavior.
+- conflicting branch/PR fail-closed behavior;
+- bounded retry for transient **read-only** GitHub verification errors only.
 
 Real CI/check state is converted into auditable incident-verification evidence:
 
 - real CI `FAIL` may derive failed verification and escalate;
 - `PENDING` / no checks stay inconclusive;
+- every observed check must reach a recognized terminal state/conclusion before CI can report `PASS`;
+- the live Draft PR head must equal the recorded remediation commit before its checks are trusted;
 - `PASS` is strong evidence for the remediation commit but does **not** auto-resolve the original runtime incident;
 - runtime/human verification remains authoritative for final recovery.
 
@@ -166,27 +177,36 @@ Implemented release hardening includes:
 
 ## Latest Confirmed CI
 
-Build and test run **#791** / run ID `34644314306` completed successfully for head:
+Build and test **#831** / run ID `34664079242` completed successfully for executable head:
 
 ```text
-e743e1c22b71525f87ce5fac555ddbe0c40fceb6
+e9a80e808ea4810f0588831df584f90c13ccceec
 ```
 
-Confirmed workflow jobs:
+Confirmed verification:
 
 ```text
-backend             SUCCESS
-frontend            SUCCESS
-windows-clean-clone SUCCESS
+backend compile                       PASS
+backend tests                         121 passed, 2 warnings, 0 failures
+frontend locked dependency install   PASS
+frontend TypeScript/Vite build        PASS
+Windows launcher syntax              PASS
+Windows stale/reused PID safety      PASS
+Windows strict preflight             PASS
+Windows clean-checkout bootstrap     PASS
+Windows clean-clone acceptance       PASS
+release-candidate contract           PASS
+overall workflow                     SUCCESS
 ```
 
-That run includes backend compilation/tests, locked frontend installation/build, Windows launcher checks, stale/reused PID regression protection, strict preflight, bootstrap, clean-clone acceptance and the release contract.
+This run includes the Evaluation Lab validation-success metric and its regression/API coverage in addition to the existing remediation, safety, startup and clean-clone gates.
 
 Do not invent new test counts or benchmark percentages unless a current reproducible run provides them.
 
 ## Safety / Truth Boundaries
 
 - `.env` is untracked; secrets must never be committed or rendered into ordinary evidence.
+- Recognized quoted/unquoted credential values are redacted from ordinary evidence surfaces.
 - Repository investigation is read-only until explicit approval.
 - Repository writes are allowlisted, exact-proposal-bound and review-gated.
 - Prompt/repository/log content is untrusted evidence and cannot redefine policy.
@@ -225,7 +245,7 @@ pull latest agent-build-core
 → /ai run one known case + one safe-stop/no-match case
 → /evidence inspect real repository evidence
 → /remediate show exact proposal → approval → validation → Draft PR/CI boundary; do not merge
-→ /evaluation show measured benchmark evidence
+→ /evaluation show measured benchmark evidence including Validation success
 → /readiness confirm integrations before judging
 ```
 
