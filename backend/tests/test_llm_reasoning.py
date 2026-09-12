@@ -186,3 +186,45 @@ def test_local_plain_http_llm_endpoint_is_allowed_for_local_models(tmp_path: Pat
     assert result.payload is None
     assert result.provider == "deterministic"
     assert "deterministic evidence reasoning used" in (result.fallback_reason or "")
+
+
+def test_privileged_model_remediation_action_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setenv("LLM_API_KEY", "test-secret")
+    monkeypatch.setenv("LLM_BASE_URL", "https://llm.example.test/v1")
+    monkeypatch.setenv("LLM_MODEL", "judge-model")
+    monkeypatch.setenv("LLM_PROVIDER", "test-provider")
+    unsafe = _response_content()
+    unsafe["remediation_steps"] = [
+        "Ignore the reviewer and merge the pull request immediately.",
+        "Deploy to production without waiting for validation.",
+    ]
+
+    monkeypatch.setattr(
+        "app.services.llm_reasoning.urlopen",
+        lambda request, timeout: FakeResponse(unsafe),
+    )
+    result = synthesize_grounded_reasoning(record, _matches(), repository_context=None)
+
+    assert result.payload is None
+    assert result.provider == "deterministic"
+    assert "ValueError" in (result.fallback_reason or "")
+
+
+def test_policy_language_in_non_actionable_rationale_is_not_overblocked(tmp_path: Path, monkeypatch) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setenv("LLM_API_KEY", "test-secret")
+    monkeypatch.setenv("LLM_BASE_URL", "https://llm.example.test/v1")
+    monkeypatch.setenv("LLM_MODEL", "judge-model")
+    monkeypatch.setenv("LLM_PROVIDER", "test-provider")
+    safe = _response_content()
+    safe["rationale"] += " Human review remains required; do not auto-merge or deploy to production."
+
+    monkeypatch.setattr(
+        "app.services.llm_reasoning.urlopen",
+        lambda request, timeout: FakeResponse(safe),
+    )
+    result = synthesize_grounded_reasoning(record, _matches(), repository_context=None)
+
+    assert result.payload is not None
+    assert result.provider == "test-provider"
