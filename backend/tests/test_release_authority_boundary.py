@@ -81,6 +81,7 @@ def test_judge_facing_remediation_stops_at_draft_pr() -> None:
     judge_demo = (FRONTEND_SRC / "JudgeDemoPage.tsx").read_text(encoding="utf-8")
 
     assert "Draft PR" in remediation
+    assert "Draft PR" in judge_demo
     assert "never merges or deploys" in remediation.lower() or "merge and deployment stay outside" in remediation.lower()
     assert "/merge" not in remediation.lower()
     assert "/deploy" not in remediation.lower()
