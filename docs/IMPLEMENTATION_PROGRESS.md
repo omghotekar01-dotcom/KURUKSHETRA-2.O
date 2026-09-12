@@ -62,6 +62,12 @@ The detector remains an audit signal only. Repository text, logs, diffs, issues 
 
 CI caught one output-contract regression in the first redaction implementation: an already-redacted quoted assignment was being normalized into an unquoted redaction shape. The matcher was corrected to exclude quote-prefixed values before promotion, preserving the established quoted-redaction contract while retaining the new unquoted coverage.
 
+### Latest live-read retry hardening
+
+The real GitHub CI-verification path now tolerates short-lived read failures without weakening any write or approval gate. Verification GETs retry a maximum of three times for transport errors and GitHub `502`/`503`/`504` responses only. Authentication, authorization, rate-limit and other non-transient HTTP failures still fail immediately.
+
+This retry policy is intentionally limited to idempotent read-only verification requests. It never retries repository writes, approval decisions, branch creation, patch application, PR creation, merge or deployment. Regression coverage proves both a transient `ConnectError → 503 → success` recovery and immediate no-retry behavior for `401` authentication failure.
+
 Key docs:
 
 - [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_DEMO.md)
@@ -246,7 +252,7 @@ Incident + logs + repository
 → verified resolution memory
 ```
 
-Retry/idempotency hardening includes deterministic remediation identity, duplicate approval reuse, exact-branch reuse, conflict safe-stop and existing exact PR reuse.
+Retry/idempotency hardening includes deterministic remediation identity, duplicate approval reuse, exact-branch reuse, conflict safe-stop, existing exact PR reuse, and bounded retry of transient **read-only** GitHub verification failures. Repository writes are never retried by the verification reader.
 
 CI behavior remains deliberately conservative:
 
@@ -320,6 +326,7 @@ The current UI pass keeps the project light-first with a white + purple system, 
 - stale state fails closed.
 - CI verification is bound to the current live Draft-PR head and the recorded remediation commit.
 - ambiguous or incomplete GitHub check results cannot be upgraded to PASS by a green aggregate status.
+- transient read-only GitHub verification failures use bounded retries; repository writes do not inherit this retry behavior.
 - path traversal and sensitive/build directories are blocked.
 - arbitrary judge-uploaded code is not executed unless explicitly trusted.
 - failed repair validation rolls back.
@@ -332,15 +339,15 @@ The current UI pass keeps the project light-first with a white + purple system, 
 
 ## Latest confirmed full executable validation
 
-GitHub Actions **Build and test #811** / run ID `34656898448` on executable release-candidate head:
+GitHub Actions **Build and test #819** / run ID `34660577574` on executable release-candidate head:
 
-`92a34ca4295c04e2a153c5bc8cf3b91919ef57f9`
+`b97389234357c6e0d978a415b7cc0655f93eb3d0`
 
-completed successfully on 2026-09-11 UTC / 2026-09-12 IST:
+completed successfully on 2026-09-12 UTC / IST:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         118 passed, 2 dependency warnings, 0 failures
+Backend tests:                         120 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
@@ -353,7 +360,7 @@ Overall workflow:                      PASS
 
 The two Python warnings are dependency deprecations from FastAPI/Starlette test infrastructure and are not test failures.
 
-This validation includes the Draft-PR-only remediation boundary, fail-closed ambiguous CI/check handling, live Draft-PR head binding to the recorded remediation commit, expanded untrusted-evidence injection signals, quoted/unquoted credential redaction regression coverage, the Test Lab and white/purple UI system, Qwen Windows warm-up checks, locked frontend dependencies and the clean-clone Windows acceptance path.
+This validation includes the Draft-PR-only remediation boundary, fail-closed ambiguous CI/check handling, live Draft-PR head binding to the recorded remediation commit, bounded retries for transient read-only GitHub verification failures, expanded untrusted-evidence injection signals, quoted/unquoted credential redaction regression coverage, the Test Lab and white/purple UI system, Qwen Windows warm-up checks, locked frontend dependencies and the clean-clone Windows acceptance path.
 
 ## P0 milestone closure
 
@@ -385,7 +392,8 @@ Completed milestones now include:
 24. compact white/purple judge UI + collapsible navigation + Test Lab;
 25. restored Draft-PR-only merge boundary after safety regression review;
 26. fail-closed GitHub check-state handling + live Draft-PR head/commit verification binding;
-27. broader adversarial-evidence detection + unquoted credential redaction with CI-backed regression coverage.
+27. broader adversarial-evidence detection + unquoted credential redaction with CI-backed regression coverage;
+28. bounded transient retry handling for read-only GitHub verification with explicit no-write retry coverage.
 
 ## Final laptop rehearsal
 
