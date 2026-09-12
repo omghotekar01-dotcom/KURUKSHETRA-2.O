@@ -70,12 +70,17 @@ def test_local_model_candidate_is_bounded_to_supplied_file(monkeypatch) -> None:
             return False
 
         def read(self) -> bytes:
-            return json.dumps({"choices": [{"message": {"content": json.dumps(model_payload)}}]}).encode("utf-8")
+            return json.dumps({"message": {"content": json.dumps(model_payload)}}).encode("utf-8")
 
     def fake_urlopen(request, timeout):
-        assert request.full_url == "http://localhost:11434/v1/chat/completions"
+        assert request.full_url == "http://localhost:11434/api/chat"
+        assert timeout >= 15
         body = json.loads(request.data.decode("utf-8"))
         assert body["model"] == "qwen3:4b"
+        assert body["stream"] is False
+        assert body["format"] == "json"
+        assert body["keep_alive"] == "15m"
+        assert body["options"]["num_predict"] == 384
         return FakeResponse()
 
     monkeypatch.setattr("app.services.workspace_ai.urlopen", fake_urlopen)
@@ -118,7 +123,7 @@ def test_model_cannot_patch_file_that_was_not_supplied(monkeypatch) -> None:
                 "replace": "b",
                 "explanation": "unsafe",
             }
-            return json.dumps({"choices": [{"message": {"content": json.dumps(payload)}}]}).encode("utf-8")
+            return json.dumps({"message": {"content": json.dumps(payload)}}).encode("utf-8")
 
     monkeypatch.setattr("app.services.workspace_ai.urlopen", lambda request, timeout: FakeResponse())
     attempt = propose_workspace_patch(_scan(), {"app.py": "abc"})
