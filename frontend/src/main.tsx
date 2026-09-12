@@ -39,6 +39,8 @@ import './busy-polish.css'
 import './purple-product-system.css'
 import './async-state-polish.css'
 import './incident-polish.css'
+// Keep this LAST. It is the final compatibility layer that prevents later
+// light-theme polish from leaking white surfaces/text into dark mode.
 import './dark-system.css'
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
