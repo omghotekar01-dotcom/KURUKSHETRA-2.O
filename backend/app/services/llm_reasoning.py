@@ -46,15 +46,30 @@ def _llm_endpoint_allowed(base_url: str) -> bool:
 
 
 def _provider_candidates() -> list[_ProviderConfig]:
-    """Return only zero-cost/local-first providers.
+    """Return the configured zero-cost providers in preferred order.
 
-    Default behavior tries local Ollama first. Gemini is attempted only when a Gemini API key
-    is explicitly configured. No paid provider is required by the application.
+    AUTO mode now prioritizes Gemini when a key is configured, then falls back
+    to local Ollama/Qwen. Explicit provider selection still forces that provider.
+    No paid provider is required by the application.
     """
 
     requested = (_setting("LLM_PROVIDER") or "auto").lower()
     candidates: list[_ProviderConfig] = []
 
+    # Primary in AUTO mode: Gemini Developer API when a key is configured.
+    if requested in {"auto", "gemini", "gemini_free"}:
+        gemini_key = _setting("GEMINI_API_KEY") or (_setting("LLM_API_KEY") if requested != "auto" else "")
+        if gemini_key:
+            candidates.append(
+                _ProviderConfig(
+                    provider="gemini-free-tier",
+                    base_url=_setting("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
+                    model=_setting("GEMINI_MODEL") or (_setting("LLM_MODEL") if requested != "auto" else "") or "gemini-3.5-flash-lite",
+                    api_key=gemini_key,
+                )
+            )
+
+    # Secondary in AUTO mode: fully local Qwen/Ollama.
     if requested in {"auto", "ollama", "local", "local_ollama"}:
         candidates.append(
             _ProviderConfig(
@@ -64,18 +79,6 @@ def _provider_candidates() -> list[_ProviderConfig]:
                 api_key="ollama",
             )
         )
-
-    if requested in {"auto", "gemini", "gemini_free"}:
-        gemini_key = _setting("GEMINI_API_KEY") or (_setting("LLM_API_KEY") if requested != "auto" else "")
-        if gemini_key:
-            candidates.append(
-                _ProviderConfig(
-                    provider="gemini-free-tier",
-                    base_url=_setting("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
-                    model=_setting("GEMINI_MODEL") or (_setting("LLM_MODEL") if requested != "auto" else "") or "gemini-3.8-flash",
-                    api_key=gemini_key,
-                )
-            )
 
     if requested not in {"auto", "ollama", "local", "local_ollama", "gemini", "gemini_free"}:
         base_url = _setting("LLM_BASE_URL")
@@ -203,10 +206,11 @@ def synthesize_grounded_reasoning(
     matches: list[KnowledgeMatch],
     repository_context: RepositoryContext | None,
 ) -> LLMSynthesisResult:
-    """Synthesize RCA wording from bounded evidence using free/local-first providers.
+    """Synthesize RCA wording from bounded evidence using free/local providers.
 
-    Local Ollama is attempted by default. Gemini is attempted only when a Gemini key is configured.
-    The LLM is downstream of deterministic evidence and never controls risk, approval, writes or verification.
+    AUTO mode attempts Gemini first when configured, then local Ollama/Qwen.
+    The LLM remains downstream of deterministic evidence and never controls
+    risk, approval, writes or verification.
     """
 
     candidates = _provider_candidates()
@@ -255,7 +259,7 @@ def synthesize_grounded_reasoning(
         provider="deterministic",
         model="evidence-rules-v1",
         fallback_reason=(
-            "Free/local LLM synthesis unavailable; deterministic evidence reasoning used"
+            "Gemini/Ollama synthesis unavailable; deterministic evidence reasoning used"
             + (f" ({', '.join(failures)})." if failures else ".")
         ),
     )
