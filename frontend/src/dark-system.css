@@ -1,0 +1,337 @@
+/*
+ * Final dark-theme compatibility layer.
+ * Loaded last so product-wide light polish cannot leak white surfaces into dark mode.
+ */
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --kr-bg: #0b0c11;
+  --kr-bg-soft: #11131a;
+  --kr-surface: #161820;
+  --kr-surface-soft: #1b1e27;
+  --kr-ink: #f5f2fb;
+  --kr-ink-2: #d7d0e2;
+  --kr-muted: #9a93a7;
+  --kr-border: rgba(210, 193, 242, .12);
+  --kr-border-strong: rgba(168, 128, 247, .28);
+  --kr-shadow-sm: 0 10px 30px rgba(0, 0, 0, .24);
+  --kr-shadow: 0 20px 54px rgba(0, 0, 0, .30);
+  --kr-shadow-lg: 0 30px 90px rgba(0, 0, 0, .38);
+
+  --app-text: #f3f1f7;
+  --app-muted: #9d98a7;
+  --app-border: rgba(255,255,255,.085);
+  --app-card: rgba(22,24,30,.96);
+  --app-surface: #101217;
+  --app-accent: #efeafd;
+  --app-shadow: 0 20px 60px rgba(0,0,0,.28);
+
+  --surface: #171920;
+  --surface-raised: #1d2029;
+  --surface-muted: #222630;
+  --text-primary: #f3f1f8;
+  --text-secondary: #b0aaba;
+  --text-muted: #888393;
+  --border-subtle: rgba(255,255,255,.085);
+  --shadow-soft: 0 18px 52px rgba(0,0,0,.24);
+}
+
+html[data-theme='dark'],
+html[data-theme='dark'] body,
+html[data-theme='dark'] #root,
+html[data-theme='dark'] .global-app-shell,
+html[data-theme='dark'] .global-app-main {
+  color: var(--kr-ink);
+  background-color: #0b0c11;
+}
+
+html[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at 10% -8%, rgba(111, 76, 188, .20), transparent 31%),
+    radial-gradient(circle at 94% 3%, rgba(79, 111, 190, .16), transparent 27%),
+    linear-gradient(180deg, #0a0b10 0%, #0e1016 48%, #090a0e 100%) !important;
+}
+
+html[data-theme='dark'] :is(
+  .content,
+  .autofix-page,
+  .judge-intake-page,
+  .judge-page,
+  .ai-lab-page,
+  .evidence-page,
+  .remediation-page,
+  .evaluation-page,
+  .readiness-page,
+  .test-lab-page
+) {
+  color: var(--kr-ink) !important;
+  background: transparent !important;
+}
+
+html[data-theme='dark'] :is(
+  .content h1,
+  .content h2,
+  .content h3,
+  .autofix-hero h1,
+  .judge-intake-hero h1,
+  .judge-hero h1,
+  .ai-lab-hero h1,
+  .evidence-hero h1,
+  .remediation-hero h1,
+  .evaluation-hero h1,
+  .readiness-hero h1,
+  .workspace-hero h1,
+  .panel h2,
+  .panel h3,
+  .judge-panel h2,
+  .judge-card h2,
+  .judge-card h3
+) {
+  color: var(--kr-ink) !important;
+}
+
+html[data-theme='dark'] :is(
+  .muted,
+  .autofix-hero p,
+  .judge-intake-hero p,
+  .judge-hero p,
+  .ai-lab-subtitle,
+  .evidence-hero p,
+  .remediation-hero p,
+  .evaluation-hero p,
+  .readiness-hero p,
+  .readiness-hero span,
+  .workspace-hero > p
+) {
+  color: var(--kr-muted) !important;
+}
+
+html[data-theme='dark'] :is(
+  .panel,
+  .autofix-card,
+  .judge-panel,
+  .judge-card,
+  .judge-gate,
+  .judge-model-proof,
+  .judge-actionbar,
+  .remediation-card,
+  .repo-overview-card,
+  .commit-evidence-card,
+  .hunk-card,
+  .metric-card,
+  .score-hero-card,
+  .evaluation-case,
+  .readiness-card,
+  .readiness-safety,
+  .readiness-notes,
+  .ai-result-card,
+  .ai-scenario-panel,
+  .workspace-result-shell,
+  .workspace-result-card,
+  .loading-shimmer
+) {
+  color: var(--kr-ink) !important;
+  border-color: var(--kr-border) !important;
+  background: rgba(22,24,31,.96) !important;
+  box-shadow: var(--kr-shadow-sm) !important;
+}
+
+html[data-theme='dark'] :is(
+  .panel-title,
+  .judge-panel-title,
+  .judge-card-title,
+  .repo-section-title,
+  .remediation-card-title,
+  .readiness-card-title,
+  .match-head,
+  .facts strong
+) {
+  color: var(--kr-ink-2) !important;
+}
+
+html[data-theme='dark'] :is(input, textarea, select) {
+  color: var(--kr-ink) !important;
+  background: #11141b !important;
+  border-color: rgba(255,255,255,.10) !important;
+  caret-color: #c7a8ff;
+  accent-color: #9b6df4;
+}
+html[data-theme='dark'] :is(input, textarea)::placeholder { color: #716c7b !important; }
+html[data-theme='dark'] option { color: #f1eef7; background: #151820; }
+html[data-theme='dark'] :is(input, textarea, select):focus {
+  border-color: rgba(164,116,246,.58) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,.15) !important;
+}
+
+html[data-theme='dark'] :is(
+  .secondary,
+  .judge-secondary,
+  .reject-button,
+  .judge-reject,
+  .workspace-inline-action,
+  .workspace-tools > button,
+  .judge-actionbar button:not(.primary),
+  .global-nav-collapse
+) {
+  color: #d4cedd !important;
+  border-color: rgba(255,255,255,.10) !important;
+  background: #1b1e26 !important;
+  box-shadow: none !important;
+}
+html[data-theme='dark'] :is(
+  .secondary,
+  .judge-secondary,
+  .reject-button,
+  .judge-reject,
+  .workspace-tools > button,
+  .judge-actionbar button:not(.primary)
+):hover:not(:disabled) {
+  background: #232733 !important;
+}
+
+html[data-theme='dark'] :is(
+  .primary,
+  .judge-primary,
+  .primary-remediation,
+  .approve-button,
+  .ai-run-button,
+  .workspace-send,
+  .judge-actionbar button.primary
+) {
+  color: #fff !important;
+  border-color: #8454e8 !important;
+  background: linear-gradient(145deg, #7447e8, #9567ef) !important;
+  box-shadow: 0 10px 28px rgba(90,49,176,.30) !important;
+}
+
+html[data-theme='dark'] :is(
+  .stage,
+  .facts div,
+  .timeline-list li,
+  .match-list li,
+  .next-check,
+  .verification-box,
+  .judge-dropzone,
+  .judge-files > div,
+  .judge-trust-toggle,
+  .judge-command,
+  .judge-safety,
+  .judge-empty,
+  .judge-proposal-meta span,
+  .workspace-metrics span,
+  .workspace-next-check,
+  .workspace-commit-list > div,
+  .workspace-proposal-meta span,
+  .workspace-empty
+) {
+  color: #c9c3d2 !important;
+  border-color: rgba(255,255,255,.075) !important;
+  background: #191c24 !important;
+}
+
+html[data-theme='dark'] .stage.active {
+  color: #eee8ff !important;
+  border-color: rgba(151,105,238,.45) !important;
+  background: #211a33 !important;
+}
+html[data-theme='dark'] .stage span { background: #262a35 !important; }
+html[data-theme='dark'] .stage.active span { background: #7447e8 !important; }
+
+html[data-theme='dark'] :is(.baseline-tag, .confidence-chip, .state-pill, .strategy-chip, .judge-phase, .judge-mode-badge, .live-badge, .measured-badge) {
+  color: #cbb5ff !important;
+  border-color: rgba(164,116,246,.24) !important;
+  background: rgba(116,71,232,.15) !important;
+}
+
+html[data-theme='dark'] :is(.status, .readiness-state) {
+  color: #8ee2c5 !important;
+  border-color: rgba(74,180,143,.24) !important;
+  background: rgba(37,112,89,.16) !important;
+}
+
+html[data-theme='dark'] :is(.error-box, .judge-error) {
+  color: #ffb2bf !important;
+  border-color: rgba(224,85,108,.28) !important;
+  background: rgba(122,37,54,.22) !important;
+}
+
+html[data-theme='dark'] .bug-workspace-page {
+  color: var(--kr-ink) !important;
+  background:
+    radial-gradient(circle at 12% 1%, rgba(126,78,213,.25), transparent 28%),
+    radial-gradient(circle at 90% 5%, rgba(89,114,202,.17), transparent 25%),
+    linear-gradient(180deg, #0b0c11 0%, #11131a 62%, #0a0b0f 100%) !important;
+}
+html[data-theme='dark'] :is(.workspace-kicker, .workspace-status, .workspace-inline-action, .source-pill, .workspace-trust-toggle) {
+  color: #b6aec2 !important;
+  border-color: rgba(255,255,255,.09) !important;
+  background: rgba(24,26,34,.88) !important;
+}
+html[data-theme='dark'] .workspace-composer,
+html[data-theme='dark'] .glass-surface {
+  color: var(--kr-ink) !important;
+  border-color: rgba(255,255,255,.10) !important;
+  background: rgba(18,20,27,.91) !important;
+  box-shadow: 0 28px 80px rgba(0,0,0,.34), inset 0 1px rgba(255,255,255,.045) !important;
+}
+html[data-theme='dark'] .workspace-composer::after {
+  color: #90899b !important;
+  border-color: rgba(173,132,248,.20) !important;
+  background: rgba(30,27,40,.86) !important;
+}
+html[data-theme='dark'] :is(.workspace-repo-row, .workspace-file-chips > span) {
+  color: #aaa4b5 !important;
+  border-color: rgba(255,255,255,.08) !important;
+  background: #1a1d25 !important;
+}
+
+html[data-theme='dark'] :is(.judge-intake-hero, .judge-hero, .autofix-hero, .ai-lab-hero, .evidence-hero, .remediation-hero, .evaluation-hero, .readiness-hero) {
+  border-color: var(--kr-border) !important;
+  background: linear-gradient(135deg, rgba(28,27,38,.98), rgba(18,20,27,.98)) !important;
+  box-shadow: var(--kr-shadow-sm) !important;
+}
+
+html[data-theme='dark'] pre,
+html[data-theme='dark'] code,
+html[data-theme='dark'] .judge-terminal {
+  color: #dcd8e8;
+}
+html[data-theme='dark'] pre,
+html[data-theme='dark'] .judge-terminal {
+  border-color: rgba(255,255,255,.08) !important;
+  background: #090b10 !important;
+  scrollbar-color: rgba(176,151,222,.30) transparent;
+}
+
+html[data-theme='dark'] table {
+  color: #d8d2e2;
+  border-color: rgba(255,255,255,.08);
+}
+html[data-theme='dark'] :is(th, td) { border-color: rgba(255,255,255,.07) !important; }
+html[data-theme='dark'] th { color: #eee9f7 !important; background: #171a22 !important; }
+html[data-theme='dark'] tr:nth-child(even) td { background: rgba(255,255,255,.018); }
+
+html[data-theme='dark'] a { color: #b99af7; }
+html[data-theme='dark'] ::selection { color: #fff; background: rgba(116,71,232,.58); }
+
+html[data-theme='dark'] .theme-switcher,
+html[data-theme='dark'] .global-nav-toggle {
+  color: #e8e3ef !important;
+  border-color: rgba(255,255,255,.10) !important;
+  background: rgba(16,18,24,.90) !important;
+}
+html[data-theme='dark'] .theme-option { color: #9f98aa !important; }
+html[data-theme='dark'] .theme-option.active {
+  color: #fff !important;
+  background: #2a213c !important;
+  box-shadow: inset 0 0 0 1px rgba(173,132,248,.18) !important;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='dark'] :is(.global-nav, .theme-switcher, .global-nav-toggle, .glass-surface, .workspace-composer) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #171920 !important;
+  }
+}
