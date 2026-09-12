@@ -14,6 +14,13 @@
     "source": "demo-runbook"
   },
   {
+    "id": "RB-AUTH-003",
+    "component": "Authentication",
+    "issue": "Valid HTTP Bearer authentication is rejected because the authorization parser compares the normalized scheme with token instead of bearer.",
+    "fix": "Inspect the supplied authentication contract and parser, align the unique scheme comparison with Bearer, then rerun the same trusted authentication test before claiming recovery.",
+    "source": "demo-runbook"
+  },
+  {
     "id": "RB-DB-001",
     "component": "Database",
     "issue": "Production requests time out while writing user profiles because the Postgres connection pool is exhausted.",
