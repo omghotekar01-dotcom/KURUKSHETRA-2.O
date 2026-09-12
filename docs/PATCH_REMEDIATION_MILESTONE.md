@@ -125,10 +125,10 @@ It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, 
 The latest confirmed green `agent-build-core` branch head is:
 
 ```text
-d924233da143bd17dcb9b490e397a4e648745429
+37c7dd4c7b06575c1982e10a87971ec3ef44c708
 ```
 
-GitHub Actions **Build and test #989** / run ID `34719104189` completed successfully on 2026-09-12 with all three workflow jobs green:
+GitHub Actions **Build and test #993** / run ID `34721788167` completed successfully on 2026-09-12 with all three workflow jobs green:
 
 ```text
 backend:             SUCCESS — constrained dependency install, resolved-version record, compile, tests and deterministic RAG/RCA smoke PASS
@@ -136,13 +136,13 @@ frontend:            SUCCESS — locked dependency install, resolved-version rec
 windows-clean-clone: SUCCESS — launcher syntax, PID safety, preflight, bootstrap and acceptance PASS
 ```
 
-Build #989 re-verifies the refreshed GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`), reproducible backend install path, paginated CI-evidence hardening, and the latest prompt-injection audit-detection hardening on the exact recorded branch head. Direct backend requirements remain pinned, transitive versions are constrained in `backend/constraints.txt`, clean bootstrap refuses unconstrained backend installation, CI consumes the same files, and the resolved package set is recorded for auditability. Frontend installs continue through the committed lockfile.
+Build #993 re-verifies the refreshed GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`), reproducible backend install path, paginated CI-evidence hardening, and the latest prompt-injection audit-detection hardening on the exact recorded branch head. Direct backend requirements remain pinned, transitive versions are constrained in `backend/constraints.txt`, clean bootstrap refuses unconstrained backend installation, CI consumes the same files, and the resolved package set is recorded for auditability. Frontend installs continue through the committed lockfile.
 
 The latest functional security hardening is `d924233da143bd17dcb9b490e397a4e648745429`: untrusted-evidence prompt-injection audit detection now applies Unicode NFKC normalization and strips invisible Unicode format characters before matching suspicious instruction signals. Regression coverage includes compatibility/fullwidth text and zero-width-character obfuscation while preserving the original evidence text for auditability. This complements the existing normalized privileged-action screening, which also applies Unicode NFKC normalization and removes invisible format characters before policy matching.
 
 The verified functional state includes fail-closed CI/check-state handling, full check-run pagination before status derivation, pagination drift/incompleteness safe-stop behavior, Draft-PR-head binding, adversarial-evidence/redaction hardening, bounded transient retry handling for idempotent GitHub verification reads, Evaluation Lab validation measurement, release-authority regression guards, deterministic RAG/RCA smoke coverage in CI and clean-clone acceptance, explicit Judge Intake labels for live-model versus fallback/guidance states, and a repeatable validation-prep path that proves all registered demo FAIL → PASS contracts in isolated copies before restoring every live demo target to its intentional broken baseline.
 
-Older runs/head records, including #987, #983, #979, #977, #973, #969, #963, #959, #957, #951, #947, #943, #935, #879, #864, #819, #791, #789 and #632, are historical verification records only and should not be substituted for the current branch-level release evidence.
+Older runs/head records, including #989, #987, #983, #979, #977, #973, #969, #963, #959, #957, #951, #947, #943, #935, #879, #864, #819, #791, #789 and #632, are historical verification records only and should not be substituted for the current branch-level release evidence.
 
 ## Release discipline
 
