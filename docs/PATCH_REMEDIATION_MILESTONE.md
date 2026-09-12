@@ -50,7 +50,7 @@ Incident
 
 Supported frontend changes use a locked dependency install plus production TypeScript/Vite build in a fresh clone of the isolated branch.
 
-Supported backend/Python changes run compile and pytest in a fresh clone using the trusted project validation environment.
+Supported backend/Python changes run compile and pytest in a fresh clone using the trusted project validation environment. Clean project bootstrap and CI now install the backend through pinned direct requirements plus `backend/constraints.txt`, which locks the resolved transitive dependency set validated by the release workflow.
 
 Documentation-only changes use exact branch-content integrity validation when no executable validator is relevant.
 
@@ -125,22 +125,24 @@ It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, 
 The latest confirmed green `agent-build-core` branch head is:
 
 ```text
-212343f9462f356fa563452013500ec394766f04
+aa44f38405609e8402bdc4302548fccde702768f
 ```
 
-GitHub Actions **Build and test #959** / run ID `34695416678` completed successfully on 2026-09-12 with all three workflow jobs green:
+GitHub Actions **Build and test #969** / run ID `34701233243` completed successfully on 2026-09-12 with all three workflow jobs green:
 
 ```text
-backend:             SUCCESS — compile, tests and deterministic RAG/RCA smoke PASS
-frontend:            SUCCESS — locked dependency install + TypeScript/Vite build PASS
+backend:             SUCCESS — constrained dependency install, resolved-version record, compile, tests and deterministic RAG/RCA smoke PASS
+frontend:            SUCCESS — locked dependency install, resolved-version record and TypeScript/Vite build PASS
 windows-clean-clone: SUCCESS — launcher syntax, PID safety, preflight, bootstrap and acceptance PASS
 ```
 
-Build #959 also re-verifies the refreshed GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`) on the exact recorded branch head. The latest functional security hardening remains `4a37152ea1ec5c500f3599d89510035955985874`; later commits refresh release evidence/documentation and CI runtime maintenance without expanding product authority.
+Build #969 re-verifies the refreshed GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`) and proves the reproducible backend install path on the exact recorded branch head. Direct backend requirements remain pinned, transitive versions are constrained in `backend/constraints.txt`, clean bootstrap refuses unconstrained backend installation, CI consumes the same files, and the resolved package set is recorded for auditability. Frontend installs continue through the committed lockfile.
+
+The latest functional security hardening remains `4a37152ea1ec5c500f3599d89510035955985874`; later commits refresh release evidence, CI runtime maintenance and dependency reproducibility without expanding product authority.
 
 The verified functional state includes fail-closed CI/check-state handling, Draft-PR-head binding, adversarial-evidence/redaction hardening, bounded transient retry handling for idempotent GitHub verification reads, Evaluation Lab validation measurement, release-authority regression guards, deterministic RAG/RCA smoke coverage in CI and clean-clone acceptance, explicit Judge Intake labels for live-model versus fallback/guidance states, a repeatable validation-prep path that proves all registered demo FAIL → PASS contracts in isolated copies before restoring every live demo target to its intentional broken baseline, and normalized privileged-action screening that applies Unicode NFKC normalization and removes invisible Unicode format characters before policy matching. Regression coverage verifies Unicode-obfuscated merge/deploy instructions fail closed.
 
-Older runs/head records, including #957, #951, #947, #943, #935, #879, #864, #819, #791, #789 and #632, are historical verification records only and should not be substituted for the current branch-level release evidence.
+Older runs/head records, including #963, #959, #957, #951, #947, #943, #935, #879, #864, #819, #791, #789 and #632, are historical verification records only and should not be substituted for the current branch-level release evidence.
 
 ## Release discipline
 
