@@ -1,0 +1,217 @@
+.global-app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 258px minmax(0, 1fr);
+}
+
+.global-app-main {
+  min-width: 0;
+  min-height: 100vh;
+}
+
+.global-app-main > .app-shell {
+  display: block;
+  min-height: 100vh;
+}
+
+.global-app-main > .app-shell > .sidebar {
+  display: none;
+}
+
+.global-nav {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  border-right: 1px solid var(--border, #dbe4f0);
+  background: color-mix(in srgb, var(--surface, #ffffff) 96%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.global-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: inherit;
+  text-decoration: none;
+  padding: 5px 6px 22px;
+}
+
+.global-nav-logo {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #fff;
+  background: linear-gradient(135deg, #4169e1, #6d5ce7);
+  box-shadow: 0 9px 22px rgba(65, 105, 225, .22);
+}
+
+.global-nav-brand span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.global-nav-brand strong {
+  font-size: 14px;
+  letter-spacing: -.01em;
+}
+
+.global-nav-brand small,
+.global-nav-section-label,
+.global-nav-runtime small {
+  color: var(--muted, #738197);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.global-nav-section-label {
+  padding: 0 10px 8px;
+  font-weight: 800;
+}
+
+.global-nav-links {
+  display: grid;
+  gap: 4px;
+}
+
+.global-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 11px;
+  border-radius: 10px;
+  color: var(--muted, #65748b);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 650;
+  transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+
+.global-nav-link:hover {
+  background: var(--surface-2, #f3f6fb);
+  color: var(--text, #172033);
+  transform: translateX(2px);
+}
+
+.global-nav-link.active {
+  color: #3154c9;
+  background: rgba(65, 105, 225, .1);
+  box-shadow: inset 3px 0 0 #4169e1;
+}
+
+.global-nav-spacer { flex: 1; }
+
+.global-nav-trust {
+  margin: 16px 0 12px;
+  padding: 12px;
+  border: 1px solid var(--border, #dbe4f0);
+  border-radius: 12px;
+  background: var(--surface-2, #f7f9fc);
+}
+
+.global-nav-trust-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text, #24324a);
+}
+
+.global-nav-trust p {
+  margin: 7px 0 0;
+  color: var(--muted, #718096);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.global-nav-runtime {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+}
+
+.global-nav-runtime div {
+  display: grid;
+  gap: 2px;
+}
+
+.global-nav-runtime strong {
+  font-size: 11px;
+}
+
+.runtime-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d9a441;
+  box-shadow: 0 0 0 4px rgba(217, 164, 65, .12);
+}
+
+.runtime-dot.ready {
+  background: #1ea97c;
+  box-shadow: 0 0 0 4px rgba(30, 169, 124, .12);
+}
+
+.global-nav-toggle,
+.global-nav-backdrop {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .global-app-shell {
+    display: block;
+  }
+
+  .global-nav {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: min(292px, 86vw);
+    transform: translateX(-104%);
+    transition: transform .2s ease;
+    box-shadow: 20px 0 70px rgba(15, 23, 42, .18);
+  }
+
+  .global-nav.is-open {
+    transform: translateX(0);
+  }
+
+  .global-nav-toggle {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    left: 14px;
+    top: 14px;
+    z-index: 70;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border, #dbe4f0);
+    border-radius: 11px;
+    color: var(--text, #1f2937);
+    background: var(--surface, #fff);
+    box-shadow: 0 8px 30px rgba(15, 23, 42, .14);
+  }
+
+  .global-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    border: 0;
+    background: rgba(15, 23, 42, .35);
+    backdrop-filter: blur(2px);
+  }
+
+  .global-app-main {
+    padding-top: 54px;
+  }
+}

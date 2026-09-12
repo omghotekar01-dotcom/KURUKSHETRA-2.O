@@ -1,0 +1,37 @@
+/* Global live-operation feedback. Existing pages already mark network/model/GitHub work with .spin. */
+@supports selector(body:has(.spin)) {
+  body:has(.spin)::after {
+    content: "";
+    position: fixed;
+    z-index: 5000;
+    top: 0;
+    left: 258px;
+    right: 0;
+    height: 3px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent 0%, rgba(79, 112, 223, .18) 20%, rgba(95, 124, 230, .78) 50%, rgba(173, 119, 226, .42) 72%, transparent 100%);
+    background-size: 240% 100%;
+    animation: operation-shimmer 1.15s linear infinite;
+    box-shadow: 0 1px 8px rgba(88, 110, 198, .16);
+  }
+}
+
+@keyframes operation-shimmer {
+  from { background-position: 180% 0; }
+  to { background-position: -80% 0; }
+}
+
+@media (max-width: 980px) {
+  @supports selector(body:has(.spin)) {
+    body:has(.spin)::after { left: 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @supports selector(body:has(.spin)) {
+    body:has(.spin)::after {
+      animation: none;
+      background: rgba(79, 112, 223, .55);
+    }
+  }
+}

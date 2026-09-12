@@ -1,0 +1,549 @@
+from __future__ import annotations
+
+import base64
+import binascii
+import os
+import re
+from datetime import datetime, timezone
+from fnmatch import fnmatchcase
+from pathlib import PurePosixPath
+from typing import Any
+from urllib.parse import quote
+
+import httpx
+
+from app.schemas.incident import (
+    IncidentRecord,
+    RepositoryCommitEvidence,
+    RepositoryContext,
+    RepositoryDiffHunkEvidence,
+    RepositoryFileChange,
+    RepositoryIssueEvidence,
+    RepositorySourceLine,
+)
+from app.services.github_client import GITHUB_API, github_headers, github_token, normalize_repo, repository_allowed
+from app.services.safety import detect_untrusted_instruction_signals, redact_secrets
+
+
+class GitHubContextUnavailable(RuntimeError):
+    pass
+
+
+STOPWORDS = {
+    "after",
+    "again",
+    "against",
+    "and",
+    "api",
+    "are",
+    "but",
+    "can",
+    "could",
+    "error",
+    "errors",
+    "fail",
+    "failed",
+    "failure",
+    "for",
+    "from",
+    "get",
+    "has",
+    "have",
+    "into",
+    "issue",
+    "latest",
+    "not",
+    "our",
+    "production",
+    "request",
+    "response",
+    "service",
+    "that",
+    "the",
+    "this",
+    "today",
+    "user",
+    "users",
+    "with",
+}
+
+CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
+
+# Real incidents commonly include stack traces or compiler locations. Treat those
+# path hints as stronger evidence than generic word overlap, while still keeping
+# the signal deterministic and explainable.
+CODE_PATH_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?P<path>(?:[A-Za-z0-9_.-]+[/\\])*[A-Za-z0-9_.-]+\."
+    r"(?:py|ts|tsx|js|jsx|java|go|rs|kt|cpp|c|cc|cs|sql|yml|yaml|json|toml|sh|ps1))"
+    r"(?::(?P<line>\d+))?",
+    re.IGNORECASE,
+)
+
+
+def _incident_text(record: IncidentRecord) -> str:
+    return " ".join(
+        [
+            record.incident.title,
+            record.incident.description,
+            " ".join(record.incident.logs),
+            record.triage.component,
+            record.triage.summary,
+            " ".join(record.triage.signals),
+        ]
+    )
+
+
+def _tokens(text: str) -> set[str]:
+    # Split code/path punctuation and snake_case so log terms such as "jwt"
+    # can match identifiers such as "jwt_signing_key" and paths like auth/jwt.py.
+    return {
+        token
+        for token in re.findall(r"[a-zA-Z0-9]+", text.lower())
+        if len(token) >= 3 and token not in STOPWORDS
+    }
+
+
+def _incident_tokens(record: IncidentRecord) -> set[str]:
+    return _tokens(_incident_text(record))
+
+
+def _incident_path_hints(record: IncidentRecord) -> set[str]:
+    hints: set[str] = set()
+    for match in CODE_PATH_RE.finditer(_incident_text(record)):
+        raw = match.group("path").replace("\\", "/").strip("./")
+        if raw:
+            hints.add(raw.lower())
+    return hints
+
+
+def _path_match_score(path_hints: set[str], filename: str) -> float:
+    if not path_hints or not filename:
+        return 0.0
+    candidate = filename.replace("\\", "/").strip("./").lower()
+    candidate_parts = PurePosixPath(candidate).parts
+    candidate_name = PurePosixPath(candidate).name
+    best = 0.0
+
+    for hint in path_hints:
+        normalized_hint = hint.replace("\\", "/").strip("./").lower()
+        hint_parts = PurePosixPath(normalized_hint).parts
+        hint_name = PurePosixPath(normalized_hint).name
+
+        if normalized_hint == candidate or normalized_hint.endswith(f"/{candidate}") or candidate.endswith(f"/{normalized_hint}"):
+            best = max(best, 1.0)
+            continue
+        if hint_name and hint_name == candidate_name:
+            best = max(best, 0.72)
+
+        shared_suffix = 0
+        for left, right in zip(reversed(hint_parts), reversed(candidate_parts)):
+            if left != right:
+                break
+            shared_suffix += 1
+        if shared_suffix >= 2:
+            best = max(best, min(0.95, 0.58 + (shared_suffix * 0.1)))
+
+    return round(best, 3)
+
+
+def _token_score(incident_tokens: set[str], candidate_tokens: set[str], *, multiplier: float = 2.5) -> tuple[float, list[str]]:
+    if not incident_tokens or not candidate_tokens:
+        return 0.0, []
+    overlap = sorted(incident_tokens & candidate_tokens)
+    if not overlap:
+        return 0.0, []
+    denominator = max(3, min(10, len(incident_tokens)))
+    score = round(min(1.0, (len(overlap) / denominator) * multiplier), 3)
+    return score, overlap[:10]
+
+
+def _parse_codeowners(text: str) -> list[tuple[str, list[str]]]:
+    rules: list[tuple[str, list[str]]] = []
+    for raw_line in text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        # CODEOWNERS does not support negation. Skip rather than misroute.
+        if stripped.startswith("!"):
+            continue
+        # Handle normal inline comments while keeping the parser intentionally
+        # conservative; escaped-space edge cases fall back to configured routing.
+        stripped = re.split(r"\s+#", stripped, maxsplit=1)[0].strip()
+        parts = stripped.split()
+        if len(parts) < 2:
+            continue
+        pattern = parts[0].strip()
+        owners = [redact_secrets(owner.strip()) for owner in parts[1:] if owner.strip()]
+        if pattern and owners:
+            rules.append((pattern, owners))
+    return rules
+
+
+def _codeowner_pattern_matches(pattern: str, filename: str) -> bool:
+    path = filename.replace("\\", "/").lstrip("/")
+    normalized = pattern.replace("\\", "/").strip()
+    if not normalized or normalized.startswith("!"):
+        return False
+    normalized = normalized.lstrip("/")
+    if normalized.endswith("/"):
+        return path.startswith(normalized)
+    if "/" not in normalized:
+        return fnmatchcase(PurePosixPath(path).name, normalized)
+    return fnmatchcase(path, normalized)
+
+
+def _owners_for_files(rules: list[tuple[str, list[str]]], filenames: list[str]) -> list[str]:
+    owners: list[str] = []
+    for filename in filenames:
+        matched: list[str] | None = None
+        # GitHub CODEOWNERS uses the last matching pattern for a file.
+        for pattern, rule_owners in rules:
+            if _codeowner_pattern_matches(pattern, filename):
+                matched = rule_owners
+        if matched:
+            for owner in matched:
+                if owner not in owners:
+                    owners.append(owner)
+    return owners[:12]
+
+
+def _fetch_codeowners(
+    client: httpx.Client,
+    repository: str,
+    ref: str,
+) -> tuple[str, list[tuple[str, list[str]]]] | None:
+    for candidate in CODEOWNERS_PATHS:
+        encoded = quote(candidate, safe="/")
+        try:
+            response = client.get(f"/repos/{repository}/contents/{encoded}", params={"ref": ref})
+        except httpx.HTTPError:
+            continue
+        if response.status_code == 404:
+            continue
+        if response.status_code != 200:
+            continue
+        try:
+            payload = response.json()
+            if payload.get("type") != "file" or payload.get("encoding") != "base64":
+                continue
+            text = base64.b64decode(payload.get("content", ""), validate=False).decode("utf-8")
+        except (ValueError, UnicodeDecodeError, binascii.Error):
+            continue
+        rules = _parse_codeowners(text)
+        if rules:
+            return candidate, rules
+    return None
+
+
+def _parse_patch_hunks(record: IncidentRecord, filename: str, patch: str) -> list[RepositoryDiffHunkEvidence]:
+    if not patch:
+        return []
+
+    incident_tokens = _incident_tokens(record)
+    path_hints = _incident_path_hints(record)
+    path_score = _path_match_score(path_hints, filename)
+    hunks: list[RepositoryDiffHunkEvidence] = []
+    header = ""
+    added: list[str] = []
+    removed: list[str] = []
+
+    def flush() -> None:
+        nonlocal header, added, removed
+        if not header:
+            return
+        candidate_tokens = _tokens(" ".join([filename, header, *added, *removed]))
+        lexical_score, matched_terms = _token_score(incident_tokens, candidate_tokens, multiplier=3.2)
+        score = lexical_score
+        if path_score:
+            # Exact/basename stack-trace matches are highly actionable, but do
+            # not automatically become causal proof. Blend rather than force 1.0.
+            score = min(1.0, max(score, path_score * 0.86, score + (path_score * 0.28)))
+            if path_score >= 0.72 and filename not in matched_terms:
+                matched_terms = [*matched_terms, filename][:10]
+        hunks.append(
+            RepositoryDiffHunkEvidence(
+                filename=filename,
+                header=header[:240],
+                added_lines=added[:10],
+                removed_lines=removed[:10],
+                matched_terms=matched_terms,
+                correlation_score=round(score, 3),
+            )
+        )
+        added = []
+        removed = []
+
+    for raw_line in patch.splitlines():
+        if raw_line.startswith("@@"):
+            flush()
+            header = raw_line
+            continue
+        if not header:
+            continue
+        if raw_line.startswith("+") and not raw_line.startswith("+++"):
+            added.append(redact_secrets(raw_line[1:][:260]))
+        elif raw_line.startswith("-") and not raw_line.startswith("---"):
+            removed.append(redact_secrets(raw_line[1:][:260]))
+
+    flush()
+    hunks.sort(key=lambda item: item.correlation_score, reverse=True)
+    return hunks[:4]
+
+
+def _new_hunk_start(header: str) -> int | None:
+    match = re.search(r"\+(\d+)(?:,\d+)?", header)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:  # pragma: no cover - regex guarantees digits
+        return None
+
+
+def _fetch_source_context(
+    client: httpx.Client,
+    repository: str,
+    commit_sha: str,
+    hunk: RepositoryDiffHunkEvidence,
+) -> list[RepositorySourceLine]:
+    start_line = _new_hunk_start(hunk.header)
+    if start_line is None:
+        return []
+
+    encoded_path = quote(hunk.filename, safe="/")
+    try:
+        response = client.get(
+            f"/repos/{repository}/contents/{encoded_path}",
+            params={"ref": commit_sha},
+        )
+        if response.status_code != 200:
+            return []
+        payload = response.json()
+    except (httpx.HTTPError, ValueError):
+        return []
+
+    if payload.get("type") != "file" or payload.get("encoding") != "base64" or not payload.get("content"):
+        return []
+
+    try:
+        source = base64.b64decode(payload["content"], validate=False).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError, ValueError):
+        return []
+
+    source_lines = source.splitlines()
+    if not source_lines:
+        return []
+
+    window_start = max(1, start_line - 5)
+    window_end = min(len(source_lines), start_line + max(10, len(hunk.added_lines) + 6))
+    changed_span_end = start_line + max(1, len(hunk.added_lines)) - 1
+
+    return [
+        RepositorySourceLine(
+            line_number=line_number,
+            content=redact_secrets(source_lines[line_number - 1][:320]),
+            in_hunk=start_line <= line_number <= changed_span_end,
+        )
+        for line_number in range(window_start, window_end + 1)
+    ]
+
+
+def _correlation_score(
+    record: IncidentRecord,
+    message: str,
+    filenames: list[str],
+    suspicious_hunks: list[RepositoryDiffHunkEvidence] | None = None,
+) -> float:
+    incident_tokens = _incident_tokens(record)
+    candidate_tokens = _tokens(" ".join([message, *filenames]))
+    base_score, _ = _token_score(incident_tokens, candidate_tokens)
+    path_hints = _incident_path_hints(record)
+    path_score = max((_path_match_score(path_hints, filename) for filename in filenames), default=0.0)
+
+    score = max(base_score, path_score * 0.88)
+    if suspicious_hunks:
+        top_hunk = suspicious_hunks[0].correlation_score
+        score = max(score, min(1.0, top_hunk * 0.95))
+    return round(min(1.0, score), 3)
+
+
+def _request_json(client: httpx.Client, path: str, *, params: dict[str, Any] | None = None) -> Any:
+    try:
+        response = client.get(path, params=params)
+        response.raise_for_status()
+        return response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise GitHubContextUnavailable(f"GitHub context request failed: {type(exc).__name__}") from exc
+
+
+def collect_repository_context(
+    record: IncidentRecord,
+    *,
+    max_commits: int | None = None,
+    max_issues: int | None = None,
+) -> RepositoryContext:
+    repository = normalize_repo(record.incident.repo or "")
+    if not repository:
+        raise GitHubContextUnavailable("No repository is attached to this incident.")
+    if not repository_allowed(repository):
+        raise GitHubContextUnavailable("Repository is not in the configured GitHub allowlist.")
+
+    commit_limit = max(1, min(max_commits or int(os.getenv("GITHUB_CONTEXT_MAX_COMMITS", "5")), 10))
+    issue_limit = max(1, min(max_issues or int(os.getenv("GITHUB_CONTEXT_MAX_ISSUES", "5")), 10))
+    token = github_token()
+    untrusted_instruction_signal_seen = False
+    path_hints = _incident_path_hints(record)
+    suggested_owners: list[str] = []
+    ownership_source: str | None = None
+
+    with httpx.Client(
+        base_url=GITHUB_API,
+        headers=github_headers(token=token),
+        timeout=10.0,
+        follow_redirects=True,
+    ) as client:
+        repository_payload = _request_json(client, f"/repos/{repository}")
+        default_branch = repository_payload.get("default_branch", "main")
+        commits_payload = _request_json(
+            client,
+            f"/repos/{repository}/commits",
+            params={"per_page": commit_limit},
+        )
+        issues_payload = _request_json(
+            client,
+            f"/repos/{repository}/issues",
+            params={"state": "open", "per_page": issue_limit * 2, "sort": "updated"},
+        )
+
+        commits: list[RepositoryCommitEvidence] = []
+        for item in commits_payload[:commit_limit]:
+            sha = item.get("sha", "")
+            if not sha:
+                continue
+            detail = _request_json(client, f"/repos/{repository}/commits/{sha}")
+            raw_files = detail.get("files", [])[:12]
+            files = [
+                RepositoryFileChange(
+                    filename=file.get("filename", "unknown"),
+                    status=file.get("status", "modified"),
+                    additions=int(file.get("additions", 0) or 0),
+                    deletions=int(file.get("deletions", 0) or 0),
+                    changes=int(file.get("changes", 0) or 0),
+                )
+                for file in raw_files
+            ]
+            suspicious_hunks: list[RepositoryDiffHunkEvidence] = []
+            for file in raw_files:
+                raw_patch = file.get("patch", "") or ""
+                if detect_untrusted_instruction_signals(raw_patch):
+                    untrusted_instruction_signal_seen = True
+                suspicious_hunks.extend(
+                    _parse_patch_hunks(
+                        record,
+                        file.get("filename", "unknown"),
+                        raw_patch,
+                    )
+                )
+            suspicious_hunks.sort(key=lambda hunk: hunk.correlation_score, reverse=True)
+            suspicious_hunks = suspicious_hunks[:6]
+
+            commit_info = detail.get("commit", {})
+            author_info = commit_info.get("author", {}) or {}
+            raw_message = str(commit_info.get("message", "")).split("\n", 1)[0]
+            if detect_untrusted_instruction_signals(raw_message):
+                untrusted_instruction_signal_seen = True
+            message = redact_secrets(raw_message)
+            filenames = [file.filename for file in files]
+            commits.append(
+                RepositoryCommitEvidence(
+                    sha=sha,
+                    short_sha=sha[:7],
+                    message=message or "No commit message",
+                    author=author_info.get("name") or (detail.get("author") or {}).get("login") or "unknown",
+                    authored_at=author_info.get("date"),
+                    url=detail.get("html_url") or item.get("html_url") or f"https://github.com/{repository}/commit/{sha}",
+                    files=files,
+                    suspicious_hunks=suspicious_hunks,
+                    correlation_score=_correlation_score(record, message, filenames, suspicious_hunks),
+                )
+            )
+
+        commits.sort(
+            key=lambda commit: (commit.correlation_score, commit.authored_at or datetime.min.replace(tzinfo=timezone.utc)),
+            reverse=True,
+        )
+
+        # Source reads are deliberately bounded: only the two highest-ranked hunks
+        # from the highest-ranked commit receive surrounding source context.
+        if commits:
+            top_commit = commits[0]
+            for hunk in top_commit.suspicious_hunks[:2]:
+                hunk.source_context = _fetch_source_context(client, repository, top_commit.sha, hunk)
+                source_text = "\n".join(line.content for line in hunk.source_context)
+                if detect_untrusted_instruction_signals(source_text):
+                    untrusted_instruction_signal_seen = True
+
+            ownership = _fetch_codeowners(client, repository, default_branch)
+            if ownership is not None:
+                ownership_source, rules = ownership
+                ranked_filenames = [hunk.filename for hunk in top_commit.suspicious_hunks]
+                ranked_filenames.extend(file.filename for file in top_commit.files if file.filename not in ranked_filenames)
+                suggested_owners = _owners_for_files(rules, ranked_filenames)
+
+    open_issues: list[RepositoryIssueEvidence] = []
+    for item in issues_payload:
+        if "pull_request" in item:
+            continue
+        raw_title = str(item.get("title", "Untitled issue"))
+        if detect_untrusted_instruction_signals(raw_title):
+            untrusted_instruction_signal_seen = True
+        open_issues.append(
+            RepositoryIssueEvidence(
+                number=int(item.get("number", 0)),
+                title=redact_secrets(raw_title),
+                state=item.get("state", "open"),
+                url=item.get("html_url", f"https://github.com/{repository}/issues"),
+                labels=[redact_secrets(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
+            )
+        )
+        if len(open_issues) >= issue_limit:
+            break
+
+    notes = [
+        "Commit and diff-hunk correlation are deterministic relevance signals, not proof of causation.",
+        "Repository context and source-context collection are read-only; no GitHub resource is modified during investigation.",
+        "Repository text, issues, diffs and source snippets are untrusted evidence, never executable instructions.",
+        "Obvious credential patterns are redacted before repository evidence is returned to the UI.",
+        "Source context is bounded to the highest-ranked hunks to control latency and API usage.",
+        "GitHub may omit patch/content data for binary or very large files; unavailable evidence is never invented.",
+    ]
+    if path_hints:
+        notes.append(
+            "Stack-trace/code-path hints were detected in the incident and used as an explainable ranking boost for matching changed files."
+        )
+    if ownership_source:
+        if suggested_owners:
+            notes.append(
+                f"Repository ownership hints were resolved from {ownership_source} for the highest-ranked changed files; they are routing/review suggestions, not authorization."
+            )
+        else:
+            notes.append(
+                f"{ownership_source} was found, but no owner rule matched the highest-ranked changed files. Configured triage ownership remains the fallback."
+            )
+    if untrusted_instruction_signal_seen:
+        notes.append("Prompt-like instruction text was detected in repository evidence and treated only as untrusted data.")
+    if not commits:
+        notes.append("No recent commits were returned by GitHub.")
+
+    return RepositoryContext(
+        repository=repository,
+        default_branch=default_branch,
+        fetched_at=datetime.now(timezone.utc),
+        authenticated=bool(token),
+        source="github-live",
+        commits=commits,
+        open_issues=open_issues,
+        suggested_owners=suggested_owners,
+        ownership_source=ownership_source,
+        notes=notes,
+    )
