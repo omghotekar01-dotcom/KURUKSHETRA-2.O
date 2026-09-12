@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app.schemas.evaluation import EvaluationCaseResult, EvaluationMetric, EvaluationReport
-from app.schemas.incident import IncidentIn, IncidentRecord, IncidentStatus, ProposedAction, Severity
+from app.schemas.incident import IncidentIn, IncidentRecord, IncidentStatus, ProposedAction
 from app.services.analysis import analyze_incident
 from app.services.retrieval import retrieve_knowledge
 from app.services.risk import evaluate_action
 from app.services.triage import triage_incident
 
-BENCHMARK_VERSION = "2026.09.11-v1"
+BENCHMARK_VERSION = "2026.09.12-v2"
 
 ROUTING_CASES = [
     {
@@ -142,6 +147,16 @@ RISK_CASES = [
     },
 ]
 
+VALIDATION_CASES = [
+    {
+        "id": "validation-auth-contract",
+        "title": "Trusted validator proves authentication repair",
+        "before": '''def authenticate(authorization: str) -> bool:\n    if not authorization:\n        return False\n    parts = authorization.split(" ", 1)\n    if len(parts) != 2:\n        return False\n    scheme, token = parts\n    if scheme.lower() != "token":\n        return False\n    return token == "demo-valid-token"\n''',
+        "after": '''def authenticate(authorization: str) -> bool:\n    if not authorization:\n        return False\n    parts = authorization.split(" ", 1)\n    if len(parts) != 2:\n        return False\n    scheme, token = parts\n    if scheme.lower() != "bearer":\n        return False\n    return token == "demo-valid-token"\n''',
+        "test": '''from app import authenticate\n\n\ndef test_valid_bearer_token_is_accepted():\n    assert authenticate("Bearer demo-valid-token") is True\n\n\ndef test_wrong_token_is_rejected():\n    assert authenticate("Bearer wrong-token") is False\n''',
+    }
+]
+
 
 def _record(case_id: str, incident: IncidentIn) -> IncidentRecord:
     now = datetime.now(timezone.utc)
@@ -159,6 +174,35 @@ def _record(case_id: str, incident: IncidentIn) -> IncidentRecord:
 
 def _ratio(passed: int, total: int) -> float:
     return round(passed / total, 4) if total else 0.0
+
+
+def _run_pytest_contract(root: Path, source: str) -> tuple[int, str]:
+    (root / "app.py").write_text(source, encoding="utf-8")
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        output = (completed.stdout + "\n" + completed.stderr).strip()
+        return completed.returncode, output[-2000:]
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        return 124, f"validator timed out after 15 seconds\n{stdout}\n{stderr}"[-2000:]
+
+
+def _measure_validation_case(item: dict[str, object]) -> tuple[int, int, str, str]:
+    with tempfile.TemporaryDirectory(prefix="bug-router-eval-") as temp_dir:
+        root = Path(temp_dir)
+        (root / "test_app.py").write_text(str(item["test"]), encoding="utf-8")
+        before_code, before_output = _run_pytest_contract(root, str(item["before"]))
+        after_code, after_output = _run_pytest_contract(root, str(item["after"]))
+        return before_code, after_code, before_output, after_output
 
 
 def run_evaluation() -> EvaluationReport:
@@ -282,6 +326,31 @@ def run_evaluation() -> EvaluationReport:
             )
         )
 
+    validation_passed = 0
+    for item in VALIDATION_CASES:
+        before_code, after_code, before_output, after_output = _measure_validation_case(item)
+        ok = before_code != 0 and after_code == 0
+        validation_passed += int(ok)
+        cases.append(
+            EvaluationCaseResult(
+                case_id=str(item["id"]),
+                category="validation",
+                title=str(item["title"]),
+                passed=ok,
+                expected="Same trusted pytest contract: FAIL before repair → PASS after repair",
+                observed=(
+                    f"baseline={'PASS' if before_code == 0 else 'FAIL'} (exit {before_code}) → "
+                    f"repaired={'PASS' if after_code == 0 else 'FAIL'} (exit {after_code})"
+                ),
+                details={
+                    "baseline_exit_code": before_code,
+                    "repaired_exit_code": after_code,
+                    "baseline_output": before_output,
+                    "repaired_output": after_output,
+                },
+            )
+        )
+
     metrics = [
         EvaluationMetric(
             key="routing_accuracy",
@@ -339,6 +408,14 @@ def run_evaluation() -> EvaluationReport:
             total=approval_total,
             description="Shared-state engineering actions require explicit human approval.",
         ),
+        EvaluationMetric(
+            key="validation_success_rate",
+            label="Validation success",
+            value=_ratio(validation_passed, len(VALIDATION_CASES)),
+            passed=validation_passed,
+            total=len(VALIDATION_CASES),
+            description="A controlled broken fixture must fail before repair and pass the same trusted pytest contract after repair.",
+        ),
     ]
 
     overall = round(sum(metric.value for metric in metrics) / len(metrics), 4)
@@ -351,7 +428,8 @@ def run_evaluation() -> EvaluationReport:
         overall_score=overall,
         notes=[
             "All values are computed when this endpoint runs; no score is hard-coded into the UI.",
-            "This benchmark measures the deterministic triage, retrieval, RCA-grounding and risk-policy baseline.",
+            "This benchmark measures deterministic triage, retrieval, RCA-grounding, risk-policy and trusted validation behavior.",
+            "Validation success is measured by executing the same isolated pytest contract against a known broken fixture and its bounded repaired state.",
             "Live GitHub investigation and patch/CI workflows are tested separately because they depend on external repository state.",
             "The overall score is the simple mean of the displayed metric ratios and is not presented as an industry benchmark.",
         ],
