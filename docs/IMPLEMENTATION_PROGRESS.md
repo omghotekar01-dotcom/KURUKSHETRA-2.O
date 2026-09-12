@@ -41,7 +41,7 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The latest confirmed green `agent-build-core` release-candidate head is commit `ad15b25b17d21a6e201a5c052a774e9fd7ed3fe9`, validated by GitHub Actions **Build and test #864** / run ID `34667724750` on 2026-09-12.
+The latest confirmed green `agent-build-core` release-candidate head is commit `f6002cdeebf3476feb571fdcfce8960fb955867b`, validated by GitHub Actions **Build and test #879** / run ID `34670772303` on 2026-09-12.
 
 All three workflow jobs completed successfully:
 
@@ -52,7 +52,7 @@ All three workflow jobs completed successfully:
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-This verification supersedes older release-candidate records such as Build #841 for the current branch state. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
+This verification supersedes older release-candidate records such as Build #864 and #841 for the current branch state. The current head also includes explicit judge-intake labeling that distinguishes grounded live-model proposals, deterministic fallbacks and guidance-only fallback states without presenting fallback guidance as a live-model patch. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
 
 ## Demo-critical proof surfaces
 
@@ -60,7 +60,7 @@ This verification supersedes older release-candidate records such as Build #841 
 Controlled local regressions demonstrate real failing tests, bounded diagnosis, exact preview, real file edit, same-validator rerun and rollback on failure.
 
 ### `/intake`
-Judge-supplied files are copied into an isolated workspace. Trusted pytest is opt-in. `VERIFIED_FIXED` requires a real FAIL → PASS transition using the same supplied test contract.
+Judge-supplied files are copied into an isolated workspace. Trusted pytest is opt-in. `VERIFIED_FIXED` requires a real FAIL → PASS transition using the same supplied test contract. Live-model, deterministic fallback and guidance-only states are visibly distinguished.
 
 ### `/evidence`
 Live repository evidence exposes commits, changed files, suspicious diff hunks and bounded source context. Correlation is investigation guidance, not causal proof.
