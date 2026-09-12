@@ -41,7 +41,7 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The latest confirmed green `agent-build-core` release-candidate head is commit `b3b49b99eafee5cef3f8f6641d4be98dcaafc34d`, validated by GitHub Actions **Build and test #935** / run ID `34677634924` on 2026-09-12.
+The latest confirmed green `agent-build-core` release-candidate head is commit `4a37152ea1ec5c500f3599d89510035955985874`, validated by GitHub Actions **Build and test #947** / run ID `34684957052` on 2026-09-12.
 
 All three workflow jobs completed successfully:
 
@@ -52,7 +52,7 @@ All three workflow jobs completed successfully:
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-This verification supersedes older release-candidate records such as Build #879, #864 and #841 for the current branch state. The current head also preserves a reliable judge-demo starting state: `REPAIR_VALIDATION.bat` proves every registered demo contract in isolated copies and then explicitly restores each live demo target to its intentional broken baseline before the demonstration begins. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
+This verification supersedes older release-candidate records such as Build #943, #935, #879, #864 and #841 for the current branch state. The verified head includes normalized LLM policy scanning: Unicode NFKC normalization plus removal of invisible Unicode format characters occurs before privileged-action checks, and regression coverage confirms Unicode-obfuscated merge/deploy instructions fail closed to the deterministic path. The current head also preserves a reliable judge-demo starting state: `REPAIR_VALIDATION.bat` proves every registered demo contract in isolated copies and then explicitly restores each live demo target to its intentional broken baseline before the demonstration begins. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
 
 ## Demo-critical proof surfaces
 
@@ -80,6 +80,7 @@ Active probes distinguish configured/installed integrations from integrations th
 - credentials are not returned by readiness APIs;
 - recognized secret patterns are redacted from normal evidence surfaces;
 - uploaded/repository text is treated as untrusted data;
+- privileged-action checks normalize Unicode compatibility forms and strip invisible format characters before policy matching;
 - repository writes are allowlisted and approval-gated;
 - stale patches fail closed;
 - generic Judge Intake does not invent a patch when the grounded model path is unavailable;
