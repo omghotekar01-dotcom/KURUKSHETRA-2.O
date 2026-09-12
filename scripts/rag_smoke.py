@@ -96,7 +96,10 @@ def _validate_corpus() -> None:
 
 def main() -> int:
     _validate_corpus()
-    with tempfile.TemporaryDirectory(prefix="bug-router-rag-smoke-") as temp_dir:
+    # sqlite3 connections can release their Windows file handle a moment after the
+    # final operation. Cleanup is best-effort because this smoke test validates RAG,
+    # not temporary-directory deletion semantics.
+    with tempfile.TemporaryDirectory(prefix="bug-router-rag-smoke-", ignore_cleanup_errors=True) as temp_dir:
         store = IncidentStore(Path(temp_dir) / "incidents.db")
 
         for expected_component, expected_runbook, incident in CASES:
