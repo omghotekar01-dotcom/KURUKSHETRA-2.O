@@ -68,6 +68,16 @@ The real GitHub CI-verification path now tolerates short-lived read failures wit
 
 This retry policy is intentionally limited to idempotent read-only verification requests. It never retries repository writes, approval decisions, branch creation, patch application, PR creation, merge or deployment. Regression coverage proves both a transient `ConnectError → 503 → success` recovery and immediate no-retry behavior for `401` authentication failure.
 
+### Latest Evaluation Lab validation hardening
+
+The repeatable Evaluation Lab now measures the previously missing **validation-success** dimension instead of stopping at routing/retrieval/RCA/policy metrics.
+
+Benchmark version `2026.09.12-v2` adds a controlled trusted Python contract that runs in an isolated temporary directory. The evaluator writes the known broken authentication fixture and its trusted `test_app.py`, runs `python -m pytest -q`, requires a failing baseline, replaces only the controlled fixture source with the bounded repaired state, and reruns the **same** pytest contract. The case passes only on a real `FAIL → PASS` transition.
+
+This metric is computed at request time and is not a hard-coded score. Validator exit codes and bounded output are exposed in the benchmark case evidence. The temporary fixture cannot write to the repository, create branches/PRs or execute model-generated shell commands.
+
+The scorecard now contains 8 measured metrics and 21 benchmark cases, including `validation_success_rate`. Evaluation regression tests reuse one measured report per test module to avoid unnecessary repeated child-validator processes during CI, while the live `/api/v1/evaluation/run` endpoint still re-runs the benchmark on each request.
+
 Key docs:
 
 - [`docs/IIT_BOMBAY_FINAL_DEMO.md`](IIT_BOMBAY_FINAL_DEMO.md)
@@ -75,6 +85,7 @@ Key docs:
 - [`docs/REAL_AUTOFIX_PROTOTYPE.md`](REAL_AUTOFIX_PROTOTYPE.md)
 - [`docs/REAL_USE_AUDIT.md`](REAL_USE_AUDIT.md)
 - [`docs/RELEASE_CANDIDATE_FREEZE.md`](RELEASE_CANDIDATE_FREEZE.md)
+- [`docs/EVALUATION_LAB.md`](EVALUATION_LAB.md)
 
 ## Current judge-facing proof surfaces
 
@@ -266,9 +277,9 @@ CI behavior remains deliberately conservative:
 
 ## Evaluation Lab
 
-`/evaluation` runs the deterministic benchmark rather than showing hard-coded accuracy claims. It measures routing, retrieval/no-match behavior, RCA grounding, risk policy, unsafe-action blocking and approval-gate behavior with visible numerator/denominator evidence.
+`/evaluation` runs benchmark version `2026.09.12-v2` rather than showing hard-coded accuracy claims. It measures routing, retrieval/no-match behavior, RCA grounding, risk policy, unsafe-action blocking, approval-gate behavior and a real controlled validation-success contract with visible numerator/denominator evidence.
 
-Benchmark results are scoped to the displayed cases and are not universal real-world accuracy claims.
+The validation case uses an isolated temporary fixture and reports success only if the same trusted pytest contract fails before the controlled repair and passes afterward. Benchmark results are scoped to the displayed cases and are not universal real-world accuracy claims.
 
 ## Judge UI / Test Lab
 
@@ -339,15 +350,15 @@ The current UI pass keeps the project light-first with a white + purple system, 
 
 ## Latest confirmed full executable validation
 
-GitHub Actions **Build and test #819** / run ID `34660577574` on executable release-candidate head:
+GitHub Actions **Build and test #831** / run ID `34664079242` on executable release-candidate head:
 
-`b97389234357c6e0d978a415b7cc0655f93eb3d0`
+`e9a80e808ea4810f0588831df584f90c13ccceec`
 
 completed successfully on 2026-09-12 UTC / IST:
 
 ```text
 Backend compile:                       PASS
-Backend tests:                         120 passed, 2 dependency warnings, 0 failures
+Backend tests:                         121 passed, 2 dependency warnings, 0 failures
 Frontend locked npm install:           PASS
 Frontend TypeScript/Vite build:        PASS
 Windows launcher syntax validation:    PASS
@@ -360,7 +371,7 @@ Overall workflow:                      PASS
 
 The two Python warnings are dependency deprecations from FastAPI/Starlette test infrastructure and are not test failures.
 
-This validation includes the Draft-PR-only remediation boundary, fail-closed ambiguous CI/check handling, live Draft-PR head binding to the recorded remediation commit, bounded retries for transient read-only GitHub verification failures, expanded untrusted-evidence injection signals, quoted/unquoted credential redaction regression coverage, the Test Lab and white/purple UI system, Qwen Windows warm-up checks, locked frontend dependencies and the clean-clone Windows acceptance path.
+This validation includes the Draft-PR-only remediation boundary, fail-closed ambiguous CI/check handling, live Draft-PR head binding to the recorded remediation commit, bounded retries for transient read-only GitHub verification failures, expanded untrusted-evidence injection signals, quoted/unquoted credential redaction regression coverage, the Test Lab and white/purple UI system, Qwen Windows warm-up checks, locked frontend dependencies, the clean-clone Windows acceptance path, and the measured Evaluation Lab validation-success contract.
 
 ## P0 milestone closure
 
@@ -393,7 +404,8 @@ Completed milestones now include:
 25. restored Draft-PR-only merge boundary after safety regression review;
 26. fail-closed GitHub check-state handling + live Draft-PR head/commit verification binding;
 27. broader adversarial-evidence detection + unquoted credential redaction with CI-backed regression coverage;
-28. bounded transient retry handling for read-only GitHub verification with explicit no-write retry coverage.
+28. bounded transient retry handling for read-only GitHub verification with explicit no-write retry coverage;
+29. measured Evaluation Lab validation-success metric using a real isolated same-pytest FAIL → PASS contract.
 
 ## Final laptop rehearsal
 
@@ -412,7 +424,7 @@ pull latest agent-build-core
 → /ai: one known case + one no-match safe-stop
 → /evidence: one real repository evidence walkthrough
 → /remediate: show exact approval/Draft-PR/CI boundary without merging
-→ /evaluation: show measured benchmark evidence
+→ /evaluation: show measured benchmark evidence including Validation success
 → capture screenshots / rehearse recovery path
 ```
 
