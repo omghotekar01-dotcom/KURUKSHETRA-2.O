@@ -41,7 +41,7 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The latest confirmed green `agent-build-core` head is commit `d924233da143bd17dcb9b490e397a4e648745429`, validated by GitHub Actions **Build and test #989** / run ID `34719104189` on 2026-09-12.
+The latest confirmed green `agent-build-core` head is commit `37c7dd4c7b06575c1982e10a87971ec3ef44c708`, validated by GitHub Actions **Build and test #993** / run ID `34721788167` on 2026-09-12.
 
 All three workflow jobs completed successfully:
 
@@ -52,7 +52,7 @@ All three workflow jobs completed successfully:
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-Build #989 verifies the release workflow with the current GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`), reproducible backend dependency constraints, the paginated CI-evidence hardening, and the latest prompt-injection audit-detection hardening. GitHub check-runs are read across all API pages before deriving CI state, so a later-page failure cannot be hidden by first-page evidence. Inconsistent or incomplete pagination fails closed instead of producing PASS.
+Build #993 verifies the release workflow with the current GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`), reproducible backend dependency constraints, the paginated CI-evidence hardening, and the latest prompt-injection audit-detection hardening. GitHub check-runs are read across all API pages before deriving CI state, so a later-page failure cannot be hidden by first-page evidence. Inconsistent or incomplete pagination fails closed instead of producing PASS.
 
 Direct backend dependencies remain pinned in `backend/requirements.txt`, transitive versions are constrained in `backend/constraints.txt`, clean bootstrap refuses unconstrained backend installs, CI installs through both files, and the resolved Python package set is recorded in the backend job. Frontend installs remain lockfile-based and CI records their resolved versions as well.
 
