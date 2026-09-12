@@ -100,6 +100,100 @@ def _proposal_from_payload(
     )
 
 
+def _llm_timeout_seconds() -> float:
+    """Give local CPU/GPU inference enough time without allowing an unbounded request."""
+
+    try:
+        return max(15.0, min(float(os.getenv("AUTOFIX_LLM_TIMEOUT_SECONDS", "60")), 120.0))
+    except ValueError:
+        return 60.0
+
+
+def _ollama_native_root(openai_endpoint: str) -> str:
+    endpoint = openai_endpoint.rstrip("/")
+    if endpoint.endswith("/v1"):
+        return endpoint[:-3].rstrip("/")
+    if endpoint.endswith("/api"):
+        return endpoint[:-4].rstrip("/")
+    return endpoint
+
+
+def _request_ollama_native_json(
+    *,
+    endpoint: str,
+    model: str,
+    system_prompt: str,
+    user_content: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    """Use Ollama's native JSON chat path first for local Qwen.
+
+    setup-local-ai.bat already warms this endpoint. Keeping the model alive and bounding
+    generation avoids the short OpenAI-compatibility timeout that made Judge Intake flaky.
+    """
+
+    payload: dict[str, Any] = {
+        "model": model,
+        "stream": False,
+        "format": "json",
+        "keep_alive": "15m",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+        "options": {
+            "temperature": 0,
+            "num_predict": 384,
+        },
+    }
+    request = Request(
+        _ollama_native_root(endpoint) + "/api/chat",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - localhost Ollama endpoint
+        raw = json.loads(response.read().decode("utf-8"))
+    message = raw.get("message") if isinstance(raw, dict) else None
+    if not isinstance(message, dict):
+        raise KeyError("message")
+    return _extract_json(str(message["content"]))
+
+
+def _request_openai_json(
+    *,
+    endpoint: str,
+    model: str,
+    api_key: str,
+    system_prompt: str,
+    user_content: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    request_payload = {
+        "model": model,
+        "temperature": 0.0,
+        "max_tokens": 384,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+    }
+    request = Request(
+        endpoint.rstrip("/") + "/chat/completions",
+        data=json.dumps(request_payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - local Ollama or configured HTTPS provider
+        raw = json.loads(response.read().decode("utf-8"))
+    return _extract_json(raw["choices"][0]["message"]["content"])
+
+
 def _request_json(system_prompt: str, evidence: dict[str, Any]) -> tuple[dict[str, Any], str, str]:
     runtime = get_model_runtime_status()
     if not runtime.ready or runtime.mode == "DETERMINISTIC_FALLBACK" or not runtime.endpoint:
@@ -113,33 +207,40 @@ def _request_json(system_prompt: str, evidence: dict[str, Any]) -> tuple[dict[st
     if runtime.mode == "LOCAL_OLLAMA" and runtime.model.lower().startswith("qwen3"):
         user_content = "/no_think\n" + user_content
 
-    request_payload = {
-        "model": runtime.model,
-        "temperature": 0.0,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-        ],
-    }
-    endpoint = runtime.endpoint.rstrip("/") + "/chat/completions"
-    request = Request(
-        endpoint,
-        data=json.dumps(request_payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        method="POST",
+    timeout_seconds = _llm_timeout_seconds()
+
+    # Local Ollama is most reliable through the same native /api/chat endpoint used by
+    # setup-local-ai.bat. If a particular Ollama version rejects that route/payload,
+    # fall back to its OpenAI-compatible endpoint without weakening patch validation.
+    if runtime.mode == "LOCAL_OLLAMA":
+        try:
+            payload = _request_ollama_native_json(
+                endpoint=runtime.endpoint,
+                model=runtime.model,
+                system_prompt=system_prompt,
+                user_content=user_content,
+                timeout_seconds=timeout_seconds,
+            )
+            return payload, runtime.provider, runtime.model
+        except (HTTPError, URLError, TimeoutError, KeyError, TypeError, ValueError, json.JSONDecodeError, OSError):
+            payload = _request_openai_json(
+                endpoint=runtime.endpoint,
+                model=runtime.model,
+                api_key=api_key,
+                system_prompt=system_prompt,
+                user_content=user_content,
+                timeout_seconds=timeout_seconds,
+            )
+            return payload, runtime.provider, runtime.model
+
+    payload = _request_openai_json(
+        endpoint=runtime.endpoint,
+        model=runtime.model,
+        api_key=api_key,
+        system_prompt=system_prompt,
+        user_content=user_content,
+        timeout_seconds=timeout_seconds,
     )
-    try:
-        timeout_seconds = max(2.0, min(float(os.getenv("AUTOFIX_LLM_TIMEOUT_SECONDS", "12")), 25.0))
-    except ValueError:
-        timeout_seconds = 12.0
-    with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - runtime endpoint is local Ollama or Gemini HTTPS
-        raw = json.loads(response.read().decode("utf-8"))
-    payload = _extract_json(raw["choices"][0]["message"]["content"])
     return payload, runtime.provider, runtime.model
 
 
@@ -154,11 +255,11 @@ def propose_workspace_patch(scan: WorkspaceScanResult, file_contents: dict[str, 
     if not runtime.ready or runtime.mode == "DETERMINISTIC_FALLBACK" or not runtime.endpoint:
         return WorkspaceAIAttempt(proposal=None, fallback_reason=runtime.note)
 
-    compact_files = {path: _bounded(content, 7000) for path, content in list(file_contents.items())[:8]}
+    compact_files = {path: _bounded(content, 5000) for path, content in list(file_contents.items())[:8]}
     evidence = {
         "problem": scan.target.problem,
         "validator": scan.verification.command,
-        "failing_output": _bounded(scan.verification.output, 6500),
+        "failing_output": _bounded(scan.verification.output, 4000),
         "deterministic_diagnosis": scan.diagnosis.model_dump(),
         "files": compact_files,
     }
@@ -185,7 +286,7 @@ def propose_workspace_patch(scan: WorkspaceScanResult, file_contents: dict[str, 
         )
     except RuntimeError as exc:
         return WorkspaceAIAttempt(proposal=None, fallback_reason=str(exc))
-    except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError, OSError) as exc:
         return WorkspaceAIAttempt(
             proposal=None,
             fallback_reason=f"{runtime.provider} candidate unavailable or rejected ({type(exc).__name__}); using deterministic safe repair.",
@@ -215,12 +316,12 @@ def propose_file_patch(
             ),
         )
 
-    compact_files = {path: _bounded(content, 7000) for path, content in list(file_contents.items())[:12]}
+    compact_files = {path: _bounded(content, 5000) for path, content in list(file_contents.items())[:12]}
     evidence = {
-        "bug_report": _bounded(problem, 4000),
+        "bug_report": _bounded(problem, 3000),
         "validator": verification.command,
         "validator_passed_before_patch": verification.passed,
-        "validator_output": _bounded(verification.output, 6500),
+        "validator_output": _bounded(verification.output, 4000),
         "retrieved_runbooks": [item.model_dump() for item in knowledge[:3]],
         "files": compact_files,
     }
@@ -249,7 +350,7 @@ def propose_file_patch(
         )
     except RuntimeError as exc:
         return WorkspaceAIAttempt(proposal=None, fallback_reason=str(exc))
-    except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError, OSError) as exc:
         return WorkspaceAIAttempt(
             proposal=None,
             fallback_reason=f"{runtime.provider} generic candidate unavailable or rejected ({type(exc).__name__}); no arbitrary patch was applied.",
