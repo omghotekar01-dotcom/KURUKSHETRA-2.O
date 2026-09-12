@@ -1,13 +1,3 @@
-from __future__ import annotations
-
-from pathlib import Path
-
-import pytest
-
-from app.repositories.incidents import IncidentStore
-from app.schemas.incident import IncidentIn
-from app.services.analysis import analyze_incident
-from app.services.retrieval import retrieve_knowledge
 from app.services.triage import triage_incident
 
 
