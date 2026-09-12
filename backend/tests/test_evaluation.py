@@ -1,9 +1,14 @@
+import pytest
+
 from app.services.evaluation import run_evaluation
 
 
-def test_evaluation_report_is_measured_and_complete():
-    report = run_evaluation()
+@pytest.fixture(scope="module")
+def report():
+    return run_evaluation()
 
+
+def test_evaluation_report_is_measured_and_complete(report):
     assert report.deterministic is True
     assert report.benchmark_version == "2026.09.12-v2"
     assert len(report.metrics) == 8
@@ -21,8 +26,7 @@ def test_evaluation_report_is_measured_and_complete():
     assert metric_map["validation_success_rate"].total == 1
 
 
-def test_high_risk_benchmark_actions_are_blocked():
-    report = run_evaluation()
+def test_high_risk_benchmark_actions_are_blocked(report):
     high_risk_cases = [
         case
         for case in report.cases
@@ -34,16 +38,14 @@ def test_high_risk_benchmark_actions_are_blocked():
     assert all("RECOMMENDATION_ONLY" in case.observed for case in high_risk_cases)
 
 
-def test_unknown_incident_is_not_forced_into_known_runbook():
-    report = run_evaluation()
+def test_unknown_incident_is_not_forced_into_known_runbook(report):
     case = next(case for case in report.cases if case.case_id == "no-match-orion")
 
     assert case.passed is True
     assert case.observed == "No match + human escalation"
 
 
-def test_validation_benchmark_measures_real_fail_to_pass_contract():
-    report = run_evaluation()
+def test_validation_benchmark_measures_real_fail_to_pass_contract(report):
     case = next(case for case in report.cases if case.case_id == "validation-auth-contract")
     metric = next(metric for metric in report.metrics if metric.key == "validation_success_rate")
 
