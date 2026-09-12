@@ -41,7 +41,7 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The latest confirmed green `agent-build-core` head is commit `b314f9e1548a5339147f6162564eb5d3f7d6f7e3`, validated by GitHub Actions **Build and test #979** / run ID `34710069691` on 2026-09-12.
+The latest confirmed green `agent-build-core` head is commit `6ab99e02a5fc1911f2f0a75819ebf0cbb4661818`, validated by GitHub Actions **Build and test #983** / run ID `34713022064` on 2026-09-12.
 
 All three workflow jobs completed successfully:
 
@@ -52,11 +52,11 @@ All three workflow jobs completed successfully:
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-Build #979 verifies the release workflow with the current GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`), reproducible backend dependency constraints, and the latest real-CI verification hardening. GitHub check-runs are read across all API pages before deriving CI state, so a later-page failure cannot be hidden by first-page evidence. Inconsistent or incomplete pagination fails closed instead of producing PASS.
+Build #983 verifies the release workflow with the current GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`), reproducible backend dependency constraints, and the latest real-CI verification hardening. GitHub check-runs are read across all API pages before deriving CI state, so a later-page failure cannot be hidden by first-page evidence. Inconsistent or incomplete pagination fails closed instead of producing PASS.
 
 Direct backend dependencies remain pinned in `backend/requirements.txt`, transitive versions are constrained in `backend/constraints.txt`, clean bootstrap refuses unconstrained backend installs, CI installs through both files, and the resolved Python package set is recorded in the backend job. Frontend installs remain lockfile-based and CI records their resolved versions as well.
 
-The latest product-security hardening remains commit `4a37152ea1ec5c500f3599d89510035955985874`; subsequent commits refresh release evidence, CI runtime maintenance, dependency reproducibility and CI-evidence integrity without expanding product authority. Build #979 re-ran the complete release workflow on the exact branch head, so the branch-level release record supersedes #977, #973, #969, #963, #959, #957, #951, #947, #943, #935, #879, #864 and #841.
+The latest product-security hardening remains commit `4a37152ea1ec5c500f3599d89510035955985874`; subsequent commits refresh release evidence, CI runtime maintenance, dependency reproducibility and CI-evidence integrity without expanding product authority. Build #983 re-ran the complete release workflow on the exact branch head, so the branch-level release record supersedes #979, #977, #973, #969, #963, #959, #957, #951, #947, #943, #935, #879, #864 and #841.
 
 The verified functional state includes normalized LLM policy scanning: Unicode NFKC normalization plus removal of invisible Unicode format characters occurs before privileged-action checks, and regression coverage confirms Unicode-obfuscated merge/deploy instructions fail closed to the deterministic path. The current head also preserves a reliable judge-demo starting state: `REPAIR_VALIDATION.bat` proves every registered demo contract in isolated copies and then explicitly restores each live demo target to its intentional broken baseline before the demonstration begins. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
 
