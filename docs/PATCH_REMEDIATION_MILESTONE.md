@@ -125,10 +125,10 @@ It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, 
 The latest confirmed green `agent-build-core` branch head is:
 
 ```text
-c0e517350d4d99ad727d96659f7f86facc0d9b62
+212343f9462f356fa563452013500ec394766f04
 ```
 
-GitHub Actions **Build and test #951** / run ID `34687473525` completed successfully on 2026-09-12 with all three workflow jobs green:
+GitHub Actions **Build and test #959** / run ID `34695416678` completed successfully on 2026-09-12 with all three workflow jobs green:
 
 ```text
 backend:             SUCCESS — compile, tests and deterministic RAG/RCA smoke PASS
@@ -136,11 +136,11 @@ frontend:            SUCCESS — locked dependency install + TypeScript/Vite bui
 windows-clean-clone: SUCCESS — launcher syntax, PID safety, preflight, bootstrap and acceptance PASS
 ```
 
-The latest functional hardening remains `4a37152ea1ec5c500f3599d89510035955985874`; the subsequent commits only refresh verified release documentation. Build #951 nevertheless re-ran the complete release workflow on the exact current branch head and confirms that the documented branch state remains green.
+Build #959 also re-verifies the refreshed GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`) on the exact recorded branch head. The latest functional security hardening remains `4a37152ea1ec5c500f3599d89510035955985874`; later commits refresh release evidence/documentation and CI runtime maintenance without expanding product authority.
 
 The verified functional state includes fail-closed CI/check-state handling, Draft-PR-head binding, adversarial-evidence/redaction hardening, bounded transient retry handling for idempotent GitHub verification reads, Evaluation Lab validation measurement, release-authority regression guards, deterministic RAG/RCA smoke coverage in CI and clean-clone acceptance, explicit Judge Intake labels for live-model versus fallback/guidance states, a repeatable validation-prep path that proves all registered demo FAIL → PASS contracts in isolated copies before restoring every live demo target to its intentional broken baseline, and normalized privileged-action screening that applies Unicode NFKC normalization and removes invisible Unicode format characters before policy matching. Regression coverage verifies Unicode-obfuscated merge/deploy instructions fail closed.
 
-Older runs/head records, including #947, #943, #935, #879, #864, #819, #791, #789 and #632, are historical verification records only and should not be substituted for the current branch-level release evidence.
+Older runs/head records, including #957, #951, #947, #943, #935, #879, #864, #819, #791, #789 and #632, are historical verification records only and should not be substituted for the current branch-level release evidence.
 
 ## Release discipline
 
