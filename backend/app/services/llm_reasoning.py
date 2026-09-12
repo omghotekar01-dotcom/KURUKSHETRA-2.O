@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -175,8 +176,13 @@ def _extract_json(text: str) -> dict[str, Any]:
     return payload
 
 
+def _normalize_policy_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    return "".join(character for character in normalized if unicodedata.category(character) != "Cf")
+
+
 def _contains_privileged_action(value: str) -> bool:
-    return bool(_PRIVILEGED_ACTION_PATTERN.search(value))
+    return bool(_PRIVILEGED_ACTION_PATTERN.search(_normalize_policy_text(value)))
 
 
 def _validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
