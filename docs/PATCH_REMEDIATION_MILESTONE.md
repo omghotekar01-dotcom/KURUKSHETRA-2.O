@@ -125,10 +125,10 @@ It covers routing, retrieval hit/no-match behavior, RCA grounding, risk policy, 
 The latest confirmed green `agent-build-core` release-candidate head is:
 
 ```text
-b3b49b99eafee5cef3f8f6641d4be98dcaafc34d
+4a37152ea1ec5c500f3599d89510035955985874
 ```
 
-GitHub Actions **Build and test #935** / run ID `34677634924` completed successfully on 2026-09-12 with all three workflow jobs green:
+GitHub Actions **Build and test #947** / run ID `34684957052` completed successfully on 2026-09-12 with all three workflow jobs green:
 
 ```text
 backend:             SUCCESS — compile, tests and deterministic RAG/RCA smoke PASS
@@ -136,9 +136,9 @@ frontend:            SUCCESS — locked dependency install + TypeScript/Vite bui
 windows-clean-clone: SUCCESS — launcher syntax, PID safety, preflight, bootstrap and acceptance PASS
 ```
 
-This current verified head includes the fail-closed CI/check-state handling, Draft-PR-head binding, adversarial-evidence/redaction hardening, bounded transient retry handling for idempotent GitHub verification reads, Evaluation Lab validation measurement, release-authority regression guards, deterministic RAG/RCA smoke coverage in CI and clean-clone acceptance, explicit Judge Intake labels for live-model versus fallback/guidance states, and a repeatable validation-prep path that proves all registered demo FAIL → PASS contracts in isolated copies before restoring every live demo target to its intentional broken baseline.
+This verified head includes the fail-closed CI/check-state handling, Draft-PR-head binding, adversarial-evidence/redaction hardening, bounded transient retry handling for idempotent GitHub verification reads, Evaluation Lab validation measurement, release-authority regression guards, deterministic RAG/RCA smoke coverage in CI and clean-clone acceptance, explicit Judge Intake labels for live-model versus fallback/guidance states, a repeatable validation-prep path that proves all registered demo FAIL → PASS contracts in isolated copies before restoring every live demo target to its intentional broken baseline, and normalized privileged-action screening that applies Unicode NFKC normalization and removes invisible Unicode format characters before policy matching. Regression coverage verifies Unicode-obfuscated merge/deploy instructions fail closed.
 
-Older runs/head records, including #879 / `f6002cdeebf3476feb571fdcfce8960fb955867b`, #864 / `ad15b25b17d21a6e201a5c052a774e9fd7ed3fe9`, #819 / `b97389234357c6e0d978a415b7cc0655f93eb3d0`, #791 / `e743e1c22b71525f87ce5fac555ddbe0c40fceb6`, #789 / `8c7ab3357af3365bff896397955e779db2847e25`, and #632 / `a9221524011c2609e718bc1e3c6505445d5a90d6`, are historical verification records only and should not be substituted for the current release evidence.
+Older runs/head records, including #943, #935 / `b3b49b99eafee5cef3f8f6641d4be98dcaafc34d`, #879 / `f6002cdeebf3476feb571fdcfce8960fb955867b`, #864 / `ad15b25b17d21a6e201a5c052a774e9fd7ed3fe9`, #819 / `b97389234357c6e0d978a415b7cc0655f93eb3d0`, #791 / `e743e1c22b71525f87ce5fac555ddbe0c40fceb6`, #789 / `8c7ab3357af3365bff896397955e779db2847e25`, and #632 / `a9221524011c2609e718bc1e3c6505445d5a90d6`, are historical verification records only and should not be substituted for the current release evidence.
 
 ## Release discipline
 
