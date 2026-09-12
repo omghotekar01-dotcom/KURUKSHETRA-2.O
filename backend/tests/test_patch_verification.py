@@ -137,7 +137,7 @@ def test_unrecognized_terminal_conclusion_fails_closed():
 
 def test_pr_binding_accepts_exact_recorded_remediation_commit():
     _validate_pr_binding(
-        {"number": 17, "head": {"sha": "ABCDEF1234567890"}},
+        {"number": 17, "state": "open", "head": {"sha": "ABCDEF1234567890"}},
         commit_sha="abcdef1234567890",
         draft_pr_number=17,
     )
@@ -146,7 +146,7 @@ def test_pr_binding_accepts_exact_recorded_remediation_commit():
 def test_pr_binding_rejects_changed_pr_head():
     with pytest.raises(PatchVerificationUnavailable, match="head changed"):
         _validate_pr_binding(
-            {"number": 17, "head": {"sha": "bbbbbbbbbbbbbbbb"}},
+            {"number": 17, "state": "open", "head": {"sha": "bbbbbbbbbbbbbbbb"}},
             commit_sha="aaaaaaaaaaaaaaaa",
             draft_pr_number=17,
         )
@@ -155,7 +155,7 @@ def test_pr_binding_rejects_changed_pr_head():
 def test_pr_binding_rejects_missing_head_sha():
     with pytest.raises(PatchVerificationUnavailable, match="head commit"):
         _validate_pr_binding(
-            {"number": 17, "head": {}},
+            {"number": 17, "state": "open", "head": {}},
             commit_sha="aaaaaaaaaaaaaaaa",
             draft_pr_number=17,
         )
@@ -164,7 +164,16 @@ def test_pr_binding_rejects_missing_head_sha():
 def test_pr_binding_rejects_wrong_pr_number():
     with pytest.raises(PatchVerificationUnavailable, match="expected Draft PR #17"):
         _validate_pr_binding(
-            {"number": 18, "head": {"sha": "aaaaaaaaaaaaaaaa"}},
+            {"number": 18, "state": "open", "head": {"sha": "aaaaaaaaaaaaaaaa"}},
+            commit_sha="aaaaaaaaaaaaaaaa",
+            draft_pr_number=17,
+        )
+
+
+def test_pr_binding_rejects_closed_pr_even_when_head_matches():
+    with pytest.raises(PatchVerificationUnavailable, match="no longer open"):
+        _validate_pr_binding(
+            {"number": 17, "state": "closed", "head": {"sha": "aaaaaaaaaaaaaaaa"}},
             commit_sha="aaaaaaaaaaaaaaaa",
             draft_pr_number=17,
         )
