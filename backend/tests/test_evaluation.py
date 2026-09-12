@@ -5,9 +5,9 @@ def test_evaluation_report_is_measured_and_complete():
     report = run_evaluation()
 
     assert report.deterministic is True
-    assert report.benchmark_version == "2026.09.11-v1"
-    assert len(report.metrics) == 7
-    assert len(report.cases) == 20
+    assert report.benchmark_version == "2026.09.12-v2"
+    assert len(report.metrics) == 8
+    assert len(report.cases) == 21
     assert 0.0 <= report.overall_score <= 1.0
 
     metric_map = {metric.key: metric for metric in report.metrics}
@@ -18,6 +18,7 @@ def test_evaluation_report_is_measured_and_complete():
     assert metric_map["risk_policy_accuracy"].total == 4
     assert metric_map["unsafe_action_block_rate"].total == 2
     assert metric_map["approval_gate_accuracy"].total == 1
+    assert metric_map["validation_success_rate"].total == 1
 
 
 def test_high_risk_benchmark_actions_are_blocked():
@@ -39,3 +40,18 @@ def test_unknown_incident_is_not_forced_into_known_runbook():
 
     assert case.passed is True
     assert case.observed == "No match + human escalation"
+
+
+def test_validation_benchmark_measures_real_fail_to_pass_contract():
+    report = run_evaluation()
+    case = next(case for case in report.cases if case.case_id == "validation-auth-contract")
+    metric = next(metric for metric in report.metrics if metric.key == "validation_success_rate")
+
+    assert case.passed is True
+    assert case.details["baseline_exit_code"] != 0
+    assert case.details["repaired_exit_code"] == 0
+    assert "baseline=FAIL" in case.observed
+    assert "repaired=PASS" in case.observed
+    assert metric.passed == 1
+    assert metric.total == 1
+    assert metric.value == 1.0
