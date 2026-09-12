@@ -211,6 +211,29 @@ def test_privileged_model_remediation_action_fails_closed(tmp_path: Path, monkey
     assert "ValueError" in (result.fallback_reason or "")
 
 
+def test_unicode_obfuscated_privileged_action_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setenv("LLM_API_KEY", "test-secret")
+    monkeypatch.setenv("LLM_BASE_URL", "https://llm.example.test/v1")
+    monkeypatch.setenv("LLM_MODEL", "judge-model")
+    monkeypatch.setenv("LLM_PROVIDER", "test-provider")
+    unsafe = _response_content()
+    unsafe["remediation_steps"] = [
+        "ｍｅｒｇｅ the pull request after the patch is generated.",
+        "depl\u200boy to production immediately.",
+    ]
+
+    monkeypatch.setattr(
+        "app.services.llm_reasoning.urlopen",
+        lambda request, timeout: FakeResponse(unsafe),
+    )
+    result = synthesize_grounded_reasoning(record, _matches(), repository_context=None)
+
+    assert result.payload is None
+    assert result.provider == "deterministic"
+    assert "ValueError" in (result.fallback_reason or "")
+
+
 def test_policy_language_in_non_actionable_rationale_is_not_overblocked(tmp_path: Path, monkeypatch) -> None:
     record = _record(tmp_path)
     monkeypatch.setenv("LLM_API_KEY", "test-secret")
