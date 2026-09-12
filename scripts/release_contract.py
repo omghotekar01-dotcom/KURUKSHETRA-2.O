@@ -186,7 +186,7 @@ def main() -> int:
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     passed &= check("never auto-merges" in readme.lower() or "never auto-merge" in readme.lower(), "README states no automatic merge")
-    passed &= check("agent-build-core" in readme, "README identifies active implementation branch")
+    passed &= check("KH059" in readme, "README identifies the project ID")
     passed &= check("AI Workspace" in readme and "/incidents" in readme, "README documents the final product navigation")
 
     ps_launcher = (ROOT / "scripts" / "start.ps1").read_text(encoding="utf-8")
