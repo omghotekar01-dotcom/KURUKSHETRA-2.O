@@ -41,7 +41,7 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The latest confirmed green `agent-build-core` head is commit `914bbb3db801d49dfd3baf1092dc7538c389d6c1`, validated by GitHub Actions **Build and test #957** / run ID `34692776133` on 2026-09-12.
+The latest confirmed green `agent-build-core` head is commit `212343f9462f356fa563452013500ec394766f04`, validated by GitHub Actions **Build and test #959** / run ID `34695416678` on 2026-09-12.
 
 All three workflow jobs completed successfully:
 
@@ -52,9 +52,9 @@ All three workflow jobs completed successfully:
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-Build #957 verifies the release workflow after refreshing the GitHub Actions runtimes to current action generations (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`). This removes the previous Node 20 action-runtime deprecation path while preserving the same frontend, backend and Windows acceptance gates.
+Build #959 re-verifies the release workflow with the current GitHub Actions runtimes (`actions/checkout@v6`, `actions/setup-python@v7`, `actions/setup-node@v7`) while preserving the same frontend, backend and Windows acceptance gates.
 
-The latest product-security hardening remains commit `4a37152ea1ec5c500f3599d89510035955985874`; subsequent commits refresh release evidence/documentation and CI runtime maintenance rather than expanding product authority. Build #957 re-ran the complete release workflow on the exact current functional branch head, so the branch-level release record supersedes #951, #947, #943, #935, #879, #864 and #841.
+The latest product-security hardening remains commit `4a37152ea1ec5c500f3599d89510035955985874`; subsequent commits refresh release evidence/documentation and CI runtime maintenance rather than expanding product authority. Build #959 re-ran the complete release workflow on the exact branch head, so the branch-level release record supersedes #957, #951, #947, #943, #935, #879, #864 and #841.
 
 The verified functional state includes normalized LLM policy scanning: Unicode NFKC normalization plus removal of invisible Unicode format characters occurs before privileged-action checks, and regression coverage confirms Unicode-obfuscated merge/deploy instructions fail closed to the deterministic path. The current head also preserves a reliable judge-demo starting state: `REPAIR_VALIDATION.bat` proves every registered demo contract in isolated copies and then explicitly restores each live demo target to its intentional broken baseline before the demonstration begins. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
 
