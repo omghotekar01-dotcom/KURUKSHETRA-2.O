@@ -15,3 +15,13 @@ def test_json_can_be_extracted_from_small_transport_wrapper() -> None:
         'Final structured answer:\n{"file_path":"app.py","search":"old","replace":"new","explanation":"bounded"}'
     )
     assert payload["replace"] == "new"
+
+
+def test_json_decoder_skips_non_json_braces_and_trailing_text() -> None:
+    payload = _extract_json(
+        'status {not-json}\n'
+        '{"file_path":"app.py","search":"token","replace":"bearer","explanation":"bounded"}\n'
+        'done'
+    )
+    assert payload["file_path"] == "app.py"
+    assert payload["replace"] == "bearer"
