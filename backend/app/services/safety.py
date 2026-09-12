@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 _REDACTED = "[REDACTED]"
 
@@ -74,6 +75,18 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+def _normalize_audit_text(text: str) -> str:
+    """Canonicalize untrusted text before prompt-injection signal matching.
+
+    NFKC closes compatibility-character bypasses (for example fullwidth ASCII), while
+    removing Unicode format characters closes zero-width/invisible separators that can
+    split policy words without being visible to a reviewer. The original evidence is not
+    rewritten by this helper; it is used only for deterministic audit detection.
+    """
+    normalized = unicodedata.normalize("NFKC", text)
+    return "".join(character for character in normalized if unicodedata.category(character) != "Cf")
+
+
 def redact_secrets(text: str) -> str:
     """Remove obvious credential material before untrusted text reaches storage/UI."""
     value = text
@@ -97,9 +110,10 @@ def detect_untrusted_instruction_signals(text: str) -> list[str]:
     deterministic: it flags suspicious instruction-shaped text so the operator/audit trail can
     show that the content was treated as untrusted rather than silently followed.
     """
-    lowered = text.lower()
+    normalized = _normalize_audit_text(text)
+    lowered = normalized.lower()
     signals = [marker for marker in _INJECTION_MARKERS if marker in lowered]
-    signals.extend(label for label, pattern in _INJECTION_PATTERNS if pattern.search(text))
+    signals.extend(label for label, pattern in _INJECTION_PATTERNS if pattern.search(normalized))
     # Preserve deterministic order while avoiding duplicate labels when one snippet matches twice.
     return list(dict.fromkeys(signals))
 
