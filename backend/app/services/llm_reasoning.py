@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -25,6 +26,19 @@ class _ProviderConfig:
     base_url: str
     model: str
     api_key: str
+
+
+_PRIVILEGED_ACTION_PATTERN = re.compile(
+    r"\b(?:"
+    r"auto[- ]?merge|"
+    r"merge\s+(?:the\s+)?(?:pull\s+request|pr|branch)|"
+    r"deploy\s+(?:directly\s+)?(?:to\s+)?(?:prod|production)|"
+    r"push\s+(?:directly\s+)?to\s+(?:main|master)|"
+    r"bypass\s+(?:human\s+)?(?:approval|review|checks?)|"
+    r"disable\s+(?:human\s+)?(?:approval|review|checks?)"
+    r")\b",
+    re.IGNORECASE,
+)
 
 
 def _setting(name: str) -> str:
@@ -161,6 +175,10 @@ def _extract_json(text: str) -> dict[str, Any]:
     return payload
 
 
+def _contains_privileged_action(value: str) -> bool:
+    return bool(_PRIVILEGED_ACTION_PATTERN.search(value))
+
+
 def _validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     required_strings = ("title", "rationale", "next_diagnostic", "remediation_summary")
     for key in required_strings:
@@ -170,6 +188,10 @@ def _validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     steps = payload.get("remediation_steps")
     if not isinstance(steps, list) or not steps or not all(isinstance(step, str) and step.strip() for step in steps):
         raise ValueError("LLM response requires non-empty remediation_steps")
+
+    actionable_text = [payload["remediation_summary"], *steps]
+    if any(_contains_privileged_action(value) for value in actionable_text):
+        raise ValueError("LLM response requests a privileged repository or deployment action")
 
     return {
         "title": _bounded(payload["title"], 400),
