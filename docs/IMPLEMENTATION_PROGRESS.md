@@ -41,7 +41,7 @@ The model can reason and propose. Evidence, validators and explicit human approv
 
 ## Verification
 
-The latest confirmed green `agent-build-core` release-candidate head is commit `f6002cdeebf3476feb571fdcfce8960fb955867b`, validated by GitHub Actions **Build and test #879** / run ID `34670772303` on 2026-09-12.
+The latest confirmed green `agent-build-core` release-candidate head is commit `b3b49b99eafee5cef3f8f6641d4be98dcaafc34d`, validated by GitHub Actions **Build and test #935** / run ID `34677634924` on 2026-09-12.
 
 All three workflow jobs completed successfully:
 
@@ -52,7 +52,7 @@ All three workflow jobs completed successfully:
 - environment preflight: PASS
 - clean-checkout bootstrap/acceptance: PASS
 
-This verification supersedes older release-candidate records such as Build #864 and #841 for the current branch state. The current head also includes explicit judge-intake labeling that distinguishes grounded live-model proposals, deterministic fallbacks and guidance-only fallback states without presenting fallback guidance as a live-model patch. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
+This verification supersedes older release-candidate records such as Build #879, #864 and #841 for the current branch state. The current head also preserves a reliable judge-demo starting state: `REPAIR_VALIDATION.bat` proves every registered demo contract in isolated copies and then explicitly restores each live demo target to its intentional broken baseline before the demonstration begins. No benchmark score is inferred from CI; Evaluation Lab numbers remain separately measured from the displayed benchmark cases.
 
 ## Demo-critical proof surfaces
 
