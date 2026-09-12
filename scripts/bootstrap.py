@@ -124,8 +124,25 @@ def main() -> int:
     if not python.exists():
         raise SystemExit("Virtual environment creation failed: backend/.venv Python is missing.")
 
-    print("Installing pinned backend dependencies...")
-    _run([str(python), "-m", "pip", "install", "--disable-pip-version-check", "-r", "requirements.txt"], BACKEND)
+    constraints = BACKEND / "constraints.txt"
+    if not constraints.exists():
+        raise SystemExit("backend/constraints.txt is missing; refusing an unconstrained backend install.")
+
+    print("Installing pinned and constrained backend dependency tree...")
+    _run(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "-r",
+            "requirements.txt",
+            "-c",
+            "constraints.txt",
+        ],
+        BACKEND,
+    )
 
     lockfile = FRONTEND / "package-lock.json"
     if not lockfile.exists():
