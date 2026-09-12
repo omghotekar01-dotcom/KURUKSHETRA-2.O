@@ -352,13 +352,33 @@ export default function JudgeIntakePage() {
 
       {proposal && (
         <section className="judge-panel judge-proposal">
-          <div className="judge-panel-title"><Bot size={19} /><div><small>REVIEWED PATCH</small><h2>{proposal.strategy === 'AI_GROUNDED' ? 'Grounded model proposal' : 'No safe generic proposal'}</h2></div></div>
+          <div className="judge-panel-title">
+            <Bot size={19} />
+            <div>
+              <small>REVIEWED PATCH</small>
+              <h2>
+                {proposal.strategy === 'AI_GROUNDED'
+                  ? 'Grounded live-model proposal'
+                  : proposal.strategy === 'DETERMINISTIC_SAFE_RULE'
+                    ? 'Evidence-backed deterministic fallback'
+                    : 'Evidence-backed fallback guidance'}
+              </h2>
+            </div>
+          </div>
           <div className="judge-proposal-meta">
-            <span>{proposal.reasoning_provider}</span><span>{proposal.reasoning_model}</span><span>{Math.round(proposal.confidence * 100)}% bounded confidence</span>
+            <span>{proposal.strategy.replaceAll('_', ' ')}</span>
+            <span>{proposal.reasoning_provider} · {proposal.reasoning_model}</span>
+            <span>{Math.round(proposal.confidence * 100)}% bounded confidence</span>
           </div>
           <p>{proposal.summary}</p>
           {proposal.fallback_reason && <div className="judge-safety"><ShieldCheck size={15} /> {proposal.fallback_reason}</div>}
-          {proposal.diff ? <pre className="judge-terminal diff">{proposal.diff}</pre> : <div className="judge-empty">No file will be changed. Connect Qwen/Ollama or provide stronger evidence.</div>}
+          {proposal.diff
+            ? <pre className="judge-terminal diff">{proposal.diff}</pre>
+            : (
+              <div className="judge-empty">
+                Guidance only — no file will be changed. This is an evidence-backed fallback, not a fabricated live-model patch. Retry Qwen or attach stronger evidence for an exact reviewed edit.
+              </div>
+            )}
         </section>
       )}
 
