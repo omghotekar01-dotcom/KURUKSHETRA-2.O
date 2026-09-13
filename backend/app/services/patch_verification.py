@@ -52,7 +52,6 @@ def _request(client: httpx.Client, path: str) -> Any:
         except ValueError as exc:
             raise PatchVerificationUnavailable("GitHub returned a non-JSON verification response.") from exc
 
-    # Defensive guard for type-checkers/future edits; current loop always returns or raises.
     if last_transport_error is not None:
         raise PatchVerificationUnavailable(
             f"GitHub verification request failed: {type(last_transport_error).__name__}"
@@ -121,6 +120,11 @@ def _validate_pr_binding(pr: dict[str, Any], *, commit_sha: str, draft_pr_number
             "The remediation pull request is no longer open. Refresh remediation state before trusting CI evidence."
         )
 
+    if pr.get("draft") is not True:
+        raise PatchVerificationUnavailable(
+            "The remediation pull request is no longer a Draft PR. Human review state changed, so CI evidence must not be trusted automatically."
+        )
+
     head = pr.get("head")
     head_sha = str(head.get("sha") or "") if isinstance(head, dict) else ""
     if not head_sha:
@@ -146,9 +150,6 @@ def _derive_status(checks: list[CIVerificationCheck], combined_state: str) -> tu
         return "PENDING", "GitHub commit status is still pending for the isolated remediation commit."
 
     if checks:
-        # A green combined status must not mask an incomplete/ambiguous check-run. GitHub normally
-        # supplies a conclusion for completed checks, but fail closed if a provider returns a
-        # completed check without one or an unfamiliar non-terminal status.
         if any(check.status.lower() != "completed" for check in checks):
             return "PENDING", "At least one GitHub check has not reached a recognized terminal state yet."
         if any(not check.conclusion for check in checks):
@@ -189,8 +190,6 @@ def _derive_incident_verification(
     if status in {"PENDING", "NO_CHECKS"}:
         return VerificationOutcome.inconclusive, evidence, True
 
-    # Passing CI is necessary evidence that the isolated remediation branch is green,
-    # but it does not prove the original production/runtime symptom recovered.
     return None, evidence, True
 
 
