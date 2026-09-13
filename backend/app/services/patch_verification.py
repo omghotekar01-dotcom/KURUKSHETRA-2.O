@@ -155,7 +155,12 @@ def _derive_status(checks: list[CIVerificationCheck], combined_state: str) -> tu
         if any(not check.conclusion for check in checks):
             return "PENDING", "At least one completed GitHub check has no terminal conclusion yet."
         if conclusions.issubset(_PASS_CONCLUSIONS):
-            return "PASS", "All observed GitHub checks completed without a failing conclusion. Human review is still required before merge."
+            if "success" in conclusions or normalized_state == "success":
+                return "PASS", "All observed GitHub checks completed without a failing conclusion. Human review is still required before merge."
+            return "PENDING", (
+                "GitHub checks are only neutral/skipped and no successful commit status is available; "
+                "verification fails closed until at least one real success signal exists."
+            )
         return "PENDING", "At least one GitHub check returned an unrecognized conclusion; verification fails closed until it is understood."
 
     if normalized_state == "success":
