@@ -1,0 +1,275 @@
+/* Final dark-mode guardrail.
+ * This file is intentionally imported last so page-specific light polish cannot
+ * reintroduce white cards, pale form fields, or unreadable text in dark mode.
+ */
+
+html[data-theme='dark'] {
+  --dark-bg: #0b0c11;
+  --dark-surface: #161820;
+  --dark-surface-2: #1b1e27;
+  --dark-surface-3: #222630;
+  --dark-text: #f5f2fb;
+  --dark-text-2: #d7d0e2;
+  --dark-muted: #9a93a7;
+  --dark-border: rgba(255,255,255,.09);
+  --dark-border-strong: rgba(164,116,246,.30);
+}
+
+html[data-theme='dark'] body,
+html[data-theme='dark'] #root,
+html[data-theme='dark'] .global-app-shell,
+html[data-theme='dark'] .global-app-main {
+  color: var(--dark-text) !important;
+  background-color: var(--dark-bg) !important;
+}
+
+/* Page shells */
+html[data-theme='dark'] :is(
+  .content,
+  .autofix-page,
+  .judge-intake-page,
+  .judge-page,
+  .ai-lab-page,
+  .evidence-page,
+  .remediation-page,
+  .evaluation-page,
+  .readiness-page,
+  .test-lab-page,
+  .bug-workspace-page
+) {
+  color: var(--dark-text) !important;
+}
+
+/* All primary card/surface families used throughout the product. */
+html[data-theme='dark'] :is(
+  .panel,
+  .hero-panel,
+  .autofix-card,
+  .judge-panel,
+  .judge-card,
+  .judge-gate,
+  .judge-model-proof,
+  .judge-actionbar,
+  .remediation-card,
+  .repo-overview-card,
+  .repository-panel,
+  .commit-evidence-card,
+  .hunk-card,
+  .metric-card,
+  .score-hero-card,
+  .evaluation-case,
+  .readiness-card,
+  .readiness-safety,
+  .readiness-notes,
+  .ai-result-card,
+  .ai-scenario-panel,
+  .workspace-result-shell,
+  .workspace-result-card,
+  .loading-shimmer,
+  .test-lab-card,
+  .test-card,
+  .scenario-card,
+  .result-card,
+  .evidence-card,
+  .proposal-card,
+  .verification-card,
+  .source-card,
+  .context-card
+) {
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border) !important;
+  background: rgba(22,24,32,.97) !important;
+  box-shadow: 0 18px 55px rgba(0,0,0,.28) !important;
+}
+
+/* Nested rows/chips frequently styled light by individual page CSS. */
+html[data-theme='dark'] :is(
+  .stage,
+  .facts > div,
+  .timeline-list li,
+  .match-list li,
+  .commit-list > div,
+  .next-check,
+  .verification-box,
+  .judge-dropzone,
+  .judge-files > div,
+  .judge-trust-toggle,
+  .judge-command,
+  .judge-safety,
+  .judge-empty,
+  .judge-proposal-meta span,
+  .workspace-metrics span,
+  .workspace-next-check,
+  .workspace-commit-list > div,
+  .workspace-proposal-meta span,
+  .workspace-empty,
+  .readiness-mode-strip > div,
+  .readiness-facts > div,
+  .check-row,
+  .safety-grid > div,
+  .repo-summary > div,
+  .source-pill,
+  .confidence-chip,
+  .strategy-chip
+) {
+  color: #cbc5d5 !important;
+  border-color: rgba(255,255,255,.08) !important;
+  background: #191c24 !important;
+}
+
+html[data-theme='dark'] :is(
+  h1, h2, h3, h4,
+  .panel-title,
+  .judge-panel-title,
+  .judge-card-title,
+  .repo-section-title,
+  .remediation-card-title,
+  .readiness-card-title,
+  .match-head,
+  .facts strong,
+  .readiness-facts dd,
+  .safety-grid strong
+) {
+  color: var(--dark-text) !important;
+}
+
+html[data-theme='dark'] :is(
+  .muted,
+  small,
+  .field-help,
+  .integration-note,
+  .readiness-facts dt,
+  .repo-summary small,
+  .facts small,
+  .timeline-list small
+) {
+  color: var(--dark-muted) !important;
+}
+
+/* Forms */
+html[data-theme='dark'] :is(input, textarea, select) {
+  color: var(--dark-text) !important;
+  background: #11141b !important;
+  border-color: rgba(255,255,255,.11) !important;
+  caret-color: #c7a8ff !important;
+}
+html[data-theme='dark'] :is(input, textarea)::placeholder {
+  color: #777180 !important;
+  opacity: 1;
+}
+html[data-theme='dark'] option {
+  color: var(--dark-text) !important;
+  background: #151820 !important;
+}
+html[data-theme='dark'] :is(input, textarea, select):focus {
+  border-color: rgba(164,116,246,.62) !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,.16) !important;
+}
+
+/* Secondary controls */
+html[data-theme='dark'] :is(
+  button.secondary,
+  .judge-secondary,
+  .reject-button,
+  .judge-reject,
+  .workspace-inline-action,
+  .workspace-tools > button,
+  .global-nav-collapse,
+  .readiness-topbar button,
+  .readiness-back
+) {
+  color: #d7d1df !important;
+  border-color: rgba(255,255,255,.10) !important;
+  background: #1b1e26 !important;
+}
+
+/* Positive / active / primary controls */
+html[data-theme='dark'] :is(
+  button.primary,
+  .judge-primary,
+  .primary-remediation,
+  .approve-button,
+  .ai-run-button,
+  .workspace-send
+) {
+  color: #fff !important;
+  border-color: #8454e8 !important;
+  background: linear-gradient(145deg, #7447e8, #9567ef) !important;
+}
+
+html[data-theme='dark'] .stage.active {
+  color: #f2edff !important;
+  border-color: rgba(151,105,238,.46) !important;
+  background: #211a33 !important;
+}
+
+/* Status and semantic banners */
+html[data-theme='dark'] :is(.status, .readiness-state, .integration-pass) {
+  color: #91e5c8 !important;
+  border-color: rgba(74,180,143,.26) !important;
+  background: rgba(37,112,89,.17) !important;
+}
+html[data-theme='dark'] :is(.error-box, .judge-error, .readiness-error, .integration-attention) {
+  color: #ffb6c2 !important;
+  border-color: rgba(224,85,108,.30) !important;
+  background: rgba(122,37,54,.23) !important;
+}
+html[data-theme='dark'] :is(.baseline-tag, .state-pill, .judge-phase, .judge-mode-badge, .live-badge, .measured-badge) {
+  color: #cdb8ff !important;
+  border-color: rgba(164,116,246,.26) !important;
+  background: rgba(116,71,232,.16) !important;
+}
+
+/* Code, terminal and diffs */
+html[data-theme='dark'] :is(pre, .judge-terminal, .readiness-command) {
+  color: #ded9e9 !important;
+  border-color: rgba(255,255,255,.09) !important;
+  background: #090b10 !important;
+}
+html[data-theme='dark'] code {
+  color: #ded9e9;
+}
+
+/* Tables */
+html[data-theme='dark'] table {
+  color: #d9d3e3 !important;
+  border-color: rgba(255,255,255,.08) !important;
+  background: transparent !important;
+}
+html[data-theme='dark'] :is(th, td) {
+  border-color: rgba(255,255,255,.07) !important;
+}
+html[data-theme='dark'] th {
+  color: #f0ebf8 !important;
+  background: #171a22 !important;
+}
+html[data-theme='dark'] tr:nth-child(even) td {
+  background: rgba(255,255,255,.018) !important;
+}
+
+/* Hero sections */
+html[data-theme='dark'] :is(
+  .judge-intake-hero,
+  .judge-hero,
+  .autofix-hero,
+  .ai-lab-hero,
+  .evidence-hero,
+  .remediation-hero,
+  .evaluation-hero,
+  .readiness-hero
+) {
+  color: var(--dark-text) !important;
+  border-color: var(--dark-border) !important;
+  background: linear-gradient(135deg, rgba(28,27,38,.98), rgba(18,20,27,.98)) !important;
+  box-shadow: 0 18px 54px rgba(0,0,0,.26) !important;
+}
+
+html[data-theme='dark'] a:not(.primary):not(.judge-primary) {
+  color: #bea2f7;
+}
+
+html[data-theme='dark'] ::selection {
+  color: #fff;
+  background: rgba(116,71,232,.60);
+}

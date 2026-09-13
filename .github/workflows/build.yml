@@ -1,0 +1,95 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - main
+      - agent-build-core
+      - 'incident-fix/**'
+  pull_request:
+    branches:
+      - develop
+      - main
+
+concurrency:
+  group: build-test-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/constraints.txt
+      - name: Install constrained backend dependencies
+        run: pip install -r requirements.txt -c constraints.txt
+      - name: Record resolved backend versions
+        run: pip freeze
+      - name: Compile backend
+        run: python -m compileall -q app tests
+      - name: Run backend tests
+        run: python -m pytest -q
+      - name: Run RAG and RCA smoke
+        run: python ../scripts/rag_smoke.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.2'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Record resolved frontend versions
+        run: npm ls --depth=0
+      - name: Build frontend
+        run: npm run build
+
+  windows-clean-clone:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.2'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Validate Windows launcher syntax
+        shell: pwsh
+        run: |
+          [scriptblock]::Create((Get-Content scripts/start.ps1 -Raw)) | Out-Null
+          [scriptblock]::Create((Get-Content scripts/stop.ps1 -Raw)) | Out-Null
+      - name: Verify stale and reused PID cleanup is safe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .run -Force | Out-Null
+          Set-Content -Path .run\frontend.pid -Value 99999999
+          Set-Content -Path .run\backend.pid -Value $PID
+          & powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop.ps1
+          if ($LASTEXITCODE -ne 0) { throw "stop.ps1 returned exit code $LASTEXITCODE" }
+          if (Test-Path .run\frontend.pid) { throw "stale frontend PID record was not removed" }
+          if (Test-Path .run\backend.pid) { throw "reused launcher PID record was not removed" }
+      - name: Environment preflight
+        run: python scripts/preflight.py --strict --ci
+      - name: Bootstrap clean checkout
+        run: python scripts/bootstrap.py
+      - name: Run acceptance suite
+        run: backend\.venv\Scripts\python.exe scripts\acceptance.py

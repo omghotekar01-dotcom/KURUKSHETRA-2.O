@@ -1,0 +1,226 @@
+:root {
+  --app-text: #191a1d;
+  --app-muted: #71757d;
+  --app-border: rgba(105, 111, 124, .14);
+  --app-card: rgba(255, 255, 255, .92);
+  --app-surface: #f6f7f9;
+  --app-accent: #1d1f23;
+  --app-success: #26745a;
+  --app-danger: #a7434f;
+  --app-radius: 20px;
+  --app-shadow: 0 18px 54px rgba(40, 44, 54, .08);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; }
+button, input, textarea, select { font-family: inherit; }
+a, button { -webkit-tap-highlight-color: transparent; }
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Loading placeholders are intentionally neutral: the UI never fabricates data while waiting. */
+.loading-shimmer {
+  position: relative;
+  overflow: hidden;
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid rgba(110, 116, 130, .09);
+  border-radius: 18px;
+  background: rgba(250, 250, 252, .86);
+}
+.loading-shimmer.compact { min-height: 88px; padding: 13px; }
+.shimmer-heading,
+.shimmer-line {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9ebef;
+}
+.shimmer-heading { width: 38%; height: 14px; margin-bottom: 18px; }
+.shimmer-line { height: 10px; margin-top: 11px; }
+.shimmer-heading::after,
+.shimmer-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-110%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.92), transparent);
+  animation: apple-shimmer 1.35s ease-in-out infinite;
+}
+@keyframes apple-shimmer { to { transform: translateX(110%); } }
+
+/* Light-first application canvas. Liquid glass stays on navigation/control layers, not every content card. */
+html[data-theme='light'] body {
+  color: var(--app-text);
+  background:
+    radial-gradient(circle at 8% -5%, rgba(161, 194, 255, .18), transparent 30%),
+    radial-gradient(circle at 96% 4%, rgba(226, 195, 255, .17), transparent 28%),
+    #f6f7f9;
+}
+
+html[data-theme='light'] .global-app-main > main:not(.bug-workspace-page) {
+  min-height: 100vh;
+  background: transparent;
+}
+
+html[data-theme='light'] :is(.panel, .autofix-card, .judge-panel, .judge-card, .remediation-card, .repo-overview-card, .commit-evidence-card, .hunk-card, .metric-card, .score-hero-card, .evaluation-case, .readiness-card, .readiness-safety, .ai-result-card, .ai-scenario-panel) {
+  border-color: var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+}
+
+html[data-theme='light'] :is(.panel, .autofix-card, .judge-panel, .judge-card, .remediation-card, .repo-overview-card, .commit-evidence-card, .hunk-card, .metric-card, .score-hero-card, .evaluation-case, .readiness-card, .readiness-safety, .ai-result-card) {
+  background: var(--app-card);
+}
+
+html[data-theme='light'] :is(.content h1, .autofix-hero h1, .judge-intake-hero h1, .judge-hero h1, .ai-lab-hero h1, .evidence-hero h1, .remediation-hero h1, .evaluation-hero h1, .readiness-hero h1) {
+  color: #1a1b1e;
+  font-weight: 670;
+  letter-spacing: -.035em;
+}
+
+html[data-theme='light'] :is(.muted, .autofix-hero p, .judge-intake-hero p, .judge-hero > div > p, .ai-lab-subtitle, .evidence-hero p, .remediation-hero > div, .evaluation-hero p, .readiness-hero span) {
+  color: #72767e;
+}
+
+html[data-theme='light'] :is(input, textarea, select) {
+  accent-color: #1f2024;
+}
+
+html[data-theme='light'] :is(.primary, .judge-primary, .primary-remediation, .approve-button, .ai-run-button) {
+  border-color: #1d1e21 !important;
+  color: #fff !important;
+  background: #1d1e21 !important;
+  box-shadow: 0 10px 24px rgba(19, 20, 24, .16) !important;
+  transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+html[data-theme='light'] :is(.primary, .judge-primary, .primary-remediation, .approve-button, .ai-run-button):hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 13px 30px rgba(19, 20, 24, .19) !important;
+}
+
+html[data-theme='light'] :is(.secondary, .reject-button, .judge-secondary, .judge-reject) {
+  border-color: rgba(104, 110, 123, .16) !important;
+  color: #555a63 !important;
+  background: rgba(255,255,255,.86) !important;
+  box-shadow: none !important;
+}
+
+/* Premium glass navigation layer inspired by Apple's hierarchy guidance. */
+.global-nav {
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), box-shadow .3s ease;
+}
+html[data-theme='light'] .global-nav {
+  border-right: 1px solid rgba(255,255,255,.8);
+  background: rgba(248,249,251,.72);
+  box-shadow: 16px 0 44px rgba(46,50,61,.055), inset -1px 0 rgba(120,126,139,.06);
+  backdrop-filter: blur(26px) saturate(145%);
+  -webkit-backdrop-filter: blur(26px) saturate(145%);
+}
+html[data-theme='light'] .global-nav-brand {
+  color: #292b30;
+}
+html[data-theme='light'] .global-nav-logo {
+  color: #fff;
+  background: #1c1d20;
+  box-shadow: 0 6px 15px rgba(20,21,24,.16);
+}
+html[data-theme='light'] .global-nav-section-label { color: #a0a4ac; letter-spacing: .08em; }
+html[data-theme='light'] .global-nav-link {
+  border: 1px solid transparent;
+  color: #777b84;
+  border-radius: 12px;
+  transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+html[data-theme='light'] .global-nav-link:hover { color: #33363c; background: rgba(255,255,255,.66); transform: translateX(1px); }
+html[data-theme='light'] .global-nav-link.active {
+  border-color: rgba(107,113,126,.08);
+  color: #24262a;
+  background: rgba(255,255,255,.9);
+  box-shadow: 0 6px 18px rgba(50,54,65,.065);
+}
+html[data-theme='light'] .global-nav-trust {
+  border-color: rgba(105,111,124,.09);
+  background: rgba(255,255,255,.6);
+}
+html[data-theme='light'] .global-nav-runtime {
+  border-color: rgba(105,111,124,.09);
+  background: rgba(255,255,255,.76);
+}
+html[data-theme='light'] .global-nav-toggle {
+  border: 1px solid rgba(255,255,255,.8);
+  color: #33363c;
+  background: rgba(255,255,255,.76);
+  box-shadow: 0 8px 24px rgba(42,46,56,.1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* Floating theme control is a control layer, so glass is appropriate here. */
+html[data-theme='light'] .theme-switcher {
+  border-color: rgba(255,255,255,.82);
+  background: rgba(255,255,255,.68);
+  box-shadow: 0 12px 34px rgba(35,39,48,.11);
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+}
+html[data-theme='light'] .theme-option.active {
+  color: #25272b;
+  background: rgba(255,255,255,.95);
+  box-shadow: 0 3px 10px rgba(39,42,51,.08), inset 0 0 0 1px rgba(104,110,123,.08);
+}
+
+/* Softer entrance motion for judge-facing surfaces. */
+:is(.panel, .autofix-card, .judge-panel, .judge-card, .remediation-card, .metric-card, .readiness-card, .ai-result-card, .commit-evidence-card, .hunk-card) {
+  animation: apple-card-in .38s cubic-bezier(.2,.75,.25,1) both;
+}
+@keyframes apple-card-in {
+  from { opacity: 0; transform: translateY(7px) scale(.997); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+html[data-theme='light'] :is(.live-badge, .measured-badge, .status, .readiness-state, .judge-mode-badge, .strategy-chip, .baseline-tag, .confidence-chip, .state-pill) {
+  border-radius: 999px;
+}
+
+html[data-theme='light'] pre {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120,125,138,.3) transparent;
+}
+
+@media (hover: hover) {
+  html[data-theme='light'] :is(.autofix-card, .metric-card, .readiness-card, .ai-result-card, .commit-evidence-card, .hunk-card) {
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  html[data-theme='light'] :is(.autofix-card, .metric-card, .readiness-card, .ai-result-card, .commit-evidence-card, .hunk-card):hover {
+    transform: translateY(-2px);
+    border-color: rgba(104,110,123,.18);
+    box-shadow: 0 23px 64px rgba(39,43,54,.105);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .shimmer-heading::after, .shimmer-line::after { display: none; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='light'] .global-nav,
+  html[data-theme='light'] .theme-switcher,
+  html[data-theme='light'] .global-nav-toggle { background: #f8f9fb; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}

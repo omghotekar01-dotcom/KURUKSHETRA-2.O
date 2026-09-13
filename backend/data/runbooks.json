@@ -1,0 +1,65 @@
+[
+  {
+    "id": "RB-AUTH-001",
+    "component": "Authentication",
+    "issue": "Users receive 401 Unauthorized responses immediately after successful login after a deployment.",
+    "fix": "Verify the active JWT signing secret/version on every backend node, then perform a rolling restart of nodes that still use the stale secret.",
+    "source": "demo-runbook"
+  },
+  {
+    "id": "RB-AUTH-002",
+    "component": "Authentication",
+    "issue": "Enterprise SAML SSO login fails after identity provider certificate rotation.",
+    "fix": "Validate the IdP x509 certificate and update the SSO configuration before retrying authentication.",
+    "source": "demo-runbook"
+  },
+  {
+    "id": "RB-AUTH-003",
+    "component": "Authentication",
+    "issue": "Valid HTTP Bearer authentication is rejected because the authorization parser compares the normalized scheme with token instead of bearer.",
+    "fix": "Inspect the supplied authentication contract and parser, align the unique scheme comparison with Bearer, then rerun the same trusted authentication test before claiming recovery.",
+    "source": "demo-runbook"
+  },
+  {
+    "id": "RB-DB-001",
+    "component": "Database",
+    "issue": "Production requests time out while writing user profiles because the Postgres connection pool is exhausted.",
+    "fix": "Inspect active connections and pool saturation, recover leaked connections, and increase pool capacity only after confirming workload limits.",
+    "source": "demo-runbook"
+  },
+  {
+    "id": "RB-DB-002",
+    "component": "Database",
+    "issue": "Dashboard search queries are slow because a high-volume table performs sequential scans.",
+    "fix": "Inspect the query plan and add the missing index using a non-blocking migration strategy.",
+    "source": "demo-runbook"
+  },
+  {
+    "id": "RB-BE-001",
+    "component": "Backend",
+    "issue": "API routes return 502 Bad Gateway because the reverse proxy cannot reach application workers.",
+    "fix": "Check worker health and port bindings, restore the upstream service, then verify the health endpoint through the proxy.",
+    "source": "demo-runbook"
+  },
+  {
+    "id": "RB-FE-001",
+    "component": "Frontend",
+    "issue": "A mobile layout regression causes buttons and text to overlap after a CSS change.",
+    "fix": "Compare the latest style changes, restore the responsive spacing rule, and verify affected breakpoints before deployment.",
+    "source": "demo-runbook"
+  },
+  {
+    "id": "RB-INFRA-001",
+    "component": "Infrastructure",
+    "issue": "Kubernetes pods enter CrashLoopBackOff after a deployment because the readiness configuration no longer matches the service.",
+    "fix": "Inspect pod events and health probe output, correct the readiness configuration, then confirm stable replicas before rollout completion.",
+    "source": "demo-runbook"
+  },
+  {
+    "id": "RB-INFRA-002",
+    "component": "Infrastructure",
+    "issue": "A service fails with no space left on device because application logs filled the disk.",
+    "fix": "Confirm disk usage, rotate or remove safe stale logs, then enforce log retention and disk monitoring.",
+    "source": "demo-runbook"
+  }
+]

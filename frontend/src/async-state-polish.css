@@ -1,0 +1,64 @@
+/* Shared async-state polish. These effects decorate real pending states only. */
+.evaluation-loading-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 1220px;
+  margin: 18px auto 0;
+}
+
+.evaluation-refresh-strip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 1220px;
+  margin: 12px auto 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(116,71,232,.12);
+  border-radius: 12px;
+  color: #665774;
+  background: rgba(249,246,255,.92);
+  font-size: 12px;
+}
+
+.score-hero-card.is-refreshing,
+:is(.judge-status-strip, .readiness-topbar, .workspace-status-row):has(.spin) {
+  position: relative;
+  overflow: hidden;
+}
+
+.score-hero-card.is-refreshing::after,
+:is(.judge-status-strip, .readiness-topbar, .workspace-status-row):has(.spin)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translateX(-110%);
+  background: linear-gradient(90deg, transparent, rgba(139,92,246,.045), rgba(255,255,255,.52), rgba(139,92,246,.055), transparent);
+  animation: async-sweep 1.55s ease-in-out infinite;
+}
+
+:is(.panel, .autofix-card, .judge-card, .readiness-card, .remediation-card, .ai-result-card):has(.spin) {
+  border-color: rgba(116,71,232,.22) !important;
+}
+
+:is(button, .judge-phase):has(.spin) {
+  isolation: isolate;
+}
+
+:is(button, .judge-phase):has(.spin) .spin {
+  color: currentColor;
+}
+
+@keyframes async-sweep {
+  to { transform: translateX(110%); }
+}
+
+@media (max-width: 900px) {
+  .evaluation-loading-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score-hero-card.is-refreshing::after,
+  :is(.judge-status-strip, .readiness-topbar, .workspace-status-row):has(.spin)::after { display: none; }
+}
