@@ -126,7 +126,26 @@ def _validate_pr_binding(pr: dict[str, Any], *, commit_sha: str, draft_pr_number
         )
 
     head = pr.get("head")
-    head_sha = str(head.get("sha") or "") if isinstance(head, dict) else ""
+    if not isinstance(head, dict):
+        raise PatchVerificationUnavailable("GitHub did not return the Draft PR head needed for verification.")
+
+    head_ref = str(head.get("ref") or "")
+    if not head_ref.startswith("incident-fix/"):
+        raise PatchVerificationUnavailable(
+            "The Draft PR no longer points at an isolated incident-fix remediation branch. Refresh remediation state before trusting CI evidence."
+        )
+
+    head_repo = head.get("repo")
+    base = pr.get("base")
+    base_repo = base.get("repo") if isinstance(base, dict) else None
+    head_repo_name = str(head_repo.get("full_name") or "") if isinstance(head_repo, dict) else ""
+    base_repo_name = str(base_repo.get("full_name") or "") if isinstance(base_repo, dict) else ""
+    if head_repo_name and base_repo_name and head_repo_name.lower() != base_repo_name.lower():
+        raise PatchVerificationUnavailable(
+            "The remediation Draft PR now originates from a different repository. Cross-repository CI evidence is not trusted automatically."
+        )
+
+    head_sha = str(head.get("sha") or "")
     if not head_sha:
         raise PatchVerificationUnavailable("GitHub did not return the Draft PR head commit needed for verification.")
     if head_sha.lower() != commit_sha.lower():
