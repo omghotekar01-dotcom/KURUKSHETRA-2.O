@@ -40,6 +40,25 @@ class _FakeClient:
         return outcome
 
 
+def _bound_pr(
+    *,
+    number: int = 17,
+    state: str = "open",
+    draft: bool = True,
+    head_sha: str = "aaaaaaaaaaaaaaaa",
+    head_ref: str = "incident-fix/inc-test123-patch-abc123",
+    head_repo: str = "example/repo",
+    base_repo: str = "example/repo",
+) -> dict:
+    return {
+        "number": number,
+        "state": state,
+        "draft": draft,
+        "head": {"sha": head_sha, "ref": head_ref, "repo": {"full_name": head_repo}},
+        "base": {"ref": "main", "repo": {"full_name": base_repo}},
+    }
+
+
 def test_verification_read_retries_transient_transport_and_server_failures():
     request = httpx.Request("GET", "https://api.github.com/example")
     client = _FakeClient(
@@ -221,7 +240,7 @@ def test_unrecognized_terminal_conclusion_fails_closed():
 
 def test_pr_binding_accepts_exact_recorded_remediation_commit():
     _validate_pr_binding(
-        {"number": 17, "state": "open", "draft": True, "head": {"sha": "ABCDEF1234567890"}},
+        _bound_pr(head_sha="ABCDEF1234567890"),
         commit_sha="abcdef1234567890",
         draft_pr_number=17,
     )
@@ -230,7 +249,25 @@ def test_pr_binding_accepts_exact_recorded_remediation_commit():
 def test_pr_binding_rejects_ready_for_review_pr_even_when_head_matches():
     with pytest.raises(PatchVerificationUnavailable, match="no longer a Draft PR"):
         _validate_pr_binding(
-            {"number": 17, "state": "open", "draft": False, "head": {"sha": "aaaaaaaaaaaaaaaa"}},
+            _bound_pr(draft=False),
+            commit_sha="aaaaaaaaaaaaaaaa",
+            draft_pr_number=17,
+        )
+
+
+def test_pr_binding_rejects_non_remediation_branch_even_when_head_matches():
+    with pytest.raises(PatchVerificationUnavailable, match="isolated incident-fix"):
+        _validate_pr_binding(
+            _bound_pr(head_ref="feature/manual-repoint"),
+            commit_sha="aaaaaaaaaaaaaaaa",
+            draft_pr_number=17,
+        )
+
+
+def test_pr_binding_rejects_cross_repository_head_even_when_head_matches():
+    with pytest.raises(PatchVerificationUnavailable, match="different repository"):
+        _validate_pr_binding(
+            _bound_pr(head_repo="someone-else/fork"),
             commit_sha="aaaaaaaaaaaaaaaa",
             draft_pr_number=17,
         )
@@ -239,7 +276,7 @@ def test_pr_binding_rejects_ready_for_review_pr_even_when_head_matches():
 def test_pr_binding_rejects_changed_pr_head():
     with pytest.raises(PatchVerificationUnavailable, match="head changed"):
         _validate_pr_binding(
-            {"number": 17, "state": "open", "draft": True, "head": {"sha": "bbbbbbbbbbbbbbbb"}},
+            _bound_pr(head_sha="bbbbbbbbbbbbbbbb"),
             commit_sha="aaaaaaaaaaaaaaaa",
             draft_pr_number=17,
         )
@@ -248,7 +285,7 @@ def test_pr_binding_rejects_changed_pr_head():
 def test_pr_binding_rejects_missing_head_sha():
     with pytest.raises(PatchVerificationUnavailable, match="head commit"):
         _validate_pr_binding(
-            {"number": 17, "state": "open", "draft": True, "head": {}},
+            _bound_pr(head_sha=""),
             commit_sha="aaaaaaaaaaaaaaaa",
             draft_pr_number=17,
         )
@@ -257,7 +294,7 @@ def test_pr_binding_rejects_missing_head_sha():
 def test_pr_binding_rejects_wrong_pr_number():
     with pytest.raises(PatchVerificationUnavailable, match="expected Draft PR #17"):
         _validate_pr_binding(
-            {"number": 18, "state": "open", "draft": True, "head": {"sha": "aaaaaaaaaaaaaaaa"}},
+            _bound_pr(number=18),
             commit_sha="aaaaaaaaaaaaaaaa",
             draft_pr_number=17,
         )
@@ -266,7 +303,7 @@ def test_pr_binding_rejects_wrong_pr_number():
 def test_pr_binding_rejects_closed_pr_even_when_head_matches():
     with pytest.raises(PatchVerificationUnavailable, match="no longer open"):
         _validate_pr_binding(
-            {"number": 17, "state": "closed", "draft": True, "head": {"sha": "aaaaaaaaaaaaaaaa"}},
+            _bound_pr(state="closed"),
             commit_sha="aaaaaaaaaaaaaaaa",
             draft_pr_number=17,
         )
