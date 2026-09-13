@@ -155,13 +155,36 @@ def test_ci_verification_reports_no_checks_instead_of_inventing_success():
     assert "No completed GitHub CI" in message
 
 
-def test_ci_verification_accepts_neutral_and_skipped_checks_without_failure():
+def test_ci_verification_accepts_neutral_and_skipped_checks_with_successful_commit_status():
     status, _ = _derive_status(
         [
             CIVerificationCheck(name="lint", status="completed", conclusion="neutral"),
             CIVerificationCheck(name="optional", status="completed", conclusion="skipped"),
         ],
         "success",
+    )
+    assert status == "PASS"
+
+
+def test_ci_verification_does_not_treat_only_neutral_or_skipped_checks_as_success():
+    status, message = _derive_status(
+        [
+            CIVerificationCheck(name="lint", status="completed", conclusion="neutral"),
+            CIVerificationCheck(name="optional", status="completed", conclusion="skipped"),
+        ],
+        "",
+    )
+    assert status == "PENDING"
+    assert "real success signal" in message
+
+
+def test_ci_verification_passes_with_success_check_even_without_combined_status():
+    status, _ = _derive_status(
+        [
+            CIVerificationCheck(name="backend", status="completed", conclusion="success"),
+            CIVerificationCheck(name="optional", status="completed", conclusion="skipped"),
+        ],
+        "",
     )
     assert status == "PASS"
 
